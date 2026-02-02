@@ -28,6 +28,9 @@ jobs:
           model: openai/gpt-5.2-codex
           use_github_token: true
           prompt: |
-            Review the codebase for TODO/FIXME comments and risky areas.
-            If issues are warranted, open them directly; do not ask for confirmation.
-            Provide a brief summary of what you did; do not ask questions.
+            Review the codebase broadly with three goals: (1) find potential bugs or fragile logic, (2) propose practical
+            new feature ideas that fit the existing product scope, and (3) suggest concrete UX improvements in flows,
+            copy, or interaction patterns. Prefer high-signal findings over exhaustive lists.
+            For each finding, include a concise title, a short explanation of impact/risk/value, and the file or area
+            it relates to. If issues are warranted, open them directly without asking for confirmation.
+            Provide a brief summary of what you did at the end; do not ask questions.
