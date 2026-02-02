@@ -28,8 +28,6 @@ jobs:
           model: openai/gpt-5.2-codex
           use_github_token: true
           prompt: |
-            Review this pull request for correctness, security, maintainability, and performance regressions.
-            Focus on logical bugs, edge cases, and behavior changes. Call out missing tests or insufficient coverage.
-            Leave concise, actionable review comments and, when possible, suggest specific fixes or code patterns.
-            Provide a short summary of the overall risk level and the most important issue. Do not ask questions or
-            request confirmation; only leave the review.
+            Review this pull request for correctness, security, and maintainability.
+            Leave concise, actionable comments and call out any missing tests.
+            Do not ask questions or request confirmation; only leave the review.
