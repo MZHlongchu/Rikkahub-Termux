@@ -1,0 +1,31 @@
+name: opencode-scheduled
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Every Monday at 09:00 Asia/Shanghai (01:00 UTC)
+
+jobs:
+  opencode:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run opencode
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        with:
+          model: openai/gpt-5.2-codex
+          use_github_token: true
+          prompt: |
+            Review the codebase for TODO/FIXME comments and risky areas.
+            Summarize findings and, if actionable, open issues to track them.
