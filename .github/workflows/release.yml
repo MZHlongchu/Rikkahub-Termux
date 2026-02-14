@@ -26,6 +26,17 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build Web UI
+        working-directory: web-ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
       - name: Prepare build files
         run: |
           # 解码base64编码的keystore文件
