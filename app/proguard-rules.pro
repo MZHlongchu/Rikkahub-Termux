@@ -27,4 +27,6 @@
 -keep class org.scilab.forge.jlatexmath.** {*;}
 
 -dontwarn com.google.re2j.**
+# Ktor util debug code references Java SE management APIs (not available on Android)
+-dontwarn java.lang.management.**
 -dontobfuscate
