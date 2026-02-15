@@ -254,7 +254,11 @@ class LocalTools(
                         })
                         put("background", buildJsonObject {
                             put("type", "boolean")
-                            put("description", "Run as background command (recommended). Default true.")
+                            put(
+                                "description",
+                                "Run as background command. Default follows Settings -> Termux -> Run in background. " +
+                                    "If that setting is enabled, this is forced to true."
+                            )
                         })
                         put("timeout_ms", buildJsonObject {
                             put("type", "integer")
@@ -270,7 +274,12 @@ class LocalTools(
                 val stdin = params["stdin"]?.jsonPrimitive?.contentOrNull
                 val workdir = params["workdir"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
                     ?: settingsStore.settingsFlow.value.termuxWorkdir
-                val background = params["background"]?.jsonPrimitive?.booleanOrNull ?: true
+                val requestedBackground = params["background"]?.jsonPrimitive?.booleanOrNull
+                val background = if (settingsStore.settingsFlow.value.termuxRunInBackground) {
+                    true
+                } else {
+                    requestedBackground ?: false
+                }
                 val timeoutMs = params["timeout_ms"]?.jsonPrimitive?.longOrNull ?: DEFAULT_TIMEOUT_MS
 
                 val (finalCommandPath, finalArgs) = if (command != null) {
@@ -377,7 +386,7 @@ class LocalTools(
                             arguments = listOf("-"),
                             workdir = workdir,
                             stdin = code,
-                            background = true,
+                            background = settingsStore.settingsFlow.value.termuxRunInBackground,
                             timeoutMs = timeoutMs,
                             label = "RikkaHub termux_python",
                         )

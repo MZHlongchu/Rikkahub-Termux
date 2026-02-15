@@ -809,5 +809,23 @@
   <string name="setting_page_web_server_password_desc">网页界面访问所需的密码</string>
   <string name="setting_display_page_enable_latex_rendering_title">启用 LaTeX 渲染</string>
   <string name="setting_display_page_enable_latex_rendering_desc">使用 LaTeX 语法渲染数学表达式和公式</string>
+  <string name="assistant_page_local_tools_termux_exec_title">Termux 命令</string>
+  <string name="assistant_page_local_tools_termux_exec_desc">通过 termux_exec 工具在本地 Termux（com.termux）中执行命令</string>
+  <string name="assistant_page_local_tools_termux_python_title">Termux Python</string>
+  <string name="assistant_page_local_tools_termux_python_desc">通过 termux_python 工具在 Termux 中运行 Python 代码（需在 Termux 中安装 Python）</string>
+  <string name="assistant_page_local_tools_termux_needs_approval_title">需要审批</string>
+  <string name="assistant_page_local_tools_termux_needs_approval_desc">启用后，运行 Termux 工具前需要手动审批</string>
+  <string name="setting_page_termux">Termux</string>
+  <string name="setting_page_termux_desc">配置本地 Termux 工具（工作目录、权限）</string>
+  <string name="setting_termux_page_title">Termux</string>
+  <string name="setting_termux_page_workdir_title">Termux 工作目录</string>
+  <string name="setting_termux_page_workdir_desc">termux_exec 与 termux_python 的默认工作目录（例如 /data/data/com.termux/files/home/workspace）</string>
+  <string name="setting_termux_page_background_title">后台运行</string>
+  <string name="setting_termux_page_background_desc">让 Termux 工具在后台执行，不自动切换到 Termux 前台（推荐）</string>
+  <string name="setting_termux_page_setup_title">设置清单</string>
+  <string name="setting_termux_page_setup_step_1">1）安装 Termux（com.termux）</string>
+  <string name="setting_termux_page_setup_step_2">2）在 Termux 中：在 ~/.termux/termux.properties 设置 allow-external-apps=true，然后重启 Termux</string>
+  <string name="setting_termux_page_setup_step_3">3）在系统设置中：为本应用授予“在 Termux 环境中运行命令”权限（额外权限）</string>
+  <string name="setting_termux_page_setup_step_4">4）若使用 termux_python：在 Termux 中安装 Python（pkg install python）</string>
+  <string name="setting_termux_page_open_app_settings">打开应用设置</string>
 </resources>
-
