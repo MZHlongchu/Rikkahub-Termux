@@ -10,4 +10,4 @@ jobs:
         run: |
           # 将 secrets 输出并通过 base64 编码
           # echo -n 防止输出换行符
-          echo -n "${{ secrets.YOUR_SECRET_NAME }}" | base64
+          echo -n "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64
