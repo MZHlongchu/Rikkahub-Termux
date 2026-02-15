@@ -56,12 +56,14 @@ const CLIPBOARD_ACTIONS = {
   WRITE: "write",
 } as const;
 
-function safeJsonParse(input: string): unknown {
-  if (!input.trim()) return {};
+type JsonParseResult = { ok: true; value: unknown } | { ok: false };
+
+function tryParseJson(input: string): JsonParseResult {
+  if (!input.trim()) return { ok: false };
   try {
-    return JSON.parse(input);
+    return { ok: true, value: JSON.parse(input) };
   } catch {
-    return {};
+    return { ok: false };
   }
 }
 
@@ -133,6 +135,17 @@ function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
       {toJsonString(value)}
+    </pre>
+  );
+}
+
+function ResultBlock({ parsed, raw }: { parsed: unknown | null; raw: string }) {
+  if (parsed !== null) {
+    return <JsonBlock value={parsed} />;
+  }
+  return (
+    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+      {raw}
     </pre>
   );
 }
@@ -235,7 +248,8 @@ export function ToolPart({
   const [expanded, setExpanded] = React.useState(true);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
-  const args = React.useMemo(() => safeJsonParse(tool.input), [tool.input]);
+  const argsParsed = React.useMemo(() => tryParseJson(tool.input), [tool.input]);
+  const args = argsParsed.ok ? argsParsed.value : {};
 
   const outputText = React.useMemo(
     () =>
@@ -246,7 +260,8 @@ export function ToolPart({
     [tool.output],
   );
 
-  const outputContent = React.useMemo(() => safeJsonParse(outputText), [outputText]);
+  const outputParsed = React.useMemo(() => tryParseJson(outputText), [outputText]);
+  const outputContent = outputParsed.ok ? outputParsed.value : null;
 
   const memoryAction = getStringField(args, "action");
   const title = getToolTitle(tool.toolName, args, t);
@@ -255,6 +270,7 @@ export function ToolPart({
   const deniedReason =
     tool.approvalState.type === "denied" ? (tool.approvalState.reason ?? "") : "";
   const isExecuted = tool.output.length > 0;
+  const hasRawTextResult = isExecuted && !outputParsed.ok && Boolean(outputText.trim());
 
   const hasExtraContent =
     (tool.toolName === TOOL_NAMES.MEMORY &&
@@ -264,6 +280,7 @@ export function ToolPart({
       (Boolean(getStringField(outputContent, "answer")) ||
         getArrayField(outputContent, "items").length > 0)) ||
     (tool.toolName === TOOL_NAMES.SCRAPE_WEB && Boolean(getStringField(args, "url"))) ||
+    hasRawTextResult ||
     isDenied;
 
   const canOpenDrawer = isPending || isExecuted;
@@ -342,6 +359,12 @@ export function ToolPart({
               </div>
             )}
 
+            {hasRawTextResult && (
+              <div className="line-clamp-3 whitespace-pre-wrap text-muted-foreground text-xs">
+                {outputText.split("\n").slice(0, 3).join("\n")}
+              </div>
+            )}
+
             {isDenied && (
               <div className="text-destructive text-xs">
                 {deniedReason
@@ -367,9 +390,9 @@ export function ToolPart({
           </DrawerHeader>
 
           <div className="max-h-[72vh] space-y-4 overflow-y-auto px-4 pb-6">
-            {tool.toolName === TOOL_NAMES.SEARCH_WEB && isExecuted ? (
+            {tool.toolName === TOOL_NAMES.SEARCH_WEB && isExecuted && outputParsed.ok ? (
               <SearchWebPreview args={args} content={outputContent} />
-            ) : tool.toolName === TOOL_NAMES.SCRAPE_WEB && isExecuted ? (
+            ) : tool.toolName === TOOL_NAMES.SCRAPE_WEB && isExecuted && outputParsed.ok ? (
               <ScrapeWebPreview content={outputContent} />
             ) : (
               <div className="space-y-3">
@@ -384,7 +407,7 @@ export function ToolPart({
                     <div className="mb-1 text-muted-foreground text-xs">
                       {t("tool_part.result")}
                     </div>
-                    <JsonBlock value={outputContent} />
+                    <ResultBlock parsed={outputContent} raw={outputText} />
                   </div>
                 )}
                 {!isExecuted && (

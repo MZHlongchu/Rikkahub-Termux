@@ -809,5 +809,23 @@
   <string name="setting_page_web_server_password_desc">網頁介面存取所需的密碼</string>
   <string name="setting_display_page_enable_latex_rendering_title">啟用 LaTeX 渲染</string>
   <string name="setting_display_page_enable_latex_rendering_desc">使用 LaTeX 語法呈現數學表達式與公式</string>
+  <string name="assistant_page_local_tools_termux_exec_title">Termux 指令</string>
+  <string name="assistant_page_local_tools_termux_exec_desc">透過 termux_exec 工具在本機 Termux（com.termux）中執行指令</string>
+  <string name="assistant_page_local_tools_termux_python_title">Termux Python</string>
+  <string name="assistant_page_local_tools_termux_python_desc">透過 termux_python 工具在 Termux 中執行 Python 程式碼（需在 Termux 中安裝 Python）</string>
+  <string name="assistant_page_local_tools_termux_needs_approval_title">需要審批</string>
+  <string name="assistant_page_local_tools_termux_needs_approval_desc">啟用後，執行 Termux 工具前需要手動審批</string>
+  <string name="setting_page_termux">Termux</string>
+  <string name="setting_page_termux_desc">設定本機 Termux 工具（工作目錄、權限）</string>
+  <string name="setting_termux_page_title">Termux</string>
+  <string name="setting_termux_page_workdir_title">Termux 工作目錄</string>
+  <string name="setting_termux_page_workdir_desc">termux_exec 與 termux_python 的預設工作目錄（例如 /data/data/com.termux/files/home/workspace）</string>
+  <string name="setting_termux_page_background_title">背景執行</string>
+  <string name="setting_termux_page_background_desc">讓 Termux 工具在背景執行，不自動切換到 Termux 前景（推薦）</string>
+  <string name="setting_termux_page_setup_title">設定清單</string>
+  <string name="setting_termux_page_setup_step_1">1）安裝 Termux（com.termux）</string>
+  <string name="setting_termux_page_setup_step_2">2）在 Termux 中：在 ~/.termux/termux.properties 設定 allow-external-apps=true，然後重新啟動 Termux</string>
+  <string name="setting_termux_page_setup_step_3">3）在系統設定中：為本應用程式授予「在 Termux 環境中執行命令」權限（額外權限）</string>
+  <string name="setting_termux_page_setup_step_4">4）若使用 termux_python：在 Termux 中安裝 Python（pkg install python）</string>
+  <string name="setting_termux_page_open_app_settings">開啟應用程式設定</string>
 </resources>
-

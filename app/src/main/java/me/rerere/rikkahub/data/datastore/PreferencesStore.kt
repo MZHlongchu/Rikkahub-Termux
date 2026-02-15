@@ -102,6 +102,10 @@ class SettingsStore(
         // MCP
         val MCP_SERVERS = stringPreferencesKey("mcp_servers")
 
+        // Termux
+        val TERMUX_WORKDIR = stringPreferencesKey("termux_workdir")
+        val TERMUX_RUN_IN_BACKGROUND = booleanPreferencesKey("termux_run_in_background")
+
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
 
@@ -175,6 +179,8 @@ class SettingsStore(
                 mcpServers = preferences[MCP_SERVERS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
+                termuxWorkdir = preferences[TERMUX_WORKDIR] ?: "/data/data/com.termux/files/home",
+                termuxRunInBackground = preferences[TERMUX_RUN_IN_BACKGROUND] != false,
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: WebDavConfig(),
@@ -324,6 +330,8 @@ class SettingsStore(
             preferences[SEARCH_SELECTED] = settings.searchServiceSelected.coerceIn(0, settings.searchServices.size - 1)
 
             preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
+            preferences[TERMUX_WORKDIR] = settings.termuxWorkdir
+            preferences[TERMUX_RUN_IN_BACKGROUND] = settings.termuxRunInBackground
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
@@ -444,6 +452,7 @@ data class Settings(
     val searchServiceSelected: Int = 0,
     val mcpServers: List<McpServerConfig> = emptyList(),
     val termuxWorkdir: String = "/data/data/com.termux/files/home",
+    val termuxRunInBackground: Boolean = true,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,

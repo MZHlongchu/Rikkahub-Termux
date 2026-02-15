@@ -134,15 +134,15 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     val isDenied = tool.approvalState is ToolApprovalState.Denied
     val arguments = tool.inputAsJson()
     val memoryAction = arguments.getStringContent("action")
-    val content = if (tool.isExecuted) {
-        runCatching {
-            JsonInstant.parseToJsonElement(
-                tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
-            )
-        }.getOrElse { JsonObject(emptyMap()) }
-    } else {
-        null
-    }
+    val rawResultText = if (tool.isExecuted) {
+        tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
+    } else null
+    val content = rawResultText
+        ?.takeIf { it.isNotBlank() }
+        ?.let { resultText ->
+            runCatching { JsonInstant.parseToJsonElement(resultText) }.getOrNull()
+        }
+    val hasRawTextResult = tool.isExecuted && content == null && !rawResultText.isNullOrBlank()
 
     val title = when (tool.toolName) {
         ToolNames.MEMORY -> when (memoryAction) {
@@ -175,7 +175,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             (content?.jsonObject?.get("items")?.jsonArray?.isNotEmpty() == true)
         ToolNames.SCRAPE_WEB -> arguments.getStringContent("url") != null
         else -> false
-    } || isDenied
+    } || hasRawTextResult || isDenied
 
     ControlledChainOfThoughtStep(
         expanded = expanded,
@@ -234,7 +234,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         } else {
             null
         },
-        onClick = if (content != null || isPending) {
+        onClick = if (tool.isExecuted || isPending) {
             { showResult = true }
         } else {
             null
@@ -293,6 +293,21 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                         )
                     }
+                    if (hasRawTextResult) {
+                        val previewText = rawResultText
+                            .lineSequence()
+                            .take(3)
+                            .joinToString("\n")
+                            .trimEnd()
+                        Text(
+                            text = previewText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            modifier = Modifier.shimmer(isLoading = loading),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     if (isDenied) {
                         val reason = (tool.approvalState as ToolApprovalState.Denied).reason
                         Text(
@@ -324,6 +339,8 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             toolName = tool.toolName,
             arguments = arguments,
             content = content,
+            rawResultText = rawResultText,
+            isExecuted = tool.isExecuted,
             onDismissRequest = { showResult = false }
         )
     }
@@ -334,6 +351,8 @@ private fun ToolCallPreviewSheet(
     toolName: String,
     arguments: JsonElement,
     content: JsonElement?,
+    rawResultText: String?,
+    isExecuted: Boolean,
     onDismissRequest: () -> Unit = {}
 ) {
     val navController = LocalNavController.current
@@ -349,12 +368,13 @@ private fun ToolCallPreviewSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         onDismissRequest = onDismissRequest,
         content = {
-            if (content == null) {
-                // 工具未执行,只显示参数
+            if (!isExecuted) {
+                // 工具未执行, 只显示参数
                 GenericToolPreview(
                     toolName = toolName,
                     arguments = arguments,
                     content = null,
+                    rawResultText = null,
                     isMemoryOperation = false,
                     memoryId = null,
                     memoryRepo = memoryRepo,
@@ -362,20 +382,35 @@ private fun ToolCallPreviewSheet(
                     onDismissRequest = onDismissRequest
                 )
             } else {
-                when (toolName) {
-                    ToolNames.SEARCH_WEB -> SearchWebPreview(
-                        arguments = arguments,
-                        content = content,
-                        navController = navController
-                    )
+                if (content != null) {
+                    when (toolName) {
+                        ToolNames.SEARCH_WEB -> SearchWebPreview(
+                            arguments = arguments,
+                            content = content,
+                            navController = navController
+                        )
 
-                    ToolNames.SCRAPE_WEB -> ScrapeWebPreview(content = content)
-                    else -> GenericToolPreview(
+                        ToolNames.SCRAPE_WEB -> ScrapeWebPreview(content = content)
+                        else -> GenericToolPreview(
+                            toolName = toolName,
+                            arguments = arguments,
+                            content = content,
+                            rawResultText = null,
+                            isMemoryOperation = isMemoryOperation,
+                            memoryId = memoryId,
+                            memoryRepo = memoryRepo,
+                            scope = scope,
+                            onDismissRequest = onDismissRequest
+                        )
+                    }
+                } else {
+                    GenericToolPreview(
                         toolName = toolName,
                         arguments = arguments,
-                        content = content,
-                        isMemoryOperation = isMemoryOperation,
-                        memoryId = memoryId,
+                        content = null,
+                        rawResultText = rawResultText,
+                        isMemoryOperation = false,
+                        memoryId = null,
                         memoryRepo = memoryRepo,
                         scope = scope,
                         onDismissRequest = onDismissRequest
@@ -526,6 +561,7 @@ private fun GenericToolPreview(
     toolName: String,
     arguments: JsonElement,
     content: JsonElement?,
+    rawResultText: String?,
     isMemoryOperation: Boolean,
     memoryId: Int?,
     memoryRepo: MemoryRepository,
@@ -586,6 +622,19 @@ private fun GenericToolPreview(
                 HighlightCodeBlock(
                     code = JsonInstantPretty.encodeToString(content),
                     language = "json",
+                    style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
+                )
+            }
+        } else if (rawResultText != null) {
+            FormItem(
+                label = {
+                    Text(stringResource(R.string.chat_message_tool_call_result))
+                }
+            ) {
+                HighlightCodeBlock(
+                    code = rawResultText,
+                    language = "text",
+                    completeCodeBlock = false,
                     style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
                 )
             }

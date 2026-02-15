@@ -16,6 +16,7 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -94,6 +95,30 @@ fun SettingTermuxPage() {
                 }
             }
 
+            item("background") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    FormItem(
+                        modifier = Modifier.padding(12.dp),
+                        label = { Text(stringResource(R.string.setting_termux_page_background_title)) },
+                        description = { Text(stringResource(R.string.setting_termux_page_background_desc)) },
+                        tail = {
+                            Switch(
+                                checked = settings.termuxRunInBackground,
+                                onCheckedChange = { enabled ->
+                                    scope.launch {
+                                        settingsStore.update { it.copy(termuxRunInBackground = enabled) }
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+
             item("setup") {
                 Card(
                     colors = CardDefaults.cardColors(
@@ -125,4 +150,3 @@ fun SettingTermuxPage() {
         }
     }
 }
-
