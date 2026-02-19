@@ -148,7 +148,7 @@
   <string name="backup_page_files">檔案</string>
   <string name="backup_page_import_chatbox_desc">導入ChatBox數據</string>
   <string name="backup_page_import_desc">導入本地備份檔案</string>
-  <string name="backup_page_import_export">導入和導出</string>
+  <string name="backup_page_import_export">本地</string>
   <string name="backup_page_import_from_chatbox">從ChatBox導入</string>
   <string name="backup_page_import_from_other_app">從其他APP導入</string>
   <string name="backup_page_importing">正在恢復...</string>
@@ -830,4 +830,23 @@
   <string name="setting_termux_page_setup_step_3">3）在系統設定中：為本應用程式授予「在 Termux 環境中執行命令」權限（額外權限）</string>
   <string name="setting_termux_page_setup_step_4">4）若使用 termux_python：在 Termux 中安裝 Python（pkg install python）</string>
   <string name="setting_termux_page_open_app_settings">開啟應用程式設定</string>
+  <string name="favorite_page_title">收藏</string>
+  <string name="favorite_page_no_favorites">尚無收藏</string>
+  <string name="favorite_page_removed">已移除最愛</string>
+  <string name="favorite_page_untitled_conversation">未命名對話</string>
+  <string name="chat_message_add_favorite">加入最愛</string>
+  <string name="chat_message_remove_favorite">移除最愛</string>
+  <string name="chat_page_menu_ai_translator">AI 翻譯</string>
+  <string name="chat_page_menu_image_generation">圖像生成</string>
+  <string name="backup_page_reminder">提醒</string>
+  <string name="backup_page_reminder_title">備份提醒</string>
+  <string name="backup_page_reminder_never_backed_up">從未備份</string>
+  <string name="backup_page_reminder_last_days">上次備份於 %1$d 天前</string>
+  <string name="backup_page_reminder_enable">啟用備份提醒</string>
+  <string name="backup_page_reminder_interval">提醒間隔</string>
+  <string name="backup_page_reminder_interval_days">%1$d 天</string>
+  <string name="backup_page_reminder_no_record">未記錄備份時間</string>
+  <string name="backup_page_reminder_last_time">上次備份：%1$s</string>
+  <string name="backup_page_reminder_dismiss">忽略</string>
+  <string name="deep_thinking_seconds">思考了 %1$.1f 秒</string>
 </resources>

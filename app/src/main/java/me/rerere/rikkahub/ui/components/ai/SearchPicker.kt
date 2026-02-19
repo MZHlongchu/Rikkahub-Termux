@@ -36,7 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
+import me.rerere.rikkahub.ui.context.Navigator
 import com.composables.icons.lucide.Earth
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
@@ -178,7 +178,7 @@ private fun SearchPicker(
 private fun AppSearchSettings(
     enableSearch: Boolean,
     onDismiss: () -> Unit,
-    navBackStack: NavHostController,
+    navBackStack: Navigator,
     onToggleSearch: (Boolean) -> Unit,
     modifier: Modifier,
     settings: Settings,
@@ -255,7 +255,7 @@ private fun AppSearchSettings(
                 onClick = {
                     onUpdateSearchService(index)
                 },
-                shape = RoundedCornerShape(50),
+                shape = MaterialTheme.shapes.large
             ) {
                 Row(
                     modifier = Modifier
@@ -266,7 +266,7 @@ private fun AppSearchSettings(
                 ) {
                     AutoAIIcon(
                         name = SearchServiceOptions.TYPES[service::class] ?: "Search",
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                     Column(
                         modifier = Modifier.weight(1f),

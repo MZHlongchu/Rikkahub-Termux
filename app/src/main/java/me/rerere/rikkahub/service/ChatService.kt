@@ -538,11 +538,8 @@ class ChatService(
             val finalConversation = getConversationFlow(conversationId).value
             saveConversation(conversationId, finalConversation)
 
-            // title/suggestion 在当前 job 内执行，由 session.setJob 管理生命周期
-            coroutineScope {
-                launch { generateTitle(conversationId, finalConversation) }
-                launch { generateSuggestion(conversationId, finalConversation) }
-            }
+            appScope.launch { generateTitle(conversationId, finalConversation) }
+            appScope.launch { generateSuggestion(conversationId, finalConversation) }
         }
     }
 
@@ -900,6 +897,11 @@ class ChatService(
         val session = getOrCreateSession(conversationId)
         checkFilesDelete(conversation, session.state.value)
         session.state.value = conversation
+    }
+
+    fun updateConversationState(conversationId: Uuid, update: (Conversation) -> Conversation) {
+        val current = getConversationFlow(conversationId).value
+        updateConversation(conversationId, update(current))
     }
 
     private fun checkFilesDelete(newConversation: Conversation, oldConversation: Conversation) {
