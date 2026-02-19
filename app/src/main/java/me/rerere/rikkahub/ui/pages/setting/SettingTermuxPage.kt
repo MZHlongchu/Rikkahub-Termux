@@ -1,7 +1,11 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
@@ -57,6 +65,18 @@ fun SettingTermuxPage() {
     }
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var allFilesAccessGranted by remember { mutableStateOf(isAllFilesAccessGranted()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
+                allFilesAccessGranted = isAllFilesAccessGranted()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -124,6 +144,64 @@ fun SettingTermuxPage() {
                 }
             }
 
+            item("approval") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    FormItem(
+                        modifier = Modifier.padding(12.dp),
+                        label = { Text(stringResource(R.string.assistant_page_local_tools_termux_needs_approval_title)) },
+                        description = { Text(stringResource(R.string.assistant_page_local_tools_termux_needs_approval_desc)) },
+                        tail = {
+                            Switch(
+                                checked = settings.termuxNeedsApproval,
+                                onCheckedChange = { enabled ->
+                                    scope.launch {
+                                        settingsStore.update { it.copy(termuxNeedsApproval = enabled) }
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                item("allFilesAccess") {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        ),
+                    ) {
+                        FormItem(
+                            modifier = Modifier.padding(12.dp),
+                            label = { Text(stringResource(R.string.setting_termux_page_all_files_access_title)) },
+                            description = {
+                                Text(stringResource(R.string.setting_termux_page_all_files_access_desc))
+                                Text(
+                                    if (allFilesAccessGranted) {
+                                        stringResource(R.string.setting_termux_page_all_files_access_granted)
+                                    } else {
+                                        stringResource(R.string.setting_termux_page_all_files_access_not_granted)
+                                    }
+                                )
+                            },
+                            tail = {
+                                TextButton(
+                                    onClick = {
+                                        openAllFilesAccessSettings(context)
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.setting_termux_page_all_files_access_action))
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+
             item("timeout") {
                 Card(
                     colors = CardDefaults.cardColors(
@@ -185,5 +263,22 @@ fun SettingTermuxPage() {
                 }
             }
         }
+    }
+}
+
+private fun isAllFilesAccessGranted(): Boolean {
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
+}
+
+private fun openAllFilesAccessSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+    val packageUri = Uri.fromParts("package", context.packageName, null)
+    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+        data = packageUri
+    }
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
     }
 }

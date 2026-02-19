@@ -107,6 +107,7 @@ class SettingsStore(
         // Termux
         val TERMUX_WORKDIR = stringPreferencesKey("termux_workdir")
         val TERMUX_RUN_IN_BACKGROUND = booleanPreferencesKey("termux_run_in_background")
+        val TERMUX_NEEDS_APPROVAL = booleanPreferencesKey("termux_needs_approval")
         val TERMUX_TIMEOUT_MS = longPreferencesKey("termux_timeout_ms")
 
         // WebDAV
@@ -187,6 +188,7 @@ class SettingsStore(
                 } ?: emptyList(),
                 termuxWorkdir = preferences[TERMUX_WORKDIR] ?: "/data/data/com.termux/files/home",
                 termuxRunInBackground = preferences[TERMUX_RUN_IN_BACKGROUND] != false,
+                termuxNeedsApproval = preferences[TERMUX_NEEDS_APPROVAL] != false,
                 termuxTimeoutMs = (preferences[TERMUX_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS).coerceAtLeast(1_000L),
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
@@ -342,6 +344,7 @@ class SettingsStore(
             preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
             preferences[TERMUX_WORKDIR] = settings.termuxWorkdir
             preferences[TERMUX_RUN_IN_BACKGROUND] = settings.termuxRunInBackground
+            preferences[TERMUX_NEEDS_APPROVAL] = settings.termuxNeedsApproval
             preferences[TERMUX_TIMEOUT_MS] = settings.termuxTimeoutMs.coerceAtLeast(1_000L)
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
@@ -465,6 +468,7 @@ data class Settings(
     val mcpServers: List<McpServerConfig> = emptyList(),
     val termuxWorkdir: String = "/data/data/com.termux/files/home",
     val termuxRunInBackground: Boolean = true,
+    val termuxNeedsApproval: Boolean = true,
     val termuxTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),

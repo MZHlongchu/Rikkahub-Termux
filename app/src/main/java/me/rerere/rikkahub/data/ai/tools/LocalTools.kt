@@ -410,7 +410,7 @@ class LocalTools(
         if (options.contains(LocalToolOption.TermuxExec)) {
             tools.add(
                 termuxExecTool(
-                    needsApproval = assistant.termuxNeedsApproval,
+                    needsApproval = settingsStore.settingsFlow.value.termuxNeedsApproval,
                     settingsStore = settingsStore,
                     termuxCommandManager = termuxCommandManager,
                 )
@@ -419,7 +419,7 @@ class LocalTools(
         if (options.contains(LocalToolOption.TermuxPython)) {
             tools.add(
                 termuxPythonTool(
-                    needsApproval = assistant.termuxNeedsApproval,
+                    needsApproval = settingsStore.settingsFlow.value.termuxNeedsApproval,
                     settingsStore = settingsStore,
                     termuxCommandManager = termuxCommandManager,
                 )
