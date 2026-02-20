@@ -30,3 +30,8 @@
 # Ktor util debug code references Java SE management APIs (not available on Android)
 -dontwarn java.lang.management.**
 -dontobfuscate
+
+# Ktor 在 Android 上引用了仅 JVM 可用的 java.lang.management 类（IntellijIdeaDebugDetector）
+# Android 不包含这些类，需要告知 R8 忽略
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn java.lang.management.RuntimeMXBean
