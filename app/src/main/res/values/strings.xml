@@ -818,6 +818,9 @@
   <string name="setting_termux_page_title">Termux</string>
   <string name="setting_termux_page_workdir_title">Termux Workdir</string>
   <string name="setting_termux_page_workdir_desc">Default working directory for termux_exec and termux_python (e.g. /data/data/com.termux/files/home/workspace)</string>
+  <string name="setting_termux_page_workdir_server_title">Workdir HTTP Server</string>
+  <string name="setting_termux_page_workdir_server_desc">Serve Termux workdir on localhost for Markdown images (e.g. ![](http://127.0.0.1:9090/test.png)). Requires Python in Termux.</string>
+  <string name="setting_termux_page_workdir_server_port_title">Port</string>
   <string name="setting_termux_page_background_title">Run in background</string>
   <string name="setting_termux_page_background_desc">Execute Termux tools in background without bringing Termux to the foreground (recommended)</string>
   <string name="setting_termux_page_all_files_access_title">All files access</string>

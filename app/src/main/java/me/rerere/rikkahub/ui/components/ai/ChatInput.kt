@@ -290,6 +290,14 @@ fun ChatInput(
                         )
                     }
 
+                    // Local Tools
+                    LocalToolsPickerButton(
+                        assistant = assistant,
+                        onUpdateAssistant = {
+                            onUpdateAssistant(it)
+                        },
+                    )
+
                     // MCP
                     if (settings.mcpServers.isNotEmpty()) {
                         McpPickerButton(

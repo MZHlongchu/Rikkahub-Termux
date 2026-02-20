@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
@@ -52,13 +53,18 @@ import org.koin.compose.koinInject
 
 @Composable
 fun SettingTermuxPage() {
+    val termuxWorkdirServerManager: TermuxWorkdirServerManager = koinInject()
     val settingsStore: SettingsStore = koinInject()
     val settings by settingsStore.settingsFlow.collectAsStateWithLifecycle()
+    val termuxWorkdirServerState by termuxWorkdirServerManager.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     var workdirText by remember(settings.termuxWorkdir) {
         mutableStateOf(settings.termuxWorkdir)
+    }
+    var workdirServerPortText by remember(settings.termuxWorkdirServerPort) {
+        mutableStateOf(settings.termuxWorkdirServerPort.toString())
     }
     var timeoutText by remember(settings.termuxTimeoutMs) {
         mutableStateOf(settings.termuxTimeoutMs.toString())
@@ -114,6 +120,76 @@ fun SettingTermuxPage() {
                                     }
                                 },
                                 singleLine = true,
+                            )
+                        },
+                    )
+                }
+            }
+
+            item("workdirServer") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    FormItem(
+                        modifier = Modifier.padding(12.dp),
+                        label = { Text(stringResource(R.string.setting_termux_page_workdir_server_title)) },
+                        description = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.setting_termux_page_workdir_server_desc))
+                                Text("http://127.0.0.1:${settings.termuxWorkdirServerPort}/")
+                                if (!termuxWorkdirServerState.error.isNullOrBlank()) {
+                                    Text(
+                                        text = termuxWorkdirServerState.error!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        },
+                        tail = {
+                            Switch(
+                                checked = settings.termuxWorkdirServerEnabled,
+                                enabled = !termuxWorkdirServerState.isLoading,
+                                onCheckedChange = { enabled ->
+                                    if (enabled) {
+                                        termuxWorkdirServerManager.start(
+                                            port = settings.termuxWorkdirServerPort,
+                                            workdir = settings.termuxWorkdir,
+                                        )
+                                    } else {
+                                        termuxWorkdirServerManager.stop()
+                                    }
+                                    scope.launch {
+                                        settingsStore.update { it.copy(termuxWorkdirServerEnabled = enabled) }
+                                    }
+                                },
+                            )
+                        },
+                        content = {
+                            OutlinedTextField(
+                                modifier = Modifier.fillMaxWidth(),
+                                value = workdirServerPortText,
+                                onValueChange = { value ->
+                                    workdirServerPortText = value.filter { it.isDigit() }
+                                    val port = workdirServerPortText.toIntOrNull()
+                                    if (port != null && port in 1024..65535) {
+                                        scope.launch {
+                                            settingsStore.update { it.copy(termuxWorkdirServerPort = port) }
+                                        }
+                                        if (settings.termuxWorkdirServerEnabled) {
+                                            termuxWorkdirServerManager.restart(
+                                                port = port,
+                                                workdir = settings.termuxWorkdir,
+                                            )
+                                        }
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                enabled = !termuxWorkdirServerState.isRunning && !termuxWorkdirServerState.isLoading,
+                                isError = workdirServerPortText.toIntOrNull()?.let { it !in 1024..65535 } ?: true,
+                                label = { Text(stringResource(R.string.setting_termux_page_workdir_server_port_title)) },
                             )
                         },
                     )

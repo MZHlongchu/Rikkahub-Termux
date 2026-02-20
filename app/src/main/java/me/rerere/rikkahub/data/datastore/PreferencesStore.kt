@@ -109,6 +109,8 @@ class SettingsStore(
         val TERMUX_RUN_IN_BACKGROUND = booleanPreferencesKey("termux_run_in_background")
         val TERMUX_NEEDS_APPROVAL = booleanPreferencesKey("termux_needs_approval")
         val TERMUX_TIMEOUT_MS = longPreferencesKey("termux_timeout_ms")
+        val TERMUX_WORKDIR_SERVER_ENABLED = booleanPreferencesKey("termux_workdir_server_enabled")
+        val TERMUX_WORKDIR_SERVER_PORT = intPreferencesKey("termux_workdir_server_port")
 
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
@@ -190,6 +192,8 @@ class SettingsStore(
                 termuxRunInBackground = preferences[TERMUX_RUN_IN_BACKGROUND] != false,
                 termuxNeedsApproval = preferences[TERMUX_NEEDS_APPROVAL] != false,
                 termuxTimeoutMs = (preferences[TERMUX_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS).coerceAtLeast(1_000L),
+                termuxWorkdirServerEnabled = preferences[TERMUX_WORKDIR_SERVER_ENABLED] == true,
+                termuxWorkdirServerPort = preferences[TERMUX_WORKDIR_SERVER_PORT] ?: 9090,
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: WebDavConfig(),
@@ -346,6 +350,8 @@ class SettingsStore(
             preferences[TERMUX_RUN_IN_BACKGROUND] = settings.termuxRunInBackground
             preferences[TERMUX_NEEDS_APPROVAL] = settings.termuxNeedsApproval
             preferences[TERMUX_TIMEOUT_MS] = settings.termuxTimeoutMs.coerceAtLeast(1_000L)
+            preferences[TERMUX_WORKDIR_SERVER_ENABLED] = settings.termuxWorkdirServerEnabled
+            preferences[TERMUX_WORKDIR_SERVER_PORT] = settings.termuxWorkdirServerPort
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
@@ -470,6 +476,8 @@ data class Settings(
     val termuxRunInBackground: Boolean = true,
     val termuxNeedsApproval: Boolean = true,
     val termuxTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    val termuxWorkdirServerEnabled: Boolean = false,
+    val termuxWorkdirServerPort: Int = 9090,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,

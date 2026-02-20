@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import me.rerere.common.android.appTempFolder
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
 import me.rerere.rikkahub.di.appModule
 import me.rerere.rikkahub.di.dataSourceModule
 import me.rerere.rikkahub.di.repositoryModule
@@ -69,6 +70,7 @@ class RikkaHubApp : Application() {
 
         // Start WebServer if enabled in settings
         startWebServerIfEnabled()
+        startTermuxWorkdirServerIfEnabled()
 
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
     }
@@ -102,6 +104,23 @@ class RikkaHubApp : Application() {
                 }
             }.onFailure {
                 Log.e(TAG, "startWebServerIfEnabled failed", it)
+            }
+        }
+    }
+
+    private fun startTermuxWorkdirServerIfEnabled() {
+        get<AppScope>().launch {
+            runCatching {
+                delay(700)
+                val settings = get<SettingsStore>().settingsFlowRaw.first()
+                if (settings.termuxWorkdirServerEnabled) {
+                    get<TermuxWorkdirServerManager>().start(
+                        port = settings.termuxWorkdirServerPort,
+                        workdir = settings.termuxWorkdir,
+                    )
+                }
+            }.onFailure {
+                Log.e(TAG, "startTermuxWorkdirServerIfEnabled failed", it)
             }
         }
     }
