@@ -77,14 +77,15 @@ class TermuxWorkdirServerManager(
         if (_state.value.isLoading) return
         _state.value = _state.value.copy(isLoading = true, error = null)
         appScope.launch {
+            val expectedPort = settingsStore.settingsFlow.value.termuxWorkdirServerPort
             val result = runCatching {
                 termuxCommandManager.run(
                     TermuxRunCommandRequest(
                         commandPath = TERMUX_BASH_PATH,
-                        arguments = listOf("-lc", buildStopScript()),
+                        arguments = listOf("-lc", buildStopScript(expectedPort = expectedPort)),
                         workdir = TERMUX_HOME_PATH,
                         background = settingsStore.settingsFlow.value.termuxRunInBackground,
-                        timeoutMs = 10_000L,
+                        timeoutMs = 30_000L,
                         label = "RikkaHub stop workdir http server",
                     )
                 )
@@ -107,16 +108,17 @@ class TermuxWorkdirServerManager(
         workdir: String,
     ) {
         if (_state.value.isLoading) return
+        val oldPort = _state.value.port
         _state.value = _state.value.copy(isLoading = true, port = port, error = null)
         appScope.launch {
             runCatching {
                 termuxCommandManager.run(
                     TermuxRunCommandRequest(
                         commandPath = TERMUX_BASH_PATH,
-                        arguments = listOf("-lc", buildStopScript()),
+                        arguments = listOf("-lc", buildStopScript(expectedPort = oldPort)),
                         workdir = TERMUX_HOME_PATH,
                         background = settingsStore.settingsFlow.value.termuxRunInBackground,
-                        timeoutMs = 10_000L,
+                        timeoutMs = 30_000L,
                         label = "RikkaHub stop workdir http server",
                     )
                 )
@@ -130,7 +132,7 @@ class TermuxWorkdirServerManager(
                         arguments = listOf("-lc", buildStartScript(port = port, workdir = workdir)),
                         workdir = TERMUX_HOME_PATH,
                         background = settingsStore.settingsFlow.value.termuxRunInBackground,
-                        timeoutMs = 10_000L,
+                        timeoutMs = 30_000L,
                         label = "RikkaHub workdir http server",
                     )
                 )
@@ -222,6 +224,22 @@ class TermuxWorkdirServerManager(
               return 1
             }
 
+            find_running_workdir_server_pid_by_ps() {
+              _port="${'$'}1"
+              [ -n "${'$'}_port" ] || return 1
+              while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do
+                if [ "${'$'}_pid" = "PID" ]; then
+                  continue
+                fi
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_workdir_server_cmdline " ${'$'}{_cmdline} " "${'$'}_port"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done < <(ps -ef 2>/dev/null)
+              return 1
+            }
+
             kill_pid() {
               _pid="${'$'}1"
               if [ -z "${'$'}_pid" ]; then
@@ -263,6 +281,9 @@ class TermuxWorkdirServerManager(
             fi
 
             EXISTING_PID="${'$'}(find_running_workdir_server_pid_by_port "${'$'}PORT" 2>/dev/null || true)"
+            if [ -z "${'$'}EXISTING_PID" ]; then
+              EXISTING_PID="${'$'}(find_running_workdir_server_pid_by_ps "${'$'}PORT" 2>/dev/null || true)"
+            fi
             if [ -n "${'$'}EXISTING_PID" ]; then
               echo "${'$'}EXISTING_PID" > "${'$'}PID_FILE"
               echo "${'$'}PORT" > "${'$'}PORT_FILE"
@@ -287,13 +308,14 @@ class TermuxWorkdirServerManager(
         """.trimIndent()
     }
 
-    private fun buildStopScript(): String {
+    private fun buildStopScript(expectedPort: Int): String {
         return """
             set -e
 
             STATE_DIR="${'$'}HOME/.rikkahub"
             PID_FILE="${'$'}STATE_DIR/workdir_http_server.pid"
             PORT_FILE="${'$'}STATE_DIR/workdir_http_server.port"
+            EXPECTED_PORT=$expectedPort
 
             is_workdir_server_cmdline() {
               _cmdline="${'$'}1"
@@ -334,6 +356,20 @@ class TermuxWorkdirServerManager(
               done
             }
 
+            find_running_workdir_server_pids_by_ps() {
+              _port="${'$'}1"
+              [ -n "${'$'}_port" ] || return 1
+              ps -ef 2>/dev/null | while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do
+                if [ "${'$'}_pid" = "PID" ]; then
+                  continue
+                fi
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_workdir_server_cmdline " ${'$'}{_cmdline} " "${'$'}_port"; then
+                  echo "${'$'}_pid"
+                fi
+              done
+            }
+
             kill_pid() {
               _pid="${'$'}1"
               if [ -z "${'$'}_pid" ]; then
@@ -357,10 +393,8 @@ class TermuxWorkdirServerManager(
             PID="${'$'}(cat \"${'$'}PID_FILE\" 2>/dev/null || true)"
             PORT="${'$'}(cat \"${'$'}PORT_FILE\" 2>/dev/null || true)"
 
-            if [ -z "${'$'}PID" ] && [ -z "${'$'}PORT" ]; then
-              rm -f "${'$'}PID_FILE" "${'$'}PORT_FILE"
-              echo "NOT_RUNNING"
-              exit 0
+            if [ -z "${'$'}PORT" ]; then
+              PORT="${'$'}EXPECTED_PORT"
             fi
 
             PID_IS_SERVER=0
@@ -416,12 +450,25 @@ class TermuxWorkdirServerManager(
                 fi
                 STOPPED_PIDS="${'$'}STOPPED_PIDS ${'$'}_pid"
               done
+              for _pid in ${'$'}(find_running_workdir_server_pids_by_ps "${'$'}PORT" 2>/dev/null || true); do
+                if ! kill_pid "${'$'}_pid"; then
+                  echo "FAILED_TO_STOP_PID ${'$'}_pid"
+                  exit 1
+                fi
+                STOPPED_PIDS="${'$'}STOPPED_PIDS ${'$'}_pid"
+              done
 
               REMAINING_PID=""
               for _pid in ${'$'}(find_running_workdir_server_pids_by_port "${'$'}PORT" 2>/dev/null || true); do
                 REMAINING_PID="${'$'}_pid"
                 break
               done
+              if [ -z "${'$'}REMAINING_PID" ]; then
+                for _pid in ${'$'}(find_running_workdir_server_pids_by_ps "${'$'}PORT" 2>/dev/null || true); do
+                  REMAINING_PID="${'$'}_pid"
+                  break
+                done
+              fi
               if [ -n "${'$'}REMAINING_PID" ]; then
                 echo "FAILED_TO_STOP_PORT ${'$'}PORT PID ${'$'}REMAINING_PID"
                 exit 1
