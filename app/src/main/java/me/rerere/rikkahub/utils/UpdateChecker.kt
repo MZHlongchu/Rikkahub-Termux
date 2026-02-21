@@ -28,8 +28,8 @@ class UpdateChecker(private val client: OkHttpClient) {
         emit(UiState.Loading)
         // Immediately fail - updates are disabled
         throw Exception("Update checking is disabled")
-    }.catch {
-        emit(UiState.Error(it))
+    }.catch { e: Throwable ->  // 显式声明类型
+    emit(UiState.Error(e))
     }.flowOn(Dispatchers.IO)
 
     // DISABLED: Download functionality is also disabled
