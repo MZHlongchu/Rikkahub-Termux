@@ -9,8 +9,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.google.services)
-    alias(libs.plugins.firebase.crashlytics)
+    // REMOVED: google.services and firebase.crashlytics plugins
 }
 
 android {
@@ -18,7 +17,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "me.rerere.rikkahub.ywxk"
+        applicationId = "me.rerere.rikkahub.termux"
         minSdk = 26
         targetSdk = 36
         versionCode = 136
@@ -175,11 +174,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
 
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.config)
+    // Firebase REMOVED - No tracking or remote config
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
