@@ -2,6 +2,7 @@ import * as React from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
+  AudioLines,
   BookHeart,
   BookX,
   Check,
@@ -11,6 +12,7 @@ import {
   Globe,
   Loader2,
   Search,
+  Video,
   Wrench,
   X,
 } from "lucide-react";
@@ -25,9 +27,16 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { useIsMobile } from "~/hooks/use-mobile";
-import type { TextPart as UITextPart, ToolPart as UIToolPart } from "~/types";
+import { resolveFileUrl } from "~/lib/files";
+import type {
+  TextPart as UITextPart,
+  ToolPart as UIToolPart,
+} from "~/types";
 
 import { ControlledChainOfThoughtStep } from "../chain-of-thought";
+import { AudioPart as AudioPartRenderer } from "./audio-part";
+import { ImagePart as ImagePartRenderer } from "./image-part";
+import { VideoPart as VideoPartRenderer } from "./video-part";
 
 interface ToolPartProps {
   tool: UIToolPart;
@@ -56,14 +65,12 @@ const CLIPBOARD_ACTIONS = {
   WRITE: "write",
 } as const;
 
-type JsonParseResult = { ok: true; value: unknown } | { ok: false };
-
-function tryParseJson(input: string): JsonParseResult {
-  if (!input.trim()) return { ok: false };
+function safeJsonParse(input: string): unknown {
+  if (!input.trim()) return {};
   try {
-    return { ok: true, value: JSON.parse(input) };
+    return JSON.parse(input);
   } catch {
-    return { ok: false };
+    return {};
   }
 }
 
@@ -135,17 +142,6 @@ function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
       {toJsonString(value)}
-    </pre>
-  );
-}
-
-function ResultBlock({ parsed, raw }: { parsed: unknown | null; raw: string }) {
-  if (parsed !== null) {
-    return <JsonBlock value={parsed} />;
-  }
-  return (
-    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
-      {raw}
     </pre>
   );
 }
@@ -248,8 +244,7 @@ export function ToolPart({
   const [expanded, setExpanded] = React.useState(true);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
-  const argsParsed = React.useMemo(() => tryParseJson(tool.input), [tool.input]);
-  const args = argsParsed.ok ? argsParsed.value : {};
+  const args = React.useMemo(() => safeJsonParse(tool.input), [tool.input]);
 
   const outputText = React.useMemo(
     () =>
@@ -260,8 +255,12 @@ export function ToolPart({
     [tool.output],
   );
 
-  const outputParsed = React.useMemo(() => tryParseJson(outputText), [outputText]);
-  const outputContent = outputParsed.ok ? outputParsed.value : null;
+  const outputContent = React.useMemo(() => safeJsonParse(outputText), [outputText]);
+
+  const hasMediaOutput = React.useMemo(
+    () => tool.output.some((p) => p.type === "image" || p.type === "video" || p.type === "audio"),
+    [tool.output],
+  );
 
   const memoryAction = getStringField(args, "action");
   const title = getToolTitle(tool.toolName, args, t);
@@ -270,7 +269,6 @@ export function ToolPart({
   const deniedReason =
     tool.approvalState.type === "denied" ? (tool.approvalState.reason ?? "") : "";
   const isExecuted = tool.output.length > 0;
-  const hasRawTextResult = isExecuted && !outputParsed.ok && Boolean(outputText.trim());
 
   const hasExtraContent =
     (tool.toolName === TOOL_NAMES.MEMORY &&
@@ -280,8 +278,8 @@ export function ToolPart({
       (Boolean(getStringField(outputContent, "answer")) ||
         getArrayField(outputContent, "items").length > 0)) ||
     (tool.toolName === TOOL_NAMES.SCRAPE_WEB && Boolean(getStringField(args, "url"))) ||
-    hasRawTextResult ||
-    isDenied;
+    isDenied ||
+    hasMediaOutput;
 
   const canOpenDrawer = isPending || isExecuted;
   const Icon = getToolIcon(tool.toolName, memoryAction);
@@ -359,17 +357,51 @@ export function ToolPart({
               </div>
             )}
 
-            {hasRawTextResult && (
-              <div className="line-clamp-3 whitespace-pre-wrap text-muted-foreground text-xs">
-                {outputText.split("\n").slice(0, 3).join("\n")}
-              </div>
-            )}
-
             {isDenied && (
               <div className="text-destructive text-xs">
                 {deniedReason
                   ? t("tool_part.denied_with_reason", { reason: deniedReason })
                   : t("tool_part.denied")}
+              </div>
+            )}
+
+            {hasMediaOutput && (
+              <div className="flex flex-wrap gap-1">
+                {tool.output.map((part, i) => {
+                  if (part.type === "image") {
+                    return (
+                      <img
+                        key={i}
+                        alt=""
+                        className="h-16 w-auto rounded border border-muted object-contain"
+                        src={resolveFileUrl(part.url)}
+                      />
+                    );
+                  }
+                  if (part.type === "video") {
+                    return (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded border border-muted bg-muted/30 px-2 py-1 text-muted-foreground text-xs"
+                      >
+                        <Video className="h-3 w-3" />
+                        video
+                      </span>
+                    );
+                  }
+                  if (part.type === "audio") {
+                    return (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded border border-muted bg-muted/30 px-2 py-1 text-muted-foreground text-xs"
+                      >
+                        <AudioLines className="h-3 w-3" />
+                        audio
+                      </span>
+                    );
+                  }
+                  return null;
+                })}
               </div>
             )}
           </div>
@@ -390,9 +422,9 @@ export function ToolPart({
           </DrawerHeader>
 
           <div className="max-h-[72vh] space-y-4 overflow-y-auto px-4 pb-6">
-            {tool.toolName === TOOL_NAMES.SEARCH_WEB && isExecuted && outputParsed.ok ? (
+            {tool.toolName === TOOL_NAMES.SEARCH_WEB && isExecuted ? (
               <SearchWebPreview args={args} content={outputContent} />
-            ) : tool.toolName === TOOL_NAMES.SCRAPE_WEB && isExecuted && outputParsed.ok ? (
+            ) : tool.toolName === TOOL_NAMES.SCRAPE_WEB && isExecuted ? (
               <ScrapeWebPreview content={outputContent} />
             ) : (
               <div className="space-y-3">
@@ -403,11 +435,25 @@ export function ToolPart({
                   <JsonBlock value={args} />
                 </div>
                 {isExecuted && (
-                  <div>
+                  <div className="space-y-2">
                     <div className="mb-1 text-muted-foreground text-xs">
                       {t("tool_part.result")}
                     </div>
-                    <ResultBlock parsed={outputContent} raw={outputText} />
+                    {tool.output.map((part, i) => {
+                      if (part.type === "text") {
+                        let parsed: unknown;
+                        try {
+                          parsed = JSON.parse(part.text);
+                        } catch {
+                          parsed = part.text;
+                        }
+                        return <JsonBlock key={i} value={parsed} />;
+                      }
+                      if (part.type === "image") return <ImagePartRenderer key={i} url={part.url} />;
+                      if (part.type === "video") return <VideoPartRenderer key={i} url={part.url} />;
+                      if (part.type === "audio") return <AudioPartRenderer key={i} url={part.url} />;
+                      return null;
+                    })}
                   </div>
                 )}
                 {!isExecuted && (
