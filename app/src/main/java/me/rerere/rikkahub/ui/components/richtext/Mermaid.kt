@@ -37,7 +37,6 @@ import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.X
 import com.dokar.sonner.ToastType
-import com.google.common.cache.CacheBuilder
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.webview.WebView
 import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
@@ -46,10 +45,29 @@ import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.utils.escapeHtml
 import me.rerere.rikkahub.utils.exportImage
 import me.rerere.rikkahub.utils.toCssHex
+import java.util.LinkedHashMap
 
-private val mermaidHeightCache = CacheBuilder.newBuilder()
-    .maximumSize(100)
-    .build<String, Int>()
+/**
+ * 零依赖的 LRU Cache 实现，替代 Guava Cache
+ * 使用 LinkedHashMap 的 accessOrder 模式实现 LRU 淘汰
+ */
+private class LRUCache<K, V>(private val maxSize: Int) {
+    private val map = object : LinkedHashMap<K, V>(maxSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean {
+            return size > maxSize
+        }
+    }
+    
+    @Synchronized
+    fun getIfPresent(key: K): V? = map[key]
+    
+    @Synchronized
+    fun put(key: K, value: V) {
+        map[key] = value
+    }
+}
+
+private val mermaidHeightCache = LRUCache<String, Int>(100)
 
 /**
  * A component that renders Mermaid diagrams.
