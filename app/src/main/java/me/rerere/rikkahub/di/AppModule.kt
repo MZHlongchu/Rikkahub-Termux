@@ -7,8 +7,9 @@ import me.rerere.rikkahub.data.ai.AILoggingManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
+import me.rerere.rikkahub.data.ai.tools.slash.SlashCommandHandler
 import me.rerere.rikkahub.service.ChatService
-import me.rerere.rikkahub.utils.EmojiData
+import me.rerere.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.UpdateChecker
@@ -37,6 +38,13 @@ val appModule = module {
 
     single {
         LocalTools(get(), get(), get())
+    }
+
+    single {
+        SlashCommandHandler(
+            context = get(),
+            termuxCommandManager = get()
+        )
     }
 
     single {
@@ -73,7 +81,8 @@ val appModule = module {
             providerManager = get(),
             localTools = get(),
             mcpManager = get(),
-            filesManager = get()
+            filesManager = get(),
+            slashCommandHandler = get()
         )
     }
 
@@ -88,3 +97,4 @@ val appModule = module {
         )
     }
 }
+
