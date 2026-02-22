@@ -94,4 +94,25 @@ class MessageTemplateInjectionTransformerTest {
         assertEquals(MessageRole.ASSISTANT, result.first().role)
         assertEquals("question", getMessageText(result.first()))
     }
+
+    @Test
+    fun `last user node should not reorder tool follow up history`() {
+        val messages = listOf(
+            UIMessage.system("sys"),
+            UIMessage.user("u1"),
+            UIMessage.assistant("tool_call"),
+            UIMessage.assistant("tool_result"),
+        )
+        val template = MessageInjectionTemplate(
+            nodes = listOf(
+                MessageTemplateNode.HistoryNode(),
+                MessageTemplateNode.LastUserMessageNode(),
+            )
+        )
+
+        val result = applyMessageTemplate(messages, template)
+
+        assertEquals(messages, result)
+        assertEquals("tool_result", getMessageText(result.last()))
+    }
 }

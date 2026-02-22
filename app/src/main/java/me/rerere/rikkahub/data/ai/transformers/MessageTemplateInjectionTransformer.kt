@@ -26,9 +26,10 @@ internal fun applyMessageTemplate(
     if (enabledNodes.isEmpty()) return messages
 
     val hasLastUserMessageNode = enabledNodes.any { it is MessageTemplateNode.LastUserMessageNode }
-    val lastUserMessage = messages.lastOrNull { it.role == MessageRole.USER }
-    val historyMessages = if (hasLastUserMessageNode && lastUserMessage != null) {
-        messages.filter { it.id != lastUserMessage.id }
+    val trailingUserMessage = messages.lastOrNull()?.takeIf { it.role == MessageRole.USER }
+    val shouldExtractTrailingUserFromHistory = hasLastUserMessageNode && trailingUserMessage != null
+    val historyMessages = if (shouldExtractTrailingUserFromHistory) {
+        messages.dropLast(1)
     } else {
         messages
     }
@@ -50,9 +51,9 @@ internal fun applyMessageTemplate(
             }
 
             is MessageTemplateNode.LastUserMessageNode -> {
-                if (lastUserMessage != null) {
-                    result += lastUserMessage.copy(
-                        role = node.roleMapping.map(lastUserMessage.role)
+                if (trailingUserMessage != null) {
+                    result += trailingUserMessage.copy(
+                        role = node.roleMapping.map(trailingUserMessage.role)
                     )
                 }
             }
