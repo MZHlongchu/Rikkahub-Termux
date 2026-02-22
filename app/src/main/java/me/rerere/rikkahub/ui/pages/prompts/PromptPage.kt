@@ -80,6 +80,7 @@ import com.composables.icons.lucide.X
 import kotlinx.coroutines.launch
 import me.rerere.ai.core.MessageRole
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.export.LorebookSerializer
 import me.rerere.rikkahub.data.export.ModeInjectionSerializer
 import me.rerere.rikkahub.data.export.rememberExporter
@@ -117,7 +118,7 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
             NavigationBar {
                 NavigationBarItem(
                     selected = pagerState.currentPage == 0,
-                    label = { Text(stringResource(R.string.prompt_page_mode_injection_tab)) },
+                    label = { Text(stringResource(R.string.prompt_page_message_template_tab)) },
                     icon = { Icon(Lucide.Wand, null) },
                     onClick = {
                         scope.launch { pagerState.animateScrollToPage(0) }
@@ -141,10 +142,25 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
                 .fillMaxSize()
         ) { page ->
             when (page) {
-                0 -> ModeInjectionTab(
-                    modeInjections = settings.modeInjections,
-                    onUpdate = { vm.updateSettings(settings.copy(modeInjections = it)) }
-                )
+                0 -> {
+                    val currentAssistant = settings.getCurrentAssistant()
+                    MessageTemplateEditorTab(
+                        template = currentAssistant.messageInjectionTemplate,
+                        onUpdate = { template ->
+                            vm.updateSettings(
+                                settings.copy(
+                                    assistants = settings.assistants.map { assistant ->
+                                        if (assistant.id == currentAssistant.id) {
+                                            assistant.copy(messageInjectionTemplate = template)
+                                        } else {
+                                            assistant
+                                        }
+                                    }
+                                )
+                            )
+                        }
+                    )
+                }
 
                 1 -> LorebookTab(
                     lorebooks = settings.lorebooks,
