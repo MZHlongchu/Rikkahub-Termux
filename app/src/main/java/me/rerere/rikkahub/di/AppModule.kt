@@ -9,7 +9,7 @@ import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
 import me.rerere.rikkahub.data.ai.tools.slash.SlashCommandHandler
 import me.rerere.rikkahub.service.ChatService
-import me.rerere.utils.EmojiData
+import me.rerere.rikkahub.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.UpdateChecker
@@ -97,4 +97,5 @@ val appModule = module {
         )
     }
 }
+
 
