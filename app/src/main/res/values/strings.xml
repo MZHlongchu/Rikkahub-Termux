@@ -893,4 +893,26 @@
   <string name="setting_page_sponsor_alert_desc">You have launched the app over 100 times! If you enjoy using it, please consider supporting the developer.</string>
   <string name="setting_page_sponsor_alert_confirm">Donate</string>
   <string name="setting_page_sponsor_alert_dismiss">Not Now</string>
+  <!-- Slash Commands -->
+<string name="slash_command_executing">Executing command: %s</string>
+<string name="slash_command_success">Command executed successfully</string>
+<string name="slash_command_error">Error executing command: %s</string>
+<string name="slash_command_timeout">Command timed out after %d seconds</string>
+<string name="slash_command_empty">Error: Empty command</string>
+<string name="slash_command_no_command">Error: No command specified</string>
+<string name="slash_command_help">
+  Slash Commands:
+  /help - Show this help message
+  /version - Show app version
+  /&lt;command&gt; - Execute any Termux command
+  
+  Examples:
+  /ls - List files
+  /pwd - Print working directory
+  /echo hello - Print text
+  /termux-toast "Hello" - Show toast notification
+  
+  Note: Termux must be installed and the permission granted.
+</string>
+<string name="slash_command_version">RikkaHub Version: %s</string>
 </resources>
