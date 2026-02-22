@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -24,13 +25,7 @@ class UpdateChecker(private val client: OkHttpClient) {
 
     // DISABLED: Always returns a Flow that immediately emits an error state
     // Update checking is completely disabled to prevent network access
-    @Suppress("UNCHECKED_CAST")
-    fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
-        emit(UiState.Loading)
-        throw Exception("Update checking is disabled")
-    }.catch { e ->
-        emit(UiState.Error(e) as UiState<UpdateInfo>)
-    }.flowOn(Dispatchers.IO)
+    fun checkUpdate(): Flow<UiState<UpdateInfo>> = flowOf(UiState.Error(Exception("Update checking is disabled")))
 
     // DISABLED: Download functionality is also disabled
     fun downloadUpdate(context: Context, download: UpdateDownload) {
