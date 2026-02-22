@@ -24,12 +24,12 @@ class UpdateChecker(private val client: OkHttpClient) {
 
     // DISABLED: Always returns a Flow that immediately emits an error state
     // Update checking is completely disabled to prevent network access
+    @Suppress("UNCHECKED_CAST")
     fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
-        // 直接抛出异常，跳过 Loading 状态，避免类型推断问题
+        emit(UiState.Loading)
         throw Exception("Update checking is disabled")
     }.catch { e ->
-        // catch 块中 emit 的类型会被正确推断为 UiState<UpdateInfo>
-        emit(UiState.Error(e))
+        emit(UiState.Error(e) as UiState<UpdateInfo>)
     }.flowOn(Dispatchers.IO)
 
     // DISABLED: Download functionality is also disabled
