@@ -63,7 +63,23 @@ class RikkaHubApp : Application() {
         startWebServerIfEnabled()
         startTermuxWorkdirServerIfEnabled()
 
+        // Increment launch count
+        incrementLaunchCount()
+
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
+    }
+
+    private fun incrementLaunchCount() {
+        get<AppScope>().launch {
+            runCatching {
+                val store = get<SettingsStore>()
+                val current = store.settingsFlowRaw.first()
+                store.update(current.copy(launchCount = current.launchCount + 1))
+                Log.i(TAG, "incrementLaunchCount: ${store.settingsFlowRaw.first().launchCount}")
+            }.onFailure {
+                Log.e(TAG, "incrementLaunchCount failed", it)
+            }
+        }
     }
 
     private fun deleteTempFiles() {
@@ -151,6 +167,6 @@ class AppScope : CoroutineScope by CoroutineScope(
         + Dispatchers.Main
         + CoroutineName("AppScope")
         + CoroutineExceptionHandler { _, e ->
-            Log.e(TAG, "AppScope exception", e)
-        }
+        Log.e(TAG, "AppScope exception", e)
+    }
 )
