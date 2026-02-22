@@ -3,6 +3,7 @@ package me.rerere.rikkahub.data.export
 import me.rerere.ai.core.MessageRole
 import me.rerere.rikkahub.data.model.MessageTemplateNode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -44,6 +45,7 @@ class MessageTemplateSerializerTest {
         assertNotNull(parsed)
         parsed!!
         assertEquals("预设消息", parsed.name)
+        assertFalse(parsed.enabled)
         assertEquals(3, parsed.nodes.size)
 
         val first = parsed.nodes[0] as MessageTemplateNode.PromptNode

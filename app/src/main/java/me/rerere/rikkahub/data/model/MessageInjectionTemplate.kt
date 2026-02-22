@@ -8,12 +8,14 @@ import kotlin.uuid.Uuid
 @Serializable
 data class MessageInjectionTemplate(
     val name: String = "",
+    val enabled: Boolean = false,
     @SerialName("template")
     val nodes: List<MessageTemplateNode> = defaultNodes(),
 ) {
     companion object {
         fun default() = MessageInjectionTemplate(
             name = "Message Template",
+            enabled = false,
             nodes = defaultNodes()
         )
 

@@ -22,6 +22,7 @@ class MessageTemplateInjectionTransformerTest {
             UIMessage.assistant("hi")
         )
         val template = MessageInjectionTemplate(
+            enabled = true,
             nodes = listOf(
                 MessageTemplateNode.PromptNode(enabled = false, content = "ignored")
             )
@@ -41,6 +42,7 @@ class MessageTemplateInjectionTransformerTest {
             UIMessage.user("u2"),
         )
         val template = MessageInjectionTemplate(
+            enabled = true,
             nodes = listOf(
                 MessageTemplateNode.PromptNode(
                     role = MessageRole.SYSTEM,
@@ -81,6 +83,7 @@ class MessageTemplateInjectionTransformerTest {
             UIMessage.user("question")
         )
         val template = MessageInjectionTemplate(
+            enabled = true,
             nodes = listOf(
                 MessageTemplateNode.LastUserMessageNode(
                     roleMapping = TemplateRoleMapping(user = MessageRole.ASSISTANT)
@@ -104,6 +107,7 @@ class MessageTemplateInjectionTransformerTest {
             UIMessage.assistant("tool_result"),
         )
         val template = MessageInjectionTemplate(
+            enabled = true,
             nodes = listOf(
                 MessageTemplateNode.HistoryNode(),
                 MessageTemplateNode.LastUserMessageNode(),
@@ -114,5 +118,28 @@ class MessageTemplateInjectionTransformerTest {
 
         assertEquals(messages, result)
         assertEquals("tool_result", getMessageText(result.last()))
+    }
+
+    @Test
+    fun `disabled template should keep original messages`() {
+        val messages = listOf(
+            UIMessage.system("system"),
+            UIMessage.user("hello"),
+            UIMessage.assistant("hi")
+        )
+        val template = MessageInjectionTemplate(
+            enabled = false,
+            nodes = listOf(
+                MessageTemplateNode.PromptNode(
+                    enabled = true,
+                    role = MessageRole.SYSTEM,
+                    content = "should_not_apply"
+                )
+            )
+        )
+
+        val result = applyMessageTemplate(messages, template)
+
+        assertEquals(messages, result)
     }
 }

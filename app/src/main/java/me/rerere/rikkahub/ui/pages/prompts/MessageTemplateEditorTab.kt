@@ -1,7 +1,6 @@
 package me.rerere.rikkahub.ui.pages.prompts
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,23 +16,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,11 +53,8 @@ import me.rerere.rikkahub.data.model.MessageTemplateNode
 import me.rerere.rikkahub.data.model.TemplateRoleMapping
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.Select
-import me.rerere.rikkahub.ui.components.ui.Tag
-import me.rerere.rikkahub.ui.components.ui.TagType
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.useEditState
-import me.rerere.rikkahub.utils.plus
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -72,7 +65,6 @@ fun MessageTemplateEditorTab(
 ) {
     val lazyListState = rememberLazyListState()
     val toaster = LocalToaster.current
-    val currentTemplate by rememberUpdatedState(template)
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
         val newNodes = template.nodes.toMutableList()
         val moved = newNodes.removeAt(from.index)
@@ -92,133 +84,97 @@ fun MessageTemplateEditorTab(
     val defaultPromptName = stringResource(R.string.prompt_page_message_template_prompt_default_name)
     val importer = rememberImporter(MessageTemplateSerializer) { result ->
         result.onSuccess { imported ->
-            onUpdate(imported)
+            onUpdate(imported.copy(enabled = template.enabled))
             toaster.show(importSuccessMsg)
         }.onFailure { error ->
             toaster.show(importFailedMsg.format(error.message))
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(vertical = 16.dp) + PaddingValues(bottom = 168.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            state = lazyListState
-        ) {
-            if (template.nodes.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillParentMaxHeight(0.8f)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = stringResource(R.string.prompt_page_message_template_tab),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        state = lazyListState
+    ) {
+        item {
+            MessageTemplateControlCard(
+                enabled = template.enabled,
+                onToggleEnabled = { enabled ->
+                    onUpdate(template.copy(enabled = enabled))
+                },
+                onImport = { importer.importFromFile() },
+                onAddPrompt = {
+                    editState.open(
+                        MessageTemplateNode.PromptNode(
+                            name = defaultPromptName
                         )
-                        Text(
-                            text = stringResource(R.string.prompt_page_message_template_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
+                    )
+                },
+                onAddHistory = {
+                    onUpdate(template.copy(nodes = template.nodes + MessageTemplateNode.HistoryNode()))
+                },
+                onAddLastUser = {
+                    onUpdate(template.copy(nodes = template.nodes + MessageTemplateNode.LastUserMessageNode()))
                 }
-            } else {
-                items(template.nodes, key = { it.id }) { node ->
-                    ReorderableItem(
-                        state = reorderableState,
-                        key = node.id
-                    ) { isDragging ->
-                        MessageTemplateNodeCard(
-                            node = node,
-                            modifier = Modifier
-                                .longPressDraggableHandle()
-                                .graphicsLayer {
-                                    if (isDragging) {
-                                        scaleX = 1.03f
-                                        scaleY = 1.03f
-                                    }
-                                },
-                            onToggleEnabled = { enabled ->
-                                val nextNode = when (node) {
-                                    is MessageTemplateNode.PromptNode -> node.copy(enabled = enabled)
-                                    is MessageTemplateNode.HistoryNode -> node.copy(enabled = enabled)
-                                    is MessageTemplateNode.LastUserMessageNode -> node.copy(enabled = enabled)
-                                }
-                                val index = template.nodes.indexOfFirst { it.id == node.id }
-                                if (index >= 0) {
-                                    onUpdate(template.copy(nodes = template.nodes.toMutableList().apply { set(index, nextNode) }))
-                                }
-                            },
-                            onEdit = { editState.open(node) },
-                            onDelete = {
-                                onUpdate(template.copy(nodes = template.nodes.filter { it.id != node.id }))
-                            }
-                        )
-                    }
-                }
+            )
+        }
+
+        if (!template.enabled) {
+            item {
+                Text(
+                    text = stringResource(R.string.prompt_page_message_template_disabled_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { importer.importFromFile() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Lucide.Import, null)
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(stringResource(R.string.prompt_page_message_template_import))
+        if (template.nodes.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.prompt_page_message_template_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        editState.open(
-                            MessageTemplateNode.PromptNode(
-                                name = defaultPromptName
-                            )
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Lucide.Plus, null)
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text(stringResource(R.string.prompt_page_message_template_add_prompt))
+        } else {
+            items(template.nodes, key = { it.id }) { node ->
+                ReorderableItem(
+                    state = reorderableState,
+                    key = node.id
+                ) { isDragging ->
+                    MessageTemplateNodeCard(
+                        node = node,
+                        modifier = Modifier
+                            .longPressDraggableHandle()
+                            .graphicsLayer {
+                                if (isDragging) {
+                                    scaleX = 1.02f
+                                    scaleY = 1.02f
+                                }
+                            },
+                        onToggleEnabled = { enabled ->
+                            val nextNode = when (node) {
+                                is MessageTemplateNode.PromptNode -> node.copy(enabled = enabled)
+                                is MessageTemplateNode.HistoryNode -> node.copy(enabled = enabled)
+                                is MessageTemplateNode.LastUserMessageNode -> node.copy(enabled = enabled)
+                            }
+                            val index = template.nodes.indexOfFirst { it.id == node.id }
+                            if (index >= 0) {
+                                onUpdate(template.copy(nodes = template.nodes.toMutableList().apply { set(index, nextNode) }))
+                            }
+                        },
+                        onEdit = { editState.open(node) },
+                        onDelete = {
+                            onUpdate(template.copy(nodes = template.nodes.filter { it.id != node.id }))
+                        }
+                    )
                 }
-                Button(
-                    onClick = {
-                        onUpdate(currentTemplate.copy(nodes = currentTemplate.nodes + MessageTemplateNode.HistoryNode()))
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Lucide.Plus, null)
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text(stringResource(R.string.prompt_page_message_template_add_history))
-                }
-            }
-            Button(
-                onClick = {
-                    onUpdate(currentTemplate.copy(nodes = currentTemplate.nodes + MessageTemplateNode.LastUserMessageNode()))
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Lucide.Plus, null)
-                Spacer(modifier = Modifier.size(6.dp))
-                Text(stringResource(R.string.prompt_page_message_template_add_last_user))
             }
         }
     }
@@ -231,6 +187,111 @@ fun MessageTemplateEditorTab(
                 onConfirm = { editState.confirm() },
                 onEdit = { editState.currentState = it }
             )
+        }
+    }
+}
+
+@Composable
+private fun MessageTemplateControlCard(
+    enabled: Boolean,
+    onToggleEnabled: (Boolean) -> Unit,
+    onImport: () -> Unit,
+    onAddPrompt: () -> Unit,
+    onAddHistory: () -> Unit,
+    onAddLastUser: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_tab),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_enabled_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onImport,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Lucide.Import, null)
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_import),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                OutlinedButton(
+                    onClick = onAddPrompt,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Lucide.Plus, null)
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_add_prompt),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onAddHistory,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Lucide.Plus, null)
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_add_history),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                OutlinedButton(
+                    onClick = onAddLastUser,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Lucide.Plus, null)
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_add_last_user),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -252,29 +313,48 @@ private fun MessageTemplateNodeCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Lucide.GripHorizontal, contentDescription = null)
+            Icon(
+                Lucide.GripHorizontal,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = getNodeDisplayName(node),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = getNodeTypeLabel(node),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (node is MessageTemplateNode.PromptNode && node.content.isNotBlank()) {
+                    Text(
+                        text = node.content,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             Switch(
                 checked = node.enabled,
                 onCheckedChange = onToggleEnabled
             )
-            Tag(type = TagType.INFO) {
-                Text(getNodeTypeLabel(node))
-            }
-            Text(
-                text = getNodeDisplayName(node),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
             IconButton(onClick = onEdit) {
                 Icon(Lucide.Settings2, stringResource(R.string.prompt_page_edit))
             }
-            FilledIconButton(onClick = onDelete) {
+            IconButton(onClick = onDelete) {
                 Icon(Lucide.Trash2, stringResource(R.string.prompt_page_delete))
             }
         }

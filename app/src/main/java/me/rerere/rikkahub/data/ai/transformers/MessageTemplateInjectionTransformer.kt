@@ -22,6 +22,8 @@ internal fun applyMessageTemplate(
     messages: List<UIMessage>,
     template: MessageInjectionTemplate
 ): List<UIMessage> {
+    if (!template.enabled) return messages
+
     val enabledNodes = template.nodes.filter { it.enabled }
     if (enabledNodes.isEmpty()) return messages
 
