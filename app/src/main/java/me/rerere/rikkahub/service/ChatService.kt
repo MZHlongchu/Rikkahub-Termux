@@ -56,6 +56,7 @@ import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
+import me.rerere.rikkahub.data.ai.transformers.MessageTemplateInjectionTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
 import me.rerere.rikkahub.data.ai.transformers.PromptInjectionTransformer
@@ -97,6 +98,7 @@ data class ChatError(
 private val inputTransformers by lazy {
     listOf(
         TimeReminderTransformer,
+        MessageTemplateInjectionTransformer,
         PromptInjectionTransformer,
         PlaceholderTransformer,
         DocumentAsPromptTransformer,
