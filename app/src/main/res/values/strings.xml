@@ -836,6 +836,8 @@
   <string name="setting_termux_page_setup_step_3">3) Android Settings: grant “Run commands in Termux environment” to this app (Additional permissions)</string>
   <string name="setting_termux_page_setup_step_4">4) For termux_python: install Python in Termux (pkg install python)</string>
   <string name="setting_termux_page_open_app_settings">Open App Settings</string>
+  <string name="setting_termux_page_grant_termux_permission">授予Termux权限</string>
+  <string name="setting_termux_page_permission_already_granted">权限已授予</string>
   <string name="setting_display_page_enable_latex_rendering_title">Enable LaTeX Rendering</string>
   <string name="setting_display_page_enable_latex_rendering_desc">Render mathematical expressions and formulas using LaTeX syntax</string>
   <string name="favorite_page_title">Favorites</string>
