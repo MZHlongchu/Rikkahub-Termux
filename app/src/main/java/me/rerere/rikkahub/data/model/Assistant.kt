@@ -37,6 +37,7 @@ data class Assistant(
     val localTools: List<LocalToolOption> = listOf(LocalToolOption.TimeInfo),
     val termuxNeedsApproval: Boolean = true,
     val background: String? = null,
+    val messageInjectionTemplate: MessageInjectionTemplate = MessageInjectionTemplate.default(),
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
     val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
