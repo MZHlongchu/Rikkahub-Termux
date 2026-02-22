@@ -1,6 +1,7 @@
 package me.rerere.rikkahub
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -80,7 +81,7 @@ import me.rerere.rikkahub.ui.pages.prompts.PromptPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
-import me.rereere.rikkahub.ui.pages.setting.SettingDisplayPage
+import me.rerere.rikkahub.ui.pages.setting.SettingDisplayPage
 import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
 import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
@@ -95,7 +96,6 @@ import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
-import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import okhttp3.OkHttpClient
 import org.koin.android.ext.android.inject
@@ -135,7 +135,7 @@ class RouteActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -144,14 +144,12 @@ class RouteActivity : ComponentActivity() {
             REQUEST_TERMUX_PERMISSION -> {
                 val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
                 if (granted) {
-                    // Termux 权限已授予
                     android.widget.Toast.makeText(
                         this,
                         "Termux 权限已授予",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 } else {
-                    // Termux 权限被拒绝
                     val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(
                         this,
                         "com.termux.permission.RUN_COMMAND"
@@ -206,10 +204,10 @@ class RouteActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
             navStack?.add(Screen.Chat(text))
-        }    }
+        }
+    }
 
     @Composable
     fun AppRoutes() {
@@ -422,6 +420,7 @@ class RouteActivity : ComponentActivity() {
                             entry<Screen.Log> {
                                 LogPage()
                             }
+
                             entry<Screen.Prompts> {
                                 PromptPage()
                             }
