@@ -1,8 +1,10 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -38,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -78,6 +81,18 @@ fun SettingTermuxPage() {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
                 allFilesAccessGranted = isAllFilesAccessGranted()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Termux RUN_COMMAND 权限状态
+    var termuxPermissionGranted by remember { mutableStateOf(isTermuxPermissionGranted(context)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
+                termuxPermissionGranted = isTermuxPermissionGranted(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -323,17 +338,24 @@ fun SettingTermuxPage() {
                         )
                         Text(stringResource(R.string.setting_termux_page_setup_step_1))
                         Text(stringResource(R.string.setting_termux_page_setup_step_2))
-                        Text(stringResource(R.string.setting_termux_page_setup_step_3))
+                        Text(
+                            text = stringResource(R.string.setting_termux_page_setup_step_3),
+                            color = if (termuxPermissionGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
                         Text(stringResource(R.string.setting_termux_page_setup_step_4))
                         TextButton(
                             onClick = {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.fromParts("package", context.packageName, null)
-                                }
-                                context.startActivity(intent)
+                                // 直接使用 ActivityCompat.requestPermissions() 请求权限
+                                requestTermuxPermission(context as Activity)
                             }
                         ) {
-                            Text(stringResource(R.string.setting_termux_page_open_app_settings))
+                            Text(
+                                text = if (termuxPermissionGranted) {
+                                    stringResource(R.string.setting_termux_page_permission_already_granted)
+                                } else {
+                                    stringResource(R.string.setting_termux_page_grant_termux_permission)
+                                }
+                            )
                         }
                     }
                 }
@@ -341,6 +363,44 @@ fun SettingTermuxPage() {
         }
     }
 }
+
+/**
+ * 检查 com.termux.permission.RUN_COMMAND 权限是否已授予
+ */
+private fun isTermuxPermissionGranted(context: Context): Boolean {
+    return try {
+        val pm = context.packageManager
+        val permission = "com.termux.permission.RUN_COMMAND"
+        val result = pm.checkPermission(permission, context.packageName)
+        result == PackageManager.PERMISSION_GRANTED
+    } catch (e: Exception) {
+        false
+    }
+}
+
+/**
+ * 请求 com.termux.permission.RUN_COMMAND 权限
+ * 直接使用 ActivityCompat.requestPermissions() 触发系统对话框
+ */
+private fun requestTermuxPermission(activity: Activity) {
+    // 检查是否已经授权
+    if (isTermuxPermissionGranted(activity)) {
+        return
+    }
+
+    val permission = "com.termux.permission.RUN_COMMAND"
+    try {
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(permission),
+            REQUEST_TERMUX_PERMISSION
+        )
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
+private const val REQUEST_TERMUX_PERMISSION = 1001
 
 private fun isAllFilesAccessGranted(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
