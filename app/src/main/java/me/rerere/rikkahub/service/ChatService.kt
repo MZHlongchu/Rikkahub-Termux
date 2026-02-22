@@ -54,6 +54,7 @@ import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
+import me.rerere.rikkahub.data.ai.tools.slash.SlashCommandHandler
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
@@ -124,6 +125,7 @@ class ChatService(
     private val localTools: LocalTools,
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
+    private val slashCommandHandler: SlashCommandHandler,
 ) {
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
@@ -268,6 +270,15 @@ class ChatService(
     fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true) {
         if (content.isEmptyInputMessage()) return
 
+        // 检查是否是斜杠命令
+        val textPart = content.filterIsInstance<UIMessagePart.Text>().firstOrNull()
+        if (textPart != null && slashCommandHandler.isSlashCommand(textPart.text)) {
+            // 处理斜杠命令
+            handleSlashCommandMessage(conversationId, content, textPart.text)
+            return
+        }
+
+        // 普通消息处理流程
         val session = getOrCreateSession(conversationId)
         session.getJob()?.cancel()
         val processedContent = preprocessUserInputParts(content)
@@ -296,6 +307,70 @@ class ChatService(
                 addError(e, conversationId)
             }
         }
+        session.setJob(job)
+    }
+
+    /**
+     * 处理斜杠命令消息
+     * 不调用 LLM，直接执行 Termux 命令并返回结果
+     */
+    private fun handleSlashCommandMessage(conversationId: Uuid, content: List<UIMessagePart>, fullMessage: String) {
+        val session = getOrCreateSession(conversationId)
+        session.getJob()?.cancel()
+
+        val command = slashCommandHandler.extractCommand(fullMessage)
+
+        val job = appScope.launch {
+            try {
+                val currentConversation = session.state.value
+
+                // 添加用户消息（原始命令）
+                val userMessage = UIMessage(
+                    role = MessageRole.USER,
+                    parts = content,
+                ).toMessageNode()
+                val newConversation = currentConversation.copy(
+                    messageNodes = currentConversation.messageNodes + userMessage
+                )
+                saveConversation(conversationId, newConversation)
+
+                // 执行斜杠命令，获取结果
+                val resultParts = slashCommandHandler.handleSlashCommand(command)
+
+                // 添加系统消息作为回复
+                val assistantMessage = UIMessage(
+                    role = MessageRole.ASSISTANT,
+                    parts = resultParts,
+                ).toMessageNode()
+
+                val finalConversation = session.state.value.copy(
+                    messageNodes = session.state.value.messageNodes + assistantMessage,
+                    updateAt = Instant.now()
+                )
+                saveConversation(conversationId, finalConversation)
+
+                _generationDoneFlow.emit(conversationId)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                addError(e, conversationId)
+
+                // 发送错误消息给用户
+                val errorMessage = UIMessage(
+                    role = MessageRole.ASSISTANT,
+                    parts = listOf(UIMessagePart.Text("Error executing command: ${e.message}"))
+                ).toMessageNode()
+
+                val currentConversation = session.state.value
+                val errorConversation = currentConversation.copy(
+                    messageNodes = currentConversation.messageNodes + errorMessage,
+                    updateAt = Instant.now()
+                )
+                saveConversation(conversationId, errorConversation)
+                _generationDoneFlow.emit(conversationId)
+            }
+        }
+
         session.setJob(job)
     }
 
@@ -621,7 +696,6 @@ class ChatService(
                             "locale" to Locale.getDefault().displayName,
                             "content" to conversation.currentMessages.truncate(conversation.truncateIndex)
                                 .joinToString("\n\n") { it.summaryAsText() })
-                    ),
                 ),
                 params = TextGenerationParams(
                     model = model, temperature = 0.3f, thinkingBudget = 0
@@ -678,9 +752,7 @@ class ChatService(
             saveConversation(
                 conversationId,
                 getConversationFlow(conversationId).value.copy(
-                    chatSuggestions = suggestions.take(
-                        10
-                    )
+                    chatSuggestions = suggestions.take(10)
                 )
             )
         }.onFailure {
@@ -1086,7 +1158,7 @@ class ChatService(
             }
         }
 
-        saveConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
+        updateConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
     }
 
     suspend fun deleteMessage(
