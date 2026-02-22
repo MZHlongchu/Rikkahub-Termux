@@ -30,6 +30,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -79,7 +80,7 @@ import me.rerere.rikkahub.ui.pages.prompts.PromptPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
-import me.rerere.rikkahub.ui.pages.setting.SettingDisplayPage
+import me.rereere.rikkahub.ui.pages.setting.SettingDisplayPage
 import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
 import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
@@ -108,6 +109,10 @@ class RouteActivity : ComponentActivity() {
     private val settingsStore by inject<SettingsStore>()
     private var navStack: MutableList<NavKey>? = null
 
+    companion object {
+        const val REQUEST_TERMUX_PERMISSION = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         disableNavigationBarContrast()
@@ -124,6 +129,44 @@ class RouteActivity : ComponentActivity() {
                         .build()
                 }
                 AppRoutes()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            REQUEST_TERMUX_PERMISSION -> {
+                val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    // Termux 权限已授予
+                    android.widget.Toast.makeText(
+                        this,
+                        "Termux 权限已授予",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    // Termux 权限被拒绝
+                    val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(
+                        this,
+                        "com.termux.permission.RUN_COMMAND"
+                    )
+                    val message = if (shouldShowRationale) {
+                        "Termux 权限被拒绝，请重新授权"
+                    } else {
+                        "Termux 权限被永久拒绝，请前往应用设置手动授予"
+                    }
+                    android.widget.Toast.makeText(
+                        this,
+                        message,
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
@@ -224,16 +267,16 @@ class RouteActivity : ComponentActivity() {
                             if (backStack.size == 1) fadeIn() togetherWith fadeOut()
                             else {
                                 slideInHorizontally { it } togetherWith
-                                    slideOutHorizontally { -it / 2 } + scaleOut(targetScale = 0.7f) + fadeOut()
+                                        slideOutHorizontally { -it / 2 } + scaleOut(targetScale = 0.7f) + fadeOut()
                             }
                         },
                         popTransitionSpec = {
                             slideInHorizontally { -it / 2 } + scaleIn(initialScale = 0.7f) + fadeIn() togetherWith
-                                slideOutHorizontally { it }
+                                    slideOutHorizontally { it }
                         },
                         predictivePopTransitionSpec = {
                             slideInHorizontally { -it / 2 } + scaleIn(initialScale = 0.7f) + fadeIn() togetherWith
-                                slideOutHorizontally { it }
+                                    slideOutHorizontally { it }
                         },
                         entryProvider = entryProvider {
                             entry<Screen.Chat>(
