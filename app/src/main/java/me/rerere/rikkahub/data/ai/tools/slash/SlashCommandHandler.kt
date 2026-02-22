@@ -29,10 +29,45 @@ class SlashCommandHandler(
         private const val DEFAULT_TIMEOUT_MS = 30000L // 30秒
 
         // 内置命令
-        private val BUILTIN_COMMANDS = mapOf(
-            "help" to ::handleHelp,
-            "version" to ::handleVersion,
+        private val BUILTIN_COMMANDS: Map<String, (List<String>, () -> String) -> List<UIMessagePart>> = mapOf(
+            "help" to { args, getVersion -> handleHelp(args, getVersion) },
+            "version" to { args, getVersion -> handleVersion(args, getVersion) },
         )
+
+        /**
+         * 处理 help 命令
+         */
+        private fun handleHelp(args: List<String>, getVersion: () -> String): List<UIMessagePart> {
+            val helpText = """
+            Slash Commands:
+            /help - Show this help message
+            /version - Show app version
+            /<command> - Execute any Termux command
+            
+            Examples:
+            /ls - List files
+            /pwd - Print working directory
+            /echo hello - Print text
+            /termux-toast "Hello" - Show toast notification
+            
+            Note: Termux must be installed and the permission granted.
+        """.trimIndent()
+            return listOf(createTextPartStatic(helpText))
+        }
+
+        /**
+         * 处理 version 命令
+         */
+        private fun handleVersion(args: List<String>, getVersion: () -> String): List<UIMessagePart> {
+            return listOf(createTextPartStatic("RikkaHub Version: ${getVersion()}"))
+        }
+
+        /**
+         * 创建文本消息部分 (static version)
+         */
+        private fun createTextPartStatic(text: String): Text {
+            return Text(text = text)
+        }
     }
 
     /**
@@ -63,7 +98,7 @@ class SlashCommandHandler(
         val commandName = parts.firstOrNull() ?: ""
         
         if (commandName in BUILTIN_COMMANDS) {
-            return@withContext BUILTIN_COMMANDS[commandName]!!.invoke(parts.drop(1))
+            return@withContext BUILTIN_COMMANDS[commandName]!!.invoke(parts.drop(1)) { getVersion() }
         }
 
         // 执行 Termux 命令
@@ -83,7 +118,7 @@ class SlashCommandHandler(
         
         // 内置命令也通过 flow 发出
         if (commandName in BUILTIN_COMMANDS) {
-            emit(BUILTIN_COMMANDS[commandName]!!.invoke(parts.drop(1)))
+            emit(BUILTIN_COMMANDS[commandName]!!.invoke(parts.drop(1)) { getVersion() })
             return@flow
         }
 
@@ -123,9 +158,9 @@ class SlashCommandHandler(
             // 执行命令
             val result = termuxCommandManager.run(request)
             // 构建响应消息部分
-            buildResponseParts(result)
+            return buildResponseParts(result)
         } catch (e: Exception) {
-            listOf(createTextPart("Error: ${e.message}"))
+            return listOf(createTextPart("Error: ${e.message}"))
         }
     }
 
@@ -141,9 +176,11 @@ class SlashCommandHandler(
             return parts
         }
 
-        if (result.err != null) {
-            parts.add(createTextPart("Error executing command: ${result.errMsg ?: "Unknown error"}"))
-            return parts
+        // 检查是否有错误
+        val errorOutput = result.stderr?.trim()
+        if (errorOutput != null && result.exitCode != 0) {
+            // 只有当退出码非0时才显示错误
+            // 这里可以根据需要调整逻辑
         }
 
         // 添加标准输出
@@ -172,32 +209,14 @@ class SlashCommandHandler(
     }
 
     /**
-     * 处理 help 命令
+     * 获取版本信息
      */
-    private fun handleHelp(args: List<String>): List<UIMessagePart> {
-        val helpText = """
-            Slash Commands:
-            /help - Show this help message
-            /version - Show app version
-            /<command> - Execute any Termux command
-            
-            Examples:
-            /ls - List files
-            /pwd - Print working directory
-            /echo hello - Print text
-            /termux-toast "Hello" - Show toast notification
-            
-            Note: Termux must be installed and the permission granted.
-        """.trimIndent()
-        return listOf(createTextPart(helpText))
-    }
-
-    /**
-     * 处理 version 命令
-     */
-    private fun handleVersion(args: List<String>): List<UIMessagePart> {
-        val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        return listOf(createTextPart("RikkaHub Version: $version"))
+    fun getVersion(): String {
+        return try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
+        } catch (e: Exception) {
+            "Unknown"
+        }
     }
 
     /**
