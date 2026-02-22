@@ -1,12 +1,16 @@
 package me.rerere.rikkahub.ui.components.message
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -64,21 +68,21 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.highlight.HighlightText
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
+import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.ui.ChainOfThoughtScope
 import me.rerere.rikkahub.ui.components.ui.DotLoading
 import me.rerere.rikkahub.ui.components.ui.Favicon
 import me.rerere.rikkahub.ui.components.ui.FaviconRow
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.GridLoading
-import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.JsonInstantPretty
 import me.rerere.rikkahub.utils.jsonPrimitiveOrNull
+import me.rerere.rikkahub.utils.openUrl
 import org.koin.compose.koinInject
 
 private object ToolNames {
@@ -115,6 +119,7 @@ private fun getToolIcon(toolName: String, action: String?) = when (toolName) {
         ClipboardActions.WRITE -> Lucide.ClipboardPaste
         else -> Lucide.Clipboard
     }
+
     else -> Lucide.Wrench
 }
 
@@ -134,15 +139,16 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     val isDenied = tool.approvalState is ToolApprovalState.Denied
     val arguments = tool.inputAsJson()
     val memoryAction = arguments.getStringContent("action")
-    val rawResultText = if (tool.isExecuted) {
-        tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
-    } else null
-    val content = rawResultText
-        ?.takeIf { it.isNotBlank() }
-        ?.let { resultText ->
-            runCatching { JsonInstant.parseToJsonElement(resultText) }.getOrNull()
-        }
-    val hasRawTextResult = tool.isExecuted && content == null && !rawResultText.isNullOrBlank()
+    val content = if (tool.isExecuted) {
+        runCatching {
+            JsonInstant.parseToJsonElement(
+                tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
+            )
+        }.getOrElse { JsonObject(emptyMap()) }
+    } else {
+        null
+    }
+    val images = tool.output.filterIsInstance<UIMessagePart.Image>()
 
     val title = when (tool.toolName) {
         ToolNames.MEMORY -> when (memoryAction) {
@@ -164,6 +170,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             ClipboardActions.WRITE -> stringResource(R.string.chat_message_tool_clipboard_write)
             else -> stringResource(R.string.chat_message_tool_call_generic, tool.toolName)
         }
+
         else -> stringResource(R.string.chat_message_tool_call_generic, tool.toolName)
     }
 
@@ -171,11 +178,13 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     val hasExtraContent = when (tool.toolName) {
         ToolNames.MEMORY -> memoryAction in listOf(MemoryActions.CREATE, MemoryActions.EDIT) &&
             content.getStringContent("content") != null
+
         ToolNames.SEARCH_WEB -> content.getStringContent("answer") != null ||
             (content?.jsonObject?.get("items")?.jsonArray?.isNotEmpty() == true)
+
         ToolNames.SCRAPE_WEB -> arguments.getStringContent("url") != null
         else -> false
-    } || hasRawTextResult || isDenied
+    } || isDenied || images.isNotEmpty()
 
     ControlledChainOfThoughtStep(
         expanded = expanded,
@@ -234,7 +243,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         } else {
             null
         },
-        onClick = if (tool.isExecuted || isPending) {
+        onClick = if (content != null || isPending || images.isNotEmpty()) {
             { showResult = true }
         } else {
             null
@@ -293,20 +302,21 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                         )
                     }
-                    if (hasRawTextResult) {
-                        val previewText = rawResultText
-                            .lineSequence()
-                            .take(3)
-                            .joinToString("\n")
-                            .trimEnd()
-                        Text(
-                            text = previewText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.shimmer(isLoading = loading),
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    if (images.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.wrapContentWidth(),
+                        ) {
+                            items(images) { image ->
+                                ZoomableAsyncImage(
+                                    model = image.url,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .height(64.dp)
+                                        .wrapContentWidth(),
+                                )
+                            }
+                        }
                     }
                     if (isDenied) {
                         val reason = (tool.approvalState as ToolApprovalState.Denied).reason
@@ -339,8 +349,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             toolName = tool.toolName,
             arguments = arguments,
             content = content,
-            rawResultText = rawResultText,
-            isExecuted = tool.isExecuted,
+            output = tool.output,
             onDismissRequest = { showResult = false }
         )
     }
@@ -351,11 +360,9 @@ private fun ToolCallPreviewSheet(
     toolName: String,
     arguments: JsonElement,
     content: JsonElement?,
-    rawResultText: String?,
-    isExecuted: Boolean,
+    output: List<UIMessagePart>,
     onDismissRequest: () -> Unit = {}
 ) {
-    val navController = LocalNavController.current
     val memoryRepo: MemoryRepository = koinInject()
     val scope = rememberCoroutineScope()
 
@@ -368,54 +375,34 @@ private fun ToolCallPreviewSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         onDismissRequest = onDismissRequest,
         content = {
-            if (!isExecuted) {
-                // 工具未执行, 只显示参数
-                GenericToolPreview(
+            when {
+                content == null -> GenericToolPreview(
                     toolName = toolName,
                     arguments = arguments,
-                    content = null,
-                    rawResultText = null,
+                    output = emptyList(),
                     isMemoryOperation = false,
                     memoryId = null,
                     memoryRepo = memoryRepo,
                     scope = scope,
                     onDismissRequest = onDismissRequest
                 )
-            } else {
-                if (content != null) {
-                    when (toolName) {
-                        ToolNames.SEARCH_WEB -> SearchWebPreview(
-                            arguments = arguments,
-                            content = content,
-                            navController = navController
-                        )
 
-                        ToolNames.SCRAPE_WEB -> ScrapeWebPreview(content = content)
-                        else -> GenericToolPreview(
-                            toolName = toolName,
-                            arguments = arguments,
-                            content = content,
-                            rawResultText = null,
-                            isMemoryOperation = isMemoryOperation,
-                            memoryId = memoryId,
-                            memoryRepo = memoryRepo,
-                            scope = scope,
-                            onDismissRequest = onDismissRequest
-                        )
-                    }
-                } else {
-                    GenericToolPreview(
-                        toolName = toolName,
-                        arguments = arguments,
-                        content = null,
-                        rawResultText = rawResultText,
-                        isMemoryOperation = false,
-                        memoryId = null,
-                        memoryRepo = memoryRepo,
-                        scope = scope,
-                        onDismissRequest = onDismissRequest
-                    )
-                }
+                toolName == ToolNames.SEARCH_WEB -> SearchWebPreview(
+                    arguments = arguments,
+                    content = content,
+                )
+
+                toolName == ToolNames.SCRAPE_WEB -> ScrapeWebPreview(content = content)
+                else -> GenericToolPreview(
+                    toolName = toolName,
+                    arguments = arguments,
+                    output = output,
+                    isMemoryOperation = isMemoryOperation,
+                    memoryId = memoryId,
+                    memoryRepo = memoryRepo,
+                    scope = scope,
+                    onDismissRequest = onDismissRequest
+                )
             }
         },
     )
@@ -425,8 +412,8 @@ private fun ToolCallPreviewSheet(
 private fun SearchWebPreview(
     arguments: JsonElement,
     content: JsonElement,
-    navController: me.rerere.rikkahub.ui.context.Navigator
 ) {
+    val context = LocalContext.current
     val items = content.jsonObject["items"]?.jsonArray ?: emptyList()
     val answer = content.getStringContent("answer")
     val query = arguments.getStringContent("query") ?: ""
@@ -466,7 +453,7 @@ private fun SearchWebPreview(
                 val text = item.getStringContent("text") ?: return@items
 
                 Card(
-                    onClick = { navController.navigate(Screen.WebView(url = url)) },
+                    onClick = { context.openUrl(url) },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     )
@@ -560,8 +547,7 @@ private fun ScrapeWebPreview(content: JsonElement) {
 private fun GenericToolPreview(
     toolName: String,
     arguments: JsonElement,
-    content: JsonElement?,
-    rawResultText: String?,
+    output: List<UIMessagePart>,
     isMemoryOperation: Boolean,
     memoryId: Int?,
     memoryRepo: MemoryRepository,
@@ -613,30 +599,35 @@ private fun GenericToolPreview(
                 style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
             )
         }
-        if (content != null) {
+        if (output.isNotEmpty()) {
             FormItem(
                 label = {
                     Text(stringResource(R.string.chat_message_tool_call_result))
                 }
             ) {
-                HighlightCodeBlock(
-                    code = JsonInstantPretty.encodeToString(content),
-                    language = "json",
-                    style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
-                )
-            }
-        } else if (rawResultText != null) {
-            FormItem(
-                label = {
-                    Text(stringResource(R.string.chat_message_tool_call_result))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    output.forEach { part ->
+                        when (part) {
+                            is UIMessagePart.Text -> HighlightCodeBlock(
+                                code = runCatching {
+                                    JsonInstantPretty.encodeToString(
+                                        JsonInstant.parseToJsonElement(part.text)
+                                    )
+                                }.getOrElse { part.text },
+                                language = "json",
+                                style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
+                            )
+
+                            is UIMessagePart.Image -> ZoomableAsyncImage(
+                                model = part.url,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+
+                            else -> {}
+                        }
+                    }
                 }
-            ) {
-                HighlightCodeBlock(
-                    code = rawResultText,
-                    language = "text",
-                    completeCodeBlock = false,
-                    style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
-                )
             }
         }
     }

@@ -486,11 +486,7 @@ class ChatService(
                                 parameters = { tool.inputSchema },
                                 needsApproval = tool.needsApproval,
                                 execute = {
-                                    listOf(
-                                        UIMessagePart.Text(
-                                            mcpManager.callTool(tool.name, it.jsonObject).toString()
-                                        )
-                                    )
+                                    mcpManager.callTool(tool.name, it.jsonObject)
                                 },
                             )
                         )
