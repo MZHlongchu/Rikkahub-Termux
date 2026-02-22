@@ -695,7 +695,9 @@ class ChatService(
                         prompt = settings.titlePrompt.applyPlaceholders(
                             "locale" to Locale.getDefault().displayName,
                             "content" to conversation.currentMessages.truncate(conversation.truncateIndex)
-                                .joinToString("\n\n") { it.summaryAsText() })
+                                .joinToString("\n\n") { it.summaryAsText() }
+                        )
+                    )
                 ),
                 params = TextGenerationParams(
                     model = model, temperature = 0.3f, thinkingBudget = 0
@@ -703,7 +705,7 @@ class ChatService(
             )
 
             // 生成完，conversation可能不是最新了，因此需要重新获取
-            conversationRepo.getConversationById(conversation.id)?.let {
+            this.conversationRepo.getConversationById(conversation.id)?.let {
                 saveConversation(
                     conversationId,
                     it.copy(title = result.choices[0].message?.toText()?.trim() ?: "")
