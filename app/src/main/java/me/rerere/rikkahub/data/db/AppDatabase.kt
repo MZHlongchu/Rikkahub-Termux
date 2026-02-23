@@ -33,7 +33,7 @@ import me.rerere.rikkahub.utils.JsonInstant
         FavoriteEntity::class,
         ScheduledTaskRunEntity::class
     ],
-    version = 17,
+    version = 18,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
