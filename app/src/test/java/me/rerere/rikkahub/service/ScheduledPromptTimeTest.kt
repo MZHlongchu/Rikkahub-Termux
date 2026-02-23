@@ -2,6 +2,7 @@ package me.rerere.rikkahub.service
 
 import me.rerere.rikkahub.data.model.ScheduleType
 import me.rerere.rikkahub.data.model.ScheduledPromptTask
+import me.rerere.rikkahub.data.model.TaskRunStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -75,12 +76,28 @@ class ScheduledPromptTimeTest {
         assertTrue(ScheduledPromptTime.shouldRunCatchUp(task, now))
     }
 
+    @Test
+    fun `catch up should be false while task is running`() {
+        val now = ZonedDateTime.of(2026, 2, 23, 8, 0, 0, 0, zone)
+        val createdAt = ZonedDateTime.of(2026, 2, 20, 8, 0, 0, 0, zone).toInstant().toEpochMilli()
+        val task = task(
+            scheduleType = ScheduleType.DAILY,
+            timeMinutesOfDay = 7 * 60,
+            createdAt = createdAt,
+            lastRunAt = 0L,
+            lastStatus = TaskRunStatus.RUNNING
+        )
+
+        assertFalse(ScheduledPromptTime.shouldRunCatchUp(task, now))
+    }
+
     private fun task(
         scheduleType: ScheduleType,
         timeMinutesOfDay: Int,
         dayOfWeek: Int? = null,
         createdAt: Long = 0L,
-        lastRunAt: Long = 0L
+        lastRunAt: Long = 0L,
+        lastStatus: TaskRunStatus = TaskRunStatus.IDLE
     ): ScheduledPromptTask {
         return ScheduledPromptTask(
             id = Uuid.random(),
@@ -89,6 +106,7 @@ class ScheduledPromptTimeTest {
             dayOfWeek = dayOfWeek,
             createdAt = createdAt,
             lastRunAt = lastRunAt,
+            lastStatus = lastStatus,
             conversationId = Uuid.random(),
             prompt = "hello"
         )

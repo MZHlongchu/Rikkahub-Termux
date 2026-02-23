@@ -2,6 +2,7 @@ package me.rerere.rikkahub.service
 
 import me.rerere.rikkahub.data.model.ScheduleType
 import me.rerere.rikkahub.data.model.ScheduledPromptTask
+import me.rerere.rikkahub.data.model.TaskRunStatus
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.ZoneId
@@ -61,6 +62,7 @@ internal object ScheduledPromptTime {
         task: ScheduledPromptTask,
         now: ZonedDateTime = ZonedDateTime.now()
     ): Boolean {
+        if (task.lastStatus == TaskRunStatus.RUNNING) return false
         val latestDue = latestDueAt(task, now).toInstant().toEpochMilli()
         val marker = if (task.lastRunAt > 0L) task.lastRunAt else task.createdAt
         return latestDue > marker
