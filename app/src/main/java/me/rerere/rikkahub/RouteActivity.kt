@@ -1,7 +1,6 @@
 package me.rerere.rikkahub
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -31,7 +30,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -110,10 +108,6 @@ class RouteActivity : ComponentActivity() {
     private val settingsStore by inject<SettingsStore>()
     private var navStack: MutableList<NavKey>? = null
 
-    companion object {
-        const val REQUEST_TERMUX_PERMISSION = 1001
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         disableNavigationBarContrast()
@@ -130,42 +124,6 @@ class RouteActivity : ComponentActivity() {
                         .build()
                 }
                 AppRoutes()
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        when (requestCode) {
-            REQUEST_TERMUX_PERMISSION -> {
-                val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                if (granted) {
-                    android.widget.Toast.makeText(
-                        this,
-                        "Termux 权限已授予",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(
-                        this,
-                        "com.termux.permission.RUN_COMMAND"
-                    )
-                    val message = if (shouldShowRationale) {
-                        "Termux 权限被拒绝，请重新授权"
-                    } else {
-                        "Termux 权限被永久拒绝，请前往应用设置手动授予"
-                    }
-                    android.widget.Toast.makeText(
-                        this,
-                        message,
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
             }
         }
     }
@@ -205,10 +163,10 @@ class RouteActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
             navStack?.add(Screen.Chat(text))
-        }
-    }
+        }    }
 
     @Composable
     fun AppRoutes() {
@@ -421,7 +379,6 @@ class RouteActivity : ComponentActivity() {
                             entry<Screen.Log> {
                                 LogPage()
                             }
-
                             entry<Screen.Prompts> {
                                 PromptPage()
                             }
@@ -565,4 +522,3 @@ sealed interface Screen : NavKey {
     @Serializable
     data object Stats : Screen
 }
-
