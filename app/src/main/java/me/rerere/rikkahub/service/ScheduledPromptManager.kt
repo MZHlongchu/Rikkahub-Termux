@@ -68,11 +68,11 @@ class ScheduledPromptManager(
             ScheduleType.DAILY -> 1L
             ScheduleType.WEEKLY -> 7L
         }
+        // Keep default flex window. A small custom flex (e.g. 15 minutes) delays the first
+        // run by (interval - flex), which can push daily/weekly tasks by almost a full cycle.
         val request = PeriodicWorkRequestBuilder<ScheduledPromptWorker>(
             repeatDays,
-            TimeUnit.DAYS,
-            15L,
-            TimeUnit.MINUTES
+            TimeUnit.DAYS
         )
             .setInitialDelay(ScheduledPromptTime.initialDelayMillis(task), TimeUnit.MILLISECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10L, TimeUnit.MINUTES)
