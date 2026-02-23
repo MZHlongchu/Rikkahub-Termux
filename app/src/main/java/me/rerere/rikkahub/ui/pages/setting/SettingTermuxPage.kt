@@ -1,14 +1,14 @@
 package me.rerere.rikkahub.ui.pages.setting
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -87,12 +87,55 @@ fun SettingTermuxPage() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Termux RUN_COMMAND 权限状态
-    var termuxPermissionGranted by remember { mutableStateOf(isTermuxPermissionGranted(context)) }
+    // Termux 权限状态
+    var termuxPermissionGranted by remember { mutableStateOf(false) }
+
+    // 权限请求启动器
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        termuxPermissionGranted = isGranted
+        if (isGranted) {
+            android.widget.Toast.makeText(
+                context,
+                "Termux 权限已授予",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            // 检查是否应该显示rationale（用户之前拒绝过但没选"不再询问"）
+            val activity = context as? android.app.Activity
+            val shouldShowRationale = activity?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(
+                    it,
+                    "com.termux.permission.RUN_COMMAND"
+                )
+            } ?: false
+
+            val message = if (shouldShowRationale) {
+                "Termux 权限被拒绝，请重新授权"
+            } else {
+                "Termux 权限被永久拒绝，请前往应用设置手动授予"
+            }
+            android.widget.Toast.makeText(
+                context,
+                message,
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    // 在页面加载时检查权限状态
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
-                termuxPermissionGranted = isTermuxPermissionGranted(context)
+                // 检查当前权限状态
+                val activity = context as? android.app.Activity
+                termuxPermissionGranted = activity?.let {
+                    ActivityCompat.checkSelfPermission(
+                        it,
+                        "com.termux.permission.RUN_COMMAND"
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } ?: false
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -345,8 +388,8 @@ fun SettingTermuxPage() {
                         Text(stringResource(R.string.setting_termux_page_setup_step_4))
                         TextButton(
                             onClick = {
-                                // 直接使用 ActivityCompat.requestPermissions() 请求权限
-                                requestTermuxPermission(context as Activity)
+                                // 直接使用 Activity Result API 请求权限
+                                permissionLauncher.launch("com.termux.permission.RUN_COMMAND")
                             }
                         ) {
                             Text(
@@ -363,44 +406,6 @@ fun SettingTermuxPage() {
         }
     }
 }
-
-/**
- * 检查 com.termux.permission.RUN_COMMAND 权限是否已授予
- */
-private fun isTermuxPermissionGranted(context: Context): Boolean {
-    return try {
-        val pm = context.packageManager
-        val permission = "com.termux.permission.RUN_COMMAND"
-        val result = pm.checkPermission(permission, context.packageName)
-        result == PackageManager.PERMISSION_GRANTED
-    } catch (e: Exception) {
-        false
-    }
-}
-
-/**
- * 请求 com.termux.permission.RUN_COMMAND 权限
- * 直接使用 ActivityCompat.requestPermissions() 触发系统对话框
- */
-private fun requestTermuxPermission(activity: Activity) {
-    // 检查是否已经授权
-    if (isTermuxPermissionGranted(activity)) {
-        return
-    }
-
-    val permission = "com.termux.permission.RUN_COMMAND"
-    try {
-        ActivityCompat.requestPermissions(
-            activity,
-            arrayOf(permission),
-            REQUEST_TERMUX_PERMISSION
-        )
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-}
-
-private const val REQUEST_TERMUX_PERMISSION = 1001
 
 private fun isAllFilesAccessGranted(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
