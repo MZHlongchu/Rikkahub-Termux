@@ -62,6 +62,7 @@ import com.composables.icons.lucide.SunMoon
 import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.Volume2
 import com.composables.icons.lucide.FolderOpen
+import com.composables.icons.lucide.Clock
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.isNotConfigured
@@ -205,6 +206,16 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     description = { Text(stringResource(R.string.setting_page_assistant_desc)) },
                     icon = { Icon(Lucide.Drama, "Assistant") },
                     link = Screen.Assistant
+                )
+            }
+
+            item {
+                SettingItem(
+                    navController = navController,
+                    title = { Text(stringResource(R.string.setting_page_scheduled_tasks)) },
+                    description = { Text(stringResource(R.string.setting_page_scheduled_tasks_desc)) },
+                    icon = { Icon(Lucide.Clock, stringResource(R.string.setting_page_scheduled_tasks)) },
+                    link = Screen.SettingScheduledTasks
                 )
             }
 

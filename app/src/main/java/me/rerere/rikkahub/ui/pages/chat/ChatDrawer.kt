@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.ui.context.Navigator
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.composables.icons.lucide.Drama
+import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Heart
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Image
@@ -462,6 +463,35 @@ private fun DrawerActions(navController: Navigator) {
                 )
                 Text(
                     text = stringResource(R.string.chat_page_search_chats),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+
+        Surface(
+            onClick = { navController.navigate(Screen.ScheduledTaskRuns) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Lucide.Clock,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.chat_page_scheduled_task_runs),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )

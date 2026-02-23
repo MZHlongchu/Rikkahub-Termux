@@ -9,6 +9,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import kotlin.uuid.Uuid
 
+private val DEFAULT_SCHEDULED_TASK_ASSISTANT_ID = Uuid.parse("0950e2dc-9bd5-4801-afa3-aa887aa36b4e")
+
 @Serializable
 data class Assistant(
     val id: Uuid = Uuid.random(),
@@ -53,11 +55,20 @@ data class ScheduledPromptTask(
     val scheduleType: ScheduleType = ScheduleType.DAILY,
     val timeMinutesOfDay: Int = 9 * 60,
     val dayOfWeek: Int? = null, // 1..7, Monday..Sunday, only used when scheduleType == WEEKLY
+    val assistantId: Uuid = DEFAULT_SCHEDULED_TASK_ASSISTANT_ID,
+    val overrideModelId: Uuid? = null,
+    val overrideLocalTools: List<LocalToolOption>? = null,
+    val overrideMcpServers: Set<Uuid>? = null,
+    val overrideEnableWebSearch: Boolean? = null,
+    val overrideSearchServiceIndex: Int? = null,
+    val overrideTermuxNeedsApproval: Boolean? = null,
+    @Deprecated("Scheduled tasks now run in isolated snapshots and no longer use chat conversations")
     val conversationId: Uuid = Uuid.random(),
     val createdAt: Long = System.currentTimeMillis(),
     val lastRunAt: Long = 0L,
     val lastStatus: TaskRunStatus = TaskRunStatus.IDLE,
     val lastError: String = "",
+    val lastRunId: Uuid? = null,
 )
 
 @Serializable

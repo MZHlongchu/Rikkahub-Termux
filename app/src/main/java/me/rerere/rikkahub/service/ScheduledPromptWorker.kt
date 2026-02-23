@@ -12,9 +12,10 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.SCHEDULED_TASK_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.ScheduledTaskRun
 import me.rerere.rikkahub.data.model.ScheduledPromptTask
 import me.rerere.rikkahub.data.model.TaskRunStatus
-import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.repository.ScheduledTaskRunRepository
 import me.rerere.rikkahub.utils.sendNotification
 import kotlin.uuid.Uuid
 
@@ -25,76 +26,120 @@ class ScheduledPromptWorker(
     workerParams: WorkerParameters,
     private val settingsStore: SettingsStore,
     private val chatService: ChatService,
+    private val scheduledTaskRunRepository: ScheduledTaskRunRepository,
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        val assistantId = inputData.getString(INPUT_ASSISTANT_ID)?.let { runCatching { Uuid.parse(it) }.getOrNull() }
-            ?: return Result.failure()
         val taskId = inputData.getString(INPUT_TASK_ID)?.let { runCatching { Uuid.parse(it) }.getOrNull() }
             ?: return Result.failure()
 
         val settings = settingsStore.settingsFlow.first()
-        val assistant = settings.getAssistantById(assistantId) ?: return Result.success()
-        val task = assistant.scheduledPromptTasks.firstOrNull { it.id == taskId } ?: return Result.success()
+        val task = settings.scheduledTasks.firstOrNull { it.id == taskId } ?: return Result.success()
         if (!task.enabled || task.prompt.isBlank()) return Result.success()
 
-        updateTask(assistantId, taskId) {
-            it.copy(lastStatus = TaskRunStatus.RUNNING, lastError = "")
+        val runId = Uuid.random()
+        val startedAt = System.currentTimeMillis()
+        scheduledTaskRunRepository.insertRun(
+            ScheduledTaskRun(
+                id = runId,
+                taskId = task.id,
+                taskTitleSnapshot = taskDisplayTitle(task),
+                assistantIdSnapshot = task.assistantId,
+                status = TaskRunStatus.RUNNING,
+                startedAt = startedAt,
+                promptSnapshot = task.prompt
+            )
+        )
+        updateTask(taskId) {
+            it.copy(
+                lastStatus = TaskRunStatus.RUNNING,
+                lastError = "",
+                lastRunId = runId
+            )
         }
 
-        val startedAt = System.currentTimeMillis()
-        return runCatching {
-            chatService.sendScheduledPrompt(
-                assistantId = assistantId,
-                conversationId = task.conversationId,
-                prompt = task.prompt
-            ).getOrThrow()
-        }.fold(
+        val executionResult = chatService.executeScheduledTask(task)
+        val finishedAt = System.currentTimeMillis()
+        val duration = (finishedAt - startedAt).coerceAtLeast(0L)
+
+        return executionResult.fold(
             onSuccess = { replyPreview ->
-                updateTask(assistantId, taskId) {
+                updateTask(taskId) {
                     it.copy(
                         lastStatus = TaskRunStatus.SUCCESS,
                         lastRunAt = startedAt,
-                        lastError = ""
+                        lastError = "",
+                        lastRunId = runId
                     )
                 }
-                maybeNotifySuccess(task, replyPreview)
+                scheduledTaskRunRepository.updateRun(
+                    ScheduledTaskRun(
+                        id = runId,
+                        taskId = task.id,
+                        taskTitleSnapshot = taskDisplayTitle(task),
+                        assistantIdSnapshot = task.assistantId,
+                        status = TaskRunStatus.SUCCESS,
+                        startedAt = startedAt,
+                        finishedAt = finishedAt,
+                        durationMs = duration,
+                        promptSnapshot = task.prompt,
+                        resultText = replyPreview.replyText,
+                        errorText = "",
+                        modelIdSnapshot = replyPreview.modelId,
+                        providerNameSnapshot = replyPreview.providerName,
+                    )
+                )
+                scheduledTaskRunRepository.pruneTaskRuns(task.id, keep = 50)
+                maybeNotifySuccess(task, replyPreview.replyPreview, runId)
                 Result.success()
             },
             onFailure = { error ->
                 Log.e(TAG, "Scheduled task execution failed: ${task.id}", error)
-                updateTask(assistantId, taskId) {
+                updateTask(taskId) {
                     it.copy(
                         lastStatus = TaskRunStatus.FAILED,
                         lastRunAt = startedAt,
-                        lastError = error.message.orEmpty().take(200)
+                        lastError = error.message.orEmpty().take(200),
+                        lastRunId = runId
                     )
                 }
-                maybeNotifyFailure(task, error)
+                scheduledTaskRunRepository.updateRun(
+                    ScheduledTaskRun(
+                        id = runId,
+                        taskId = task.id,
+                        taskTitleSnapshot = taskDisplayTitle(task),
+                        assistantIdSnapshot = task.assistantId,
+                        status = TaskRunStatus.FAILED,
+                        startedAt = startedAt,
+                        finishedAt = finishedAt,
+                        durationMs = duration,
+                        promptSnapshot = task.prompt,
+                        resultText = "",
+                        errorText = error.stackTraceToString().take(8_000),
+                        modelIdSnapshot = null,
+                        providerNameSnapshot = "",
+                    )
+                )
+                scheduledTaskRunRepository.pruneTaskRuns(task.id, keep = 50)
+                maybeNotifyFailure(task, error, runId)
                 Result.retry()
             }
         )
     }
 
     private suspend fun updateTask(
-        assistantId: Uuid,
         taskId: Uuid,
         transform: (ScheduledPromptTask) -> ScheduledPromptTask
     ) {
         settingsStore.update { settings ->
             settings.copy(
-                assistants = settings.assistants.map { assistant ->
-                    if (assistant.id != assistantId) return@map assistant
-                    assistant.copy(
-                        scheduledPromptTasks = assistant.scheduledPromptTasks.map { task ->
-                            if (task.id == taskId) transform(task) else task
-                        }
-                    )
+                scheduledTasks = settings.scheduledTasks.map { task ->
+                    if (task.id == taskId) transform(task) else task
                 }
             )
         }
     }
 
-    private suspend fun maybeNotifySuccess(task: ScheduledPromptTask, replyPreview: String?) {
+    private suspend fun maybeNotifySuccess(task: ScheduledPromptTask, replyPreview: String?, runId: Uuid) {
         val settings = settingsStore.settingsFlow.first()
         if (!settings.displaySetting.enableScheduledTaskNotification) return
 
@@ -112,11 +157,11 @@ class ScheduledPromptWorker(
             autoCancel = true
             useDefaults = true
             category = NotificationCompat.CATEGORY_REMINDER
-            contentIntent = getPendingIntent(task.conversationId)
+            contentIntent = getPendingIntent(runId)
         }
     }
 
-    private suspend fun maybeNotifyFailure(task: ScheduledPromptTask, error: Throwable) {
+    private suspend fun maybeNotifyFailure(task: ScheduledPromptTask, error: Throwable, runId: Uuid) {
         val settings = settingsStore.settingsFlow.first()
         if (!settings.displaySetting.enableScheduledTaskNotification) return
 
@@ -134,18 +179,18 @@ class ScheduledPromptWorker(
             autoCancel = true
             useDefaults = true
             category = NotificationCompat.CATEGORY_ERROR
-            contentIntent = getPendingIntent(task.conversationId)
+            contentIntent = getPendingIntent(runId)
         }
     }
 
-    private fun getPendingIntent(conversationId: Uuid): PendingIntent {
+    private fun getPendingIntent(runId: Uuid): PendingIntent {
         val intent = Intent(applicationContext, RouteActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("conversationId", conversationId.toString())
+            putExtra("scheduledTaskRunId", runId.toString())
         }
         return PendingIntent.getActivity(
             applicationContext,
-            conversationId.hashCode(),
+            runId.hashCode(),
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

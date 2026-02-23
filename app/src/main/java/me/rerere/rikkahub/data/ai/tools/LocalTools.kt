@@ -435,7 +435,12 @@ class LocalTools(
         )
     }
 
-    fun getTools(options: List<LocalToolOption>, assistant: Assistant): List<Tool> {
+    fun getTools(
+        options: List<LocalToolOption>,
+        assistant: Assistant,
+        overrideTermuxNeedsApproval: Boolean? = null,
+    ): List<Tool> {
+        val termuxNeedsApproval = overrideTermuxNeedsApproval ?: settingsStore.settingsFlow.value.termuxNeedsApproval
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
@@ -449,7 +454,7 @@ class LocalTools(
         if (options.contains(LocalToolOption.TermuxExec)) {
             tools.add(
                 termuxExecTool(
-                    needsApproval = settingsStore.settingsFlow.value.termuxNeedsApproval,
+                    needsApproval = termuxNeedsApproval,
                     settingsStore = settingsStore,
                     termuxCommandManager = termuxCommandManager,
                 )
@@ -458,7 +463,7 @@ class LocalTools(
         if (options.contains(LocalToolOption.TermuxPython)) {
             tools.add(
                 termuxPythonTool(
-                    needsApproval = settingsStore.settingsFlow.value.termuxNeedsApproval,
+                    needsApproval = termuxNeedsApproval,
                     settingsStore = settingsStore,
                     termuxCommandManager = termuxCommandManager,
                 )

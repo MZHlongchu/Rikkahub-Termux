@@ -73,6 +73,7 @@ import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.ScheduledPromptTask
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.data.model.toMessageNode
@@ -95,6 +96,13 @@ data class ChatError(
     val error: Throwable,
     val conversationId: Uuid? = null,
     val timestamp: Long = System.currentTimeMillis()
+)
+
+data class ScheduledTaskExecutionResult(
+    val replyPreview: String,
+    val replyText: String,
+    val modelId: Uuid?,
+    val providerName: String,
 )
 
 private val inputTransformers by lazy {
@@ -326,56 +334,120 @@ class ChatService(
         }
     }
 
-    suspend fun sendScheduledPrompt(
-        assistantId: Uuid,
-        conversationId: Uuid,
-        prompt: String
-    ): Result<String?> = runCatching {
-        if (prompt.isBlank()) return@runCatching null
+    suspend fun executeScheduledTask(task: ScheduledPromptTask): Result<ScheduledTaskExecutionResult> = runCatching {
+        if (task.prompt.isBlank()) {
+            throw BadRequestException("Scheduled prompt cannot be blank")
+        }
+
         val settings = settingsStore.settingsFlow.first()
-        val assistant = settings.getAssistantById(assistantId)
-            ?: throw NotFoundException("Assistant not found: $assistantId")
-
-        val session = getOrCreateSession(conversationId)
-        session.getJob()?.cancel()
-
-        val existing = conversationRepo.getConversationById(conversationId)
-        val baseConversation = when {
-            existing == null -> {
-                Conversation.ofId(
-                    id = conversationId,
-                    assistantId = assistantId,
-                    newConversation = true
-                ).updateCurrentMessages(assistant.presetMessages)
+        val assistant = settings.getAssistantById(task.assistantId)
+            ?: throw NotFoundException("Assistant not found: ${task.assistantId}")
+        val maxSearchIndex = (settings.searchServices.size - 1).coerceAtLeast(0)
+        val effectiveSearchServiceIndex = task.overrideSearchServiceIndex?.let { index ->
+            if (settings.searchServices.isEmpty()) {
+                settings.searchServiceSelected
+            } else {
+                index.coerceIn(0, maxSearchIndex)
             }
-
-            existing.assistantId != assistantId -> existing.copy(assistantId = assistantId)
-            else -> existing
-        }
-        saveConversation(conversationId, baseConversation)
-
-        val processedContent = preprocessUserInputParts(
-            parts = listOf(UIMessagePart.Text(prompt)),
-            assistant = assistant
+        } ?: settings.searchServiceSelected.coerceIn(0, maxSearchIndex)
+        val effectiveSettings = settings.copy(
+            enableWebSearch = task.overrideEnableWebSearch ?: settings.enableWebSearch,
+            searchServiceSelected = effectiveSearchServiceIndex
         )
-        val currentConversation = getConversationFlow(conversationId).value
-        val conversationWithPrompt = currentConversation.copy(
-            messageNodes = currentConversation.messageNodes + UIMessage(
-                role = MessageRole.USER,
-                parts = processedContent,
-            ).toMessageNode()
+        val effectiveAssistant = assistant.copy(
+            chatModelId = task.overrideModelId ?: assistant.chatModelId,
+            localTools = task.overrideLocalTools ?: assistant.localTools,
+            mcpServers = task.overrideMcpServers ?: assistant.mcpServers
         )
-        saveConversation(conversationId, conversationWithPrompt)
-        handleMessageComplete(conversationId, notifyOnCompletion = false)
-        _generationDoneFlow.emit(conversationId)
+        val model = effectiveAssistant.chatModelId?.let { effectiveSettings.findModelById(it) }
+            ?: effectiveSettings.getCurrentChatModel()
+            ?: throw IllegalStateException("No model configured for scheduled task")
+        val provider = model.findProvider(effectiveSettings.providers)
+            ?: throw IllegalStateException("Provider not found for model: ${model.id}")
+        val mcpServerScope = effectiveAssistant.mcpServers
 
-        val finalMessage = getConversationFlow(conversationId).value.currentMessages.lastOrNull()
-        if (finalMessage == null || finalMessage.role != MessageRole.ASSISTANT) {
-            throw IllegalStateException("Scheduled prompt did not generate an assistant reply")
+        val messages = buildList {
+            addAll(effectiveAssistant.presetMessages)
+            add(
+                UIMessage(
+                    role = MessageRole.USER,
+                    parts = preprocessUserInputParts(
+                        parts = listOf(UIMessagePart.Text(task.prompt)),
+                        assistant = effectiveAssistant
+                    )
+                )
+            )
         }
-        finalMessage.toText().take(200)
+
+        var generatedMessages = messages
+        generationHandler.generateText(
+            settings = effectiveSettings,
+            model = model,
+            messages = messages,
+            assistant = effectiveAssistant,
+            memories = if (effectiveAssistant.useGlobalMemory) {
+                memoryRepository.getGlobalMemories()
+            } else {
+                memoryRepository.getMemoriesOfAssistant(effectiveAssistant.id.toString())
+            },
+            inputTransformers = buildList {
+                addAll(inputTransformers)
+                add(templateTransformer)
+            },
+            outputTransformers = outputTransformers,
+            tools = buildList {
+                if (effectiveSettings.enableWebSearch) {
+                    addAll(createSearchTools(effectiveSettings))
+                }
+                addAll(
+                    localTools.getTools(
+                        options = effectiveAssistant.localTools,
+                        assistant = effectiveAssistant,
+                        overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval ?: false
+                    )
+                )
+                mcpManager.getAvailableToolsForServers(mcpServerScope).forEach { tool ->
+                    add(
+                        Tool(
+                            name = "mcp__${tool.name}",
+                            description = tool.description ?: "",
+                            parameters = { tool.inputSchema },
+                            needsApproval = false,
+                            execute = {
+                                mcpManager.callToolFromServers(
+                                    serverIds = mcpServerScope,
+                                    toolName = tool.name,
+                                    args = it.jsonObject
+                                )
+                            },
+                        )
+                    )
+                }
+            },
+            truncateIndex = -1,
+        ).collect { chunk ->
+            when (chunk) {
+                is GenerationChunk.Messages -> {
+                    generatedMessages = chunk.messages
+                }
+            }
+        }
+
+        val finalMessage = generatedMessages.lastOrNull { it.role == MessageRole.ASSISTANT }
+            ?: throw IllegalStateException("Scheduled task did not generate an assistant reply")
+        val replyText = finalMessage.toText().trim()
+        if (replyText.isBlank()) {
+            throw IllegalStateException("Scheduled task generated an empty reply")
+        }
+
+        ScheduledTaskExecutionResult(
+            replyPreview = replyText.take(200),
+            replyText = replyText.take(20_000),
+            modelId = model.id,
+            providerName = provider.name
+        )
     }.onFailure {
-        addError(it, conversationId)
+        addError(it)
     }
 
     // ---- 重新生成消息 ----
@@ -493,6 +565,7 @@ class ChatService(
         val conversation = getConversationFlow(conversationId).value
         val assistant = settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
         val model = assistant.chatModelId?.let { settings.findModelById(it) } ?: settings.getCurrentChatModel() ?: return
+        val mcpTools = mcpManager.getAvailableToolsForServers(assistant.mcpServers)
 
         runCatching {
             // reset suggestions
@@ -500,7 +573,7 @@ class ChatService(
 
             // memory tool
             if (!model.abilities.contains(ModelAbility.TOOL)) {
-                if (settings.enableWebSearch || mcpManager.getAllAvailableTools().isNotEmpty()) {
+                if (settings.enableWebSearch || mcpTools.isNotEmpty()) {
                     addError(
                         IllegalStateException(context.getString(R.string.tools_warning)),
                         conversationId
@@ -538,7 +611,7 @@ class ChatService(
                         addAll(createSearchTools(settings))
                     }
                     addAll(localTools.getTools(assistant.localTools, assistant))
-                    mcpManager.getAllAvailableTools().forEach { tool ->
+                    mcpTools.forEach { tool ->
                         add(
                             Tool(
                                 name = "mcp__" + tool.name,
@@ -546,7 +619,11 @@ class ChatService(
                                 parameters = { tool.inputSchema },
                                 needsApproval = tool.needsApproval,
                                 execute = {
-                                    mcpManager.callTool(tool.name, it.jsonObject)
+                                    mcpManager.callToolFromServers(
+                                        serverIds = assistant.mcpServers,
+                                        toolName = tool.name,
+                                        args = it.jsonObject
+                                    )
                                 },
                             )
                         )
