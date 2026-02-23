@@ -1,6 +1,7 @@
 package me.rerere.rikkahub
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -108,6 +109,10 @@ class RouteActivity : ComponentActivity() {
     private val settingsStore by inject<SettingsStore>()
     private var navStack: MutableList<NavKey>? = null
 
+    companion object {
+        const val REQUEST_TERMUX_PERMISSION = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         disableNavigationBarContrast()
@@ -124,6 +129,25 @@ class RouteActivity : ComponentActivity() {
                         .build()
                 }
                 AppRoutes()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            REQUEST_TERMUX_PERMISSION -> {
+                val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                android.widget.Toast.makeText(
+                    this,
+                    if (granted) "Termux 权限已授予" else "Termux 权限被拒绝",
+                    if (granted) android.widget.Toast.LENGTH_SHORT else android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
