@@ -12,10 +12,8 @@ import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,9 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -58,6 +54,9 @@ import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.utils.plus
 import org.koin.compose.koinInject
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 private const val TAG = "SettingTermuxPage"
 
@@ -96,16 +95,6 @@ fun SettingTermuxPage() {
 
     // Termux 权限状态
     var termuxPermissionGranted by remember { mutableStateOf(false) }
-    
-    // 检查权限的辅助函数
-    val checkTermuxPermission = {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            "com.termux.permission.RUN_COMMAND"
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        Log.d(TAG, "检查权限: granted=$granted")
-        granted
-    }
 
     // 使用 Activity Result API 请求权限
     val termuxPermissionLauncher = rememberLauncherForActivityResult(
@@ -114,10 +103,10 @@ fun SettingTermuxPage() {
         Log.d(TAG, "权限请求结果: isGranted=$isGranted")
         termuxPermissionGranted = isGranted
         if (!isGranted) {
-            // 权限被拒绝，可能是Termux未安装或需要手动设置
+            // 权限被拒绝
             android.widget.Toast.makeText(
                 context,
-                "权限请求遇到问题，请尝试在系统设置中手动授权",
+                "权限请求失败，请尝试在系统设置中手动授权",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
@@ -127,8 +116,12 @@ fun SettingTermuxPage() {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
-                termuxPermissionGranted = checkTermuxPermission()
-                Log.d(TAG, "生命周期事件 $event, termuxPermissionGranted=$termuxPermissionGranted")
+                val granted = ContextCompat.checkSelfPermission(
+                    context,
+                    "com.termux.permission.RUN_COMMAND"
+                ) == PackageManager.PERMISSION_GRANTED
+                termuxPermissionGranted = granted
+                Log.d(TAG, "生命周期事件 $event, termuxPermissionGranted=$granted")
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -137,8 +130,12 @@ fun SettingTermuxPage() {
 
     // 初始检查一次权限状态
     LaunchedEffect(Unit) {
-        termuxPermissionGranted = checkTermuxPermission()
-        Log.d(TAG, "页面初始化, termuxPermissionGranted=$termuxPermissionGranted")
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            "com.termux.permission.RUN_COMMAND"
+        ) == PackageManager.PERMISSION_GRANTED
+        termuxPermissionGranted = granted
+        Log.d(TAG, "页面初始化, termuxPermissionGranted=$granted")
     }
 
     Scaffold(
@@ -389,7 +386,6 @@ fun SettingTermuxPage() {
                             onClick = {
                                 Log.d(TAG, "点击授权按钮，当前termuxPermissionGranted=$termuxPermissionGranted")
                                 if (!termuxPermissionGranted) {
-                                    // 使用 Activity Result API 请求权限
                                     termuxPermissionLauncher.launch("com.termux.permission.RUN_COMMAND")
                                 }
                             },
@@ -401,16 +397,6 @@ fun SettingTermuxPage() {
                                 } else {
                                     stringResource(R.string.setting_termux_page_grant_termux_permission)
                                 }
-                            )
-                        }
-                        
-                        // 添加帮助说明，指导用户如何处理权限问题
-                        if (!termuxPermissionGranted) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "提示：如果自动授权失败，请确保Termux已安装，并且您在Termux中运行过至少一条命令。系统弹出授权窗口时请点击允许。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
