@@ -67,9 +67,11 @@ import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.replaceRegexes
@@ -303,6 +305,10 @@ class ChatService(
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>): List<UIMessagePart> {
         val assistant = settingsStore.settingsFlow.value.getCurrentAssistant()
+        return preprocessUserInputParts(parts = parts, assistant = assistant)
+    }
+
+    private fun preprocessUserInputParts(parts: List<UIMessagePart>, assistant: Assistant): List<UIMessagePart> {
         return parts.map { part ->
             when (part) {
                 is UIMessagePart.Text -> {
@@ -318,6 +324,58 @@ class ChatService(
                 else -> part
             }
         }
+    }
+
+    suspend fun sendScheduledPrompt(
+        assistantId: Uuid,
+        conversationId: Uuid,
+        prompt: String
+    ): Result<String?> = runCatching {
+        if (prompt.isBlank()) return@runCatching null
+        val settings = settingsStore.settingsFlow.first()
+        val assistant = settings.getAssistantById(assistantId)
+            ?: throw NotFoundException("Assistant not found: $assistantId")
+
+        val session = getOrCreateSession(conversationId)
+        session.getJob()?.cancel()
+
+        val existing = conversationRepo.getConversationById(conversationId)
+        val baseConversation = when {
+            existing == null -> {
+                Conversation.ofId(
+                    id = conversationId,
+                    assistantId = assistantId,
+                    newConversation = true
+                ).updateCurrentMessages(assistant.presetMessages)
+            }
+
+            existing.assistantId != assistantId -> existing.copy(assistantId = assistantId)
+            else -> existing
+        }
+        saveConversation(conversationId, baseConversation)
+
+        val processedContent = preprocessUserInputParts(
+            parts = listOf(UIMessagePart.Text(prompt)),
+            assistant = assistant
+        )
+        val currentConversation = getConversationFlow(conversationId).value
+        val conversationWithPrompt = currentConversation.copy(
+            messageNodes = currentConversation.messageNodes + UIMessage(
+                role = MessageRole.USER,
+                parts = processedContent,
+            ).toMessageNode()
+        )
+        saveConversation(conversationId, conversationWithPrompt)
+        handleMessageComplete(conversationId, notifyOnCompletion = false)
+        _generationDoneFlow.emit(conversationId)
+
+        val finalMessage = getConversationFlow(conversationId).value.currentMessages.lastOrNull()
+        if (finalMessage == null || finalMessage.role != MessageRole.ASSISTANT) {
+            throw IllegalStateException("Scheduled prompt did not generate an assistant reply")
+        }
+        finalMessage.toText().take(200)
+    }.onFailure {
+        addError(it, conversationId)
     }
 
     // ---- 重新生成消息 ----
@@ -428,14 +486,15 @@ class ChatService(
 
     private suspend fun handleMessageComplete(
         conversationId: Uuid,
-        messageRange: ClosedRange<Int>? = null
+        messageRange: ClosedRange<Int>? = null,
+        notifyOnCompletion: Boolean = true
     ) {
         val settings = settingsStore.settingsFlow.first()
-        val model = settings.getCurrentChatModel() ?: return
+        val conversation = getConversationFlow(conversationId).value
+        val assistant = settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
+        val model = assistant.chatModelId?.let { settings.findModelById(it) } ?: settings.getCurrentChatModel() ?: return
 
         runCatching {
-            val conversation = getConversationFlow(conversationId).value
-
             // reset suggestions
             updateConversation(conversationId, conversation.copy(chatSuggestions = emptyList()))
 
@@ -463,11 +522,11 @@ class ChatService(
                         it
                     }
                 },
-                assistant = settings.getCurrentAssistant(),
-                memories = if (settings.getCurrentAssistant().useGlobalMemory) {
+                assistant = assistant,
+                memories = if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
                 } else {
-                    memoryRepository.getMemoriesOfAssistant(settings.assistantId.toString())
+                    memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
                 },
                 inputTransformers = buildList {
                     addAll(inputTransformers)
@@ -478,8 +537,7 @@ class ChatService(
                     if (settings.enableWebSearch) {
                         addAll(createSearchTools(settings))
                     }
-                    val currentAssistant = settings.getCurrentAssistant()
-                    addAll(localTools.getTools(currentAssistant.localTools, currentAssistant))
+                    addAll(localTools.getTools(assistant.localTools, assistant))
                     mcpManager.getAllAvailableTools().forEach { tool ->
                         add(
                             Tool(
@@ -509,7 +567,7 @@ class ChatService(
                 updateConversation(conversationId, updatedConversation)
 
                 // Show notification if app is not in foreground
-                if (!isForeground.value && settings.displaySetting.enableNotificationOnMessageGeneration) {
+                if (notifyOnCompletion && !isForeground.value && settings.displaySetting.enableNotificationOnMessageGeneration) {
                     sendGenerationDoneNotification(conversationId)
                 }
             }.collect { chunk ->
@@ -520,7 +578,7 @@ class ChatService(
                         updateConversation(conversationId, updatedConversation)
 
                         // 如果应用不在前台，发送 Live Update 通知
-                        if (!isForeground.value && settings.displaySetting.enableNotificationOnMessageGeneration && settings.displaySetting.enableLiveUpdateNotification) {
+                        if (notifyOnCompletion && !isForeground.value && settings.displaySetting.enableNotificationOnMessageGeneration && settings.displaySetting.enableLiveUpdateNotification) {
                             sendLiveUpdateNotification(conversationId, chunk.messages)
                         }
                     }

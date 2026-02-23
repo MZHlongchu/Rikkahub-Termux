@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.BookOpen
 import com.composables.icons.lucide.Brain
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Code
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageSquare
@@ -106,6 +107,13 @@ fun AssistantDetailPage(id: String) {
                     title = stringResource(R.string.assistant_page_tab_prompt),
                     description = stringResource(R.string.assistant_detail_prompt_desc),
                     onClick = { navController.navigate(Screen.AssistantPrompt(id)) }
+                )
+
+                SettingCard(
+                    icon = Lucide.Clock,
+                    title = stringResource(R.string.assistant_page_tab_schedule),
+                    description = stringResource(R.string.assistant_detail_schedule_desc),
+                    onClick = { navController.navigate(Screen.AssistantSchedule(id)) }
                 )
 
                 SettingCard(
