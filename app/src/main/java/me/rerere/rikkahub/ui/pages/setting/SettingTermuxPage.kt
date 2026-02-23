@@ -9,8 +9,6 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +29,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,30 +91,6 @@ fun SettingTermuxPage() {
 
     // Termux 权限状态
     var termuxPermissionGranted by remember { mutableStateOf(false) }
-
-    // 权限请求启动器
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        Log.d(TAG, "权限请求回调: isGranted=$isGranted")
-        termuxPermissionGranted = isGranted
-        if (isGranted) {
-            Log.i(TAG, "Termux 权限已授予")
-            android.widget.Toast.makeText(
-                context,
-                "Termux 权限已授予",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            // 简单处理：只要被拒绝，就提示重新授权
-            // 如果用户永久拒绝，系统后续会直接跳转到设置
-            android.widget.Toast.makeText(
-                context,
-                "Termux 权限被拒绝，请重新授权",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
-    }
 
     // 在页面加载时检查权限状态
     DisposableEffect(lifecycleOwner) {
@@ -399,9 +372,22 @@ fun SettingTermuxPage() {
                         Text(stringResource(R.string.setting_termux_page_setup_step_4))
                         TextButton(
                             onClick = {
-                                Log.d(TAG, "点击授权按钮，当前termuxPermissionGranted=$termuxPermissionGranted")
-                                // 直接请求权限
-                                permissionLauncher.launch("com.termux.permission.RUN_COMMAND")
+                                val activity = context as? Activity
+                                Log.d(TAG, "点击授权按钮，当前termuxPermissionGranted=$termuxPermissionGranted, activity=${activity != null}")
+                                if (activity != null) {
+                                    ActivityCompat.requestPermissions(
+                                        activity,
+                                        arrayOf("com.termux.permission.RUN_COMMAND"),
+                                        REQUEST_TERMUX_PERMISSION
+                                    )
+                                } else {
+                                    Log.e(TAG, "Context 不是 Activity，无法请求权限")
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "无法请求权限：Context 不是 Activity",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         ) {
                             Text(
