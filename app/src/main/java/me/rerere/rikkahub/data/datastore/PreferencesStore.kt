@@ -528,6 +528,7 @@ data class DisplaySetting(
     val skipCropImage: Boolean = false,
     val enableNotificationOnMessageGeneration: Boolean = false,
     val enableLiveUpdateNotification: Boolean = false,
+    val enableScheduledTaskNotification: Boolean = true,
     val codeBlockAutoWrap: Boolean = false,
     val codeBlockAutoCollapse: Boolean = false,
     val showLineNumbers: Boolean = false,
