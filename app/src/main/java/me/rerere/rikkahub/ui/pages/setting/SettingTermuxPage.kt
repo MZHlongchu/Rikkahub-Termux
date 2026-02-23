@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -7,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +56,8 @@ import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.utils.plus
 import org.koin.compose.koinInject
 
+private const val TAG = "SettingTermuxPage"
+
 @Composable
 fun SettingTermuxPage() {
     val termuxWorkdirServerManager: TermuxWorkdirServerManager = koinInject()
@@ -94,16 +98,18 @@ fun SettingTermuxPage() {
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        Log.d(TAG, "权限请求回调: isGranted=$isGranted")
         termuxPermissionGranted = isGranted
         if (isGranted) {
+            Log.i(TAG, "Termux 权限已授予")
             android.widget.Toast.makeText(
                 context,
                 "Termux 权限已授予",
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         } else {
-            // 检查是否应该显示rationale（用户之前拒绝过但没选"不再询问"）
-            val activity = context as? android.app.Activity
+            // 检查是否应该显示rationale（用户之前拒绝过）
+            val activity = context as? Activity
             val shouldShowRationale = activity?.let {
                 ActivityCompat.shouldShowRequestPermissionRationale(
                     it,
@@ -111,6 +117,7 @@ fun SettingTermuxPage() {
                 )
             } ?: false
 
+            Log.d(TAG, "权限被拒绝, shouldShowRationale=$shouldShowRationale")
             val message = if (shouldShowRationale) {
                 "Termux 权限被拒绝，请重新授权"
             } else {
@@ -128,18 +135,34 @@ fun SettingTermuxPage() {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
-                // 检查当前权限状态
-                val activity = context as? android.app.Activity
-                termuxPermissionGranted = activity?.let {
+                val activity = context as? Activity
+                val permissionCheck = activity?.let {
                     ActivityCompat.checkSelfPermission(
                         it,
                         "com.termux.permission.RUN_COMMAND"
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                } ?: false
+                    )
+                }
+                val isGranted = permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED
+                Log.d(TAG, "生命周期事件 $event, permissionCheck=$permissionCheck, isGranted=$isGranted, activity=${activity != null}")
+                termuxPermissionGranted = isGranted
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // 初始检查一次权限状态
+    LaunchedEffect(Unit) {
+        val activity = context as? Activity
+        val permissionCheck = activity?.let {
+            ActivityCompat.checkSelfPermission(
+                it,
+                "com.termux.permission.RUN_COMMAND"
+            )
+        }
+        val isGranted = permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED
+        Log.d(TAG, "页面初始化, permissionCheck=$permissionCheck, isGranted=$isGranted, activity=${activity != null}")
+        termuxPermissionGranted = isGranted
     }
 
     Scaffold(
@@ -388,7 +411,8 @@ fun SettingTermuxPage() {
                         Text(stringResource(R.string.setting_termux_page_setup_step_4))
                         TextButton(
                             onClick = {
-                                // 直接使用 Activity Result API 请求权限
+                                Log.d(TAG, "点击授权按钮，当前termuxPermissionGranted=$termuxPermissionGranted")
+                                // 直接请求权限
                                 permissionLauncher.launch("com.termux.permission.RUN_COMMAND")
                             }
                         ) {
