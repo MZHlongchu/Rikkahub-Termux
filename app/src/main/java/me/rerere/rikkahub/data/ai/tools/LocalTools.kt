@@ -20,6 +20,8 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxRunCommandRequest
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.event.AppEvent
+import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.utils.readClipboardText
 import me.rerere.rikkahub.utils.writeClipboardText
@@ -48,12 +50,17 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("termux_python")
     data object TermuxPython : LocalToolOption()
+
+    @Serializable
+    @SerialName("tts")
+    data object Tts : LocalToolOption()
 }
 
 class LocalTools(
     private val context: Context,
     private val settingsStore: SettingsStore,
     private val termuxCommandManager: TermuxCommandManager,
+    private val eventBus: AppEventBus,
 ) {
     val javascriptTool by lazy {
         Tool(
@@ -202,6 +209,38 @@ class LocalTools(
 
                     else -> error("unknown action: $action, must be one of [read, write]")
                 }
+            }
+        )
+    }
+
+    val ttsTool by lazy {
+        Tool(
+            name = "text_to_speech",
+            description = """
+                Speak text aloud to the user using the device's text-to-speech engine.
+                Use this when the user asks you to read something aloud, or when audio output is appropriate.
+                The tool returns immediately; audio plays in the background on the device.
+                Provide natural, readable text without markdown formatting.
+            """.trimIndent().replace("\n", " "),
+            parameters = {
+                InputSchema.Obj(
+                    properties = buildJsonObject {
+                        put("text", buildJsonObject {
+                            put("type", "string")
+                            put("description", "The text to speak aloud")
+                        })
+                    },
+                    required = listOf("text")
+                )
+            },
+            execute = {
+                val text = it.jsonObject["text"]?.jsonPrimitive?.contentOrNull
+                    ?: error("text is required")
+                eventBus.emit(AppEvent.Speak(text))
+                val payload = buildJsonObject {
+                    put("success", true)
+                }
+                listOf(UIMessagePart.Text(payload.toString()))
             }
         )
     }
@@ -424,6 +463,9 @@ class LocalTools(
                     termuxCommandManager = termuxCommandManager,
                 )
             )
+        }
+        if (options.contains(LocalToolOption.Tts)) {
+            tools.add(ttsTool)
         }
         return tools
     }

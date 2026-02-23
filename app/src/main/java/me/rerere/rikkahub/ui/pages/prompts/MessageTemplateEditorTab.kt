@@ -29,7 +29,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -37,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.FileDown
 import com.composables.icons.lucide.GripHorizontal
 import com.composables.icons.lucide.Import
 import com.composables.icons.lucide.Lucide
@@ -47,10 +52,12 @@ import kotlinx.coroutines.launch
 import me.rerere.ai.core.MessageRole
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.export.MessageTemplateSerializer
+import me.rerere.rikkahub.data.export.rememberExporter
 import me.rerere.rikkahub.data.export.rememberImporter
 import me.rerere.rikkahub.data.model.MessageInjectionTemplate
 import me.rerere.rikkahub.data.model.MessageTemplateNode
 import me.rerere.rikkahub.data.model.TemplateRoleMapping
+import me.rerere.rikkahub.ui.components.ui.ExportDialog
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -65,10 +72,20 @@ fun MessageTemplateEditorTab(
 ) {
     val lazyListState = rememberLazyListState()
     val toaster = LocalToaster.current
+    // Reorderable indices include non-template items at the top of the list.
+    val fixedItemCount = 1 + if (!template.enabled) 1 else 0
+    var showExportDialog by remember { mutableStateOf(false) }
+    val exporter = rememberExporter(template, MessageTemplateSerializer)
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        val fromIndex = from.index - fixedItemCount
+        val toIndex = to.index - fixedItemCount
+        if (fromIndex !in template.nodes.indices || toIndex !in template.nodes.indices) {
+            return@rememberReorderableLazyListState
+        }
+
         val newNodes = template.nodes.toMutableList()
-        val moved = newNodes.removeAt(from.index)
-        newNodes.add(to.index, moved)
+        val moved = newNodes.removeAt(fromIndex)
+        newNodes.add(toIndex, moved)
         onUpdate(template.copy(nodes = newNodes))
     }
     val editState = useEditState<MessageTemplateNode> { edited ->
@@ -106,6 +123,7 @@ fun MessageTemplateEditorTab(
                     onUpdate(template.copy(enabled = enabled))
                 },
                 onImport = { importer.importFromFile() },
+                onExport = { showExportDialog = true },
                 onAddPrompt = {
                     editState.open(
                         MessageTemplateNode.PromptNode(
@@ -189,6 +207,13 @@ fun MessageTemplateEditorTab(
             )
         }
     }
+
+    if (showExportDialog) {
+        ExportDialog(
+            exporter = exporter,
+            onDismiss = { showExportDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -196,6 +221,7 @@ private fun MessageTemplateControlCard(
     enabled: Boolean,
     onToggleEnabled: (Boolean) -> Unit,
     onImport: () -> Unit,
+    onExport: () -> Unit,
     onAddPrompt: () -> Unit,
     onAddHistory: () -> Unit,
     onAddLastUser: () -> Unit,
@@ -251,6 +277,23 @@ private fun MessageTemplateControlCard(
                     )
                 }
                 OutlinedButton(
+                    onClick = onExport,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Lucide.FileDown, null)
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = stringResource(R.string.prompt_page_message_template_export),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
                     onClick = onAddPrompt,
                     modifier = Modifier.weight(1f)
                 ) {
@@ -262,11 +305,6 @@ private fun MessageTemplateControlCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
                 OutlinedButton(
                     onClick = onAddHistory,
                     modifier = Modifier.weight(1f)
@@ -279,6 +317,11 @@ private fun MessageTemplateControlCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedButton(
                     onClick = onAddLastUser,
                     modifier = Modifier.weight(1f)

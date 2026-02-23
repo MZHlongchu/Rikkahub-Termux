@@ -643,10 +643,32 @@
   <string name="web_search_disabled">ウェブ検索が無効になりました</string>
   <string name="web_search_enabled">ウェブ検索が有効になりました</string>
   <string name="prompt_page_title">プロンプトインジェクション</string>
+  <string name="prompt_page_message_template_tab">メッセージテンプレート</string>
   <string name="prompt_page_mode_injection_tab">モードインジェクション</string>
   <string name="prompt_page_lorebook_tab">ロアブック</string>
   <string name="prompt_page_mode_injection_empty">モードインジェクションがありません</string>
+  <string name="prompt_page_message_template_empty">テンプレートノードを下で追加するか、テンプレート JSON をインポートしてください</string>
+  <string name="prompt_page_message_template_enabled_desc">無効時はチャットメッセージは元の形式のままです</string>
+  <string name="prompt_page_message_template_disabled_hint">メッセージテンプレートは現在オフです。オンにするとテンプレートノードが適用されます。</string>
   <string name="prompt_page_empty_hint">下のボタンをクリックして追加</string>
+  <string name="prompt_page_message_template_import">テンプレート JSON をインポート</string>
+  <string name="prompt_page_message_template_export">テンプレート JSON をエクスポート</string>
+  <string name="prompt_page_message_template_add_prompt">プロンプト</string>
+  <string name="prompt_page_message_template_add_history">履歴</string>
+  <string name="prompt_page_message_template_add_last_user">最新のユーザーメッセージ</string>
+  <string name="prompt_page_message_template_edit_node">テンプレートノードを編集</string>
+  <string name="prompt_page_message_template_name">ノード名</string>
+  <string name="prompt_page_message_template_role">役割</string>
+  <string name="prompt_page_message_template_content">内容</string>
+  <string name="prompt_page_message_template_node_prompt">プロンプト</string>
+  <string name="prompt_page_message_template_node_history">履歴</string>
+  <string name="prompt_page_message_template_node_last_user">最新ユーザーメッセージ</string>
+  <string name="prompt_page_message_template_history_title">チャット履歴</string>
+  <string name="prompt_page_message_template_last_user_title">最新のユーザーメッセージ</string>
+  <string name="prompt_page_message_template_mapping_system">システム</string>
+  <string name="prompt_page_message_template_mapping_user">ユーザー</string>
+  <string name="prompt_page_message_template_mapping_assistant">アシスタント</string>
+  <string name="prompt_page_message_template_prompt_default_name">新しいプロンプト</string>
   <string name="prompt_page_add_mode_injection">モードインジェクションを追加</string>
   <string name="prompt_page_unnamed">名前なし</string>
   <string name="prompt_page_priority_format">優先度: %d</string>
@@ -867,5 +889,10 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_page_sponsor_alert_confirm">寄付</string>
   <string name="setting_page_sponsor_alert_dismiss">今はしない</string>
   <string name="db_migrating">データベースを移行しています…</string>
+  <string name="notification_channel_web_server">Webサーバー</string>
+  <string name="notification_web_server_starting">起動中…</string>
+  <string name="notification_web_server_running">Webサーバーが実行中</string>
+  <string name="notification_web_server_stop">停止</string>
+  <string name="assistant_page_local_tools_tts_title">テキスト読み上げ</string>
+  <string name="assistant_page_local_tools_tts_desc">AIがデバイスのTTSエンジンを使ってテキストを読み上げます</string>
 </resources>
-

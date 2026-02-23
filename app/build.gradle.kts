@@ -21,8 +21,8 @@ android {
         applicationId = "me.rerere.rikkahub.ywxk"
         minSdk = 26
         targetSdk = 36
-        versionCode = 137
-        versionName = "2.0.0-beta.2"
+        versionCode = 138
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -267,6 +267,10 @@ dependencies {
 
     // jmDNS (mDNS/Bonjour for .local hostname)
     implementation(libs.jmdns)
+
+    // SLF4J Android binding — routes Ktor/SLF4J logs to logcat
+    implementation(libs.slf4j.api)
+    implementation(libs.slf4j.android)
 
     // sqlite-android (requery SQLite for Android)
     implementation(libs.sqlite.android)

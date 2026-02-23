@@ -643,10 +643,32 @@
   <string name="web_search_disabled">웹 검색 비활성화됨</string>
   <string name="web_search_enabled">웹 검색 활성화됨</string>
   <string name="prompt_page_title">프롬프트 인젝션</string>
+  <string name="prompt_page_message_template_tab">메시지 템플릿</string>
   <string name="prompt_page_mode_injection_tab">모드 인젝션</string>
   <string name="prompt_page_lorebook_tab">로어북</string>
   <string name="prompt_page_mode_injection_empty">모드 주입 없음</string>
+  <string name="prompt_page_message_template_empty">템플릿 JSON을 가져오거나 아래에서 템플릿 노드를 추가하세요</string>
+  <string name="prompt_page_message_template_enabled_desc">비활성화하면 채팅 메시지는 원래 형식을 유지합니다</string>
+  <string name="prompt_page_message_template_disabled_hint">메시지 템플릿이 현재 꺼져 있습니다. 켜면 템플릿 노드가 적용됩니다.</string>
   <string name="prompt_page_empty_hint">아래 버튼을 클릭하여 추가하세요</string>
+  <string name="prompt_page_message_template_import">템플릿 JSON 가져오기</string>
+  <string name="prompt_page_message_template_export">템플릿 JSON 내보내기</string>
+  <string name="prompt_page_message_template_add_prompt">프롬프트</string>
+  <string name="prompt_page_message_template_add_history">대화 기록</string>
+  <string name="prompt_page_message_template_add_last_user">마지막 사용자 메시지</string>
+  <string name="prompt_page_message_template_edit_node">템플릿 노드 편집</string>
+  <string name="prompt_page_message_template_name">노드 이름</string>
+  <string name="prompt_page_message_template_role">역할</string>
+  <string name="prompt_page_message_template_content">내용</string>
+  <string name="prompt_page_message_template_node_prompt">프롬프트</string>
+  <string name="prompt_page_message_template_node_history">대화 기록</string>
+  <string name="prompt_page_message_template_node_last_user">마지막 사용자 메시지</string>
+  <string name="prompt_page_message_template_history_title">대화 기록</string>
+  <string name="prompt_page_message_template_last_user_title">마지막 사용자 메시지</string>
+  <string name="prompt_page_message_template_mapping_system">시스템</string>
+  <string name="prompt_page_message_template_mapping_user">사용자</string>
+  <string name="prompt_page_message_template_mapping_assistant">어시스턴트</string>
+  <string name="prompt_page_message_template_prompt_default_name">새 프롬프트</string>
   <string name="prompt_page_add_mode_injection">모드 주입 추가</string>
   <string name="prompt_page_unnamed">이름 없음</string>
   <string name="prompt_page_priority_format">우선순위: %d</string>
@@ -867,5 +889,10 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_page_sponsor_alert_confirm">기부하기</string>
   <string name="setting_page_sponsor_alert_dismiss">나중에</string>
   <string name="db_migrating">데이터베이스 마이그레이션 중...</string>
+  <string name="notification_channel_web_server">웹 서버</string>
+  <string name="notification_web_server_starting">시작 중...</string>
+  <string name="notification_web_server_running">웹 서버 실행 중</string>
+  <string name="notification_web_server_stop">중지</string>
+  <string name="assistant_page_local_tools_tts_title">텍스트 음성 변환</string>
+  <string name="assistant_page_local_tools_tts_desc">AI가 기기의 TTS 엔진을 사용해 텍스트를 음성으로 읽어줍니다</string>
 </resources>
-

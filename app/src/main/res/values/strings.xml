@@ -672,6 +672,7 @@
   <string name="prompt_page_message_template_disabled_hint">Message template is currently off. Turn it on to apply template nodes.</string>
   <string name="prompt_page_empty_hint">Click the button below to add</string>
   <string name="prompt_page_message_template_import">Import Template JSON</string>
+  <string name="prompt_page_message_template_export">Export Template JSON</string>
   <string name="prompt_page_message_template_add_prompt">Prompt</string>
   <string name="prompt_page_message_template_add_history">History</string>
   <string name="prompt_page_message_template_add_last_user">Last User Message</string>
@@ -915,4 +916,10 @@
   <string name="setting_page_sponsor_alert_confirm">Donate</string>
   <string name="setting_page_sponsor_alert_dismiss">Not Now</string>
   <string name="db_migrating">Migrating database...</string>
+  <string name="notification_channel_web_server">Web Server</string>
+  <string name="notification_web_server_starting">Starting...</string>
+  <string name="notification_web_server_running">Web Server Running</string>
+  <string name="notification_web_server_stop">Stop</string>
+  <string name="assistant_page_local_tools_tts_title">Text to Speech</string>
+  <string name="assistant_page_local_tools_tts_desc">Let the AI speak text aloud to you using the device TTS engine</string>
 </resources>
