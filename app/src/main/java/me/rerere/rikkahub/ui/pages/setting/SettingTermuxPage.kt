@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,24 +109,11 @@ fun SettingTermuxPage() {
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         } else {
-            // 检查是否应该显示rationale（用户之前拒绝过）
-            val activity = context as? Activity
-            val shouldShowRationale = activity?.let {
-                ActivityCompat.shouldShowRequestPermissionRationale(
-                    it,
-                    "com.termux.permission.RUN_COMMAND"
-                )
-            } ?: false
-
-            Log.d(TAG, "权限被拒绝, shouldShowRationale=$shouldShowRationale")
-            val message = if (shouldShowRationale) {
-                "Termux 权限被拒绝，请重新授权"
-            } else {
-                "Termux 权限被永久拒绝，请前往应用设置手动授予"
-            }
+            // 简单处理：只要被拒绝，就提示重新授权
+            // 如果用户永久拒绝，系统后续会直接跳转到设置
             android.widget.Toast.makeText(
                 context,
-                message,
+                "Termux 权限被拒绝，请重新授权",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
