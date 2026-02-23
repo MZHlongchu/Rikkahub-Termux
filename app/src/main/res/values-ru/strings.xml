@@ -641,10 +641,32 @@
   <string name="web_search_disabled">Веб-поиск отключён</string>
   <string name="web_search_enabled">Веб-поиск включён</string>
   <string name="prompt_page_title">Внедрение подсказок</string>
+  <string name="prompt_page_message_template_tab">Шаблон сообщений</string>
   <string name="prompt_page_mode_injection_tab">Внедрение режима</string>
   <string name="prompt_page_lorebook_tab">Лорбук</string>
   <string name="prompt_page_mode_injection_empty">Нет внедрений режима</string>
+  <string name="prompt_page_message_template_empty">Импортируйте JSON шаблона или добавьте узлы шаблона ниже</string>
+  <string name="prompt_page_message_template_enabled_desc">Когда отключено, сообщения чата сохраняют исходный формат</string>
+  <string name="prompt_page_message_template_disabled_hint">Шаблон сообщений сейчас отключен. Включите его, чтобы применять узлы шаблона.</string>
   <string name="prompt_page_empty_hint">Нажмите кнопку ниже, чтобы добавить</string>
+  <string name="prompt_page_message_template_import">Импорт шаблона JSON</string>
+  <string name="prompt_page_message_template_export">Экспорт шаблона JSON</string>
+  <string name="prompt_page_message_template_add_prompt">Промпт</string>
+  <string name="prompt_page_message_template_add_history">История</string>
+  <string name="prompt_page_message_template_add_last_user">Последнее сообщение пользователя</string>
+  <string name="prompt_page_message_template_edit_node">Редактировать узел шаблона</string>
+  <string name="prompt_page_message_template_name">Имя узла</string>
+  <string name="prompt_page_message_template_role">Роль</string>
+  <string name="prompt_page_message_template_content">Содержимое</string>
+  <string name="prompt_page_message_template_node_prompt">ПРОМПТ</string>
+  <string name="prompt_page_message_template_node_history">ИСТОРИЯ</string>
+  <string name="prompt_page_message_template_node_last_user">ПОСЛЕДНЕЕ_СООБЩЕНИЕ_ПОЛЬЗОВАТЕЛЯ</string>
+  <string name="prompt_page_message_template_history_title">История чата</string>
+  <string name="prompt_page_message_template_last_user_title">Последнее сообщение пользователя</string>
+  <string name="prompt_page_message_template_mapping_system">Система</string>
+  <string name="prompt_page_message_template_mapping_user">Пользователь</string>
+  <string name="prompt_page_message_template_mapping_assistant">Ассистент</string>
+  <string name="prompt_page_message_template_prompt_default_name">Новый промпт</string>
   <string name="prompt_page_add_mode_injection">Добавить режим инъекции</string>
   <string name="prompt_page_unnamed">Без имени</string>
   <string name="prompt_page_priority_format">Приоритет: %d</string>
@@ -861,4 +883,3 @@
   <string name="setting_page_sponsor_alert_dismiss">Не сейчас</string>
   <string name="db_migrating">Перенос базы данных…</string>
 </resources>
-

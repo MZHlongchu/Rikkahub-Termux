@@ -672,6 +672,7 @@
   <string name="prompt_page_message_template_disabled_hint">Message template is currently off. Turn it on to apply template nodes.</string>
   <string name="prompt_page_empty_hint">Click the button below to add</string>
   <string name="prompt_page_message_template_import">Import Template JSON</string>
+  <string name="prompt_page_message_template_export">Export Template JSON</string>
   <string name="prompt_page_message_template_add_prompt">Prompt</string>
   <string name="prompt_page_message_template_add_history">History</string>
   <string name="prompt_page_message_template_add_last_user">Last User Message</string>
