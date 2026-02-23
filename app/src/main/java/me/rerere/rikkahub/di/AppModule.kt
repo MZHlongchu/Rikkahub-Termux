@@ -11,6 +11,7 @@ import me.rerere.rikkahub.data.ai.AILoggingManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
+import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
@@ -40,7 +41,11 @@ val appModule = module {
     }
 
     single {
-        LocalTools(get(), get(), get())
+        AppEventBus()
+    }
+
+    single {
+        LocalTools(get(), get(), get(), get())
     }
 
     single {

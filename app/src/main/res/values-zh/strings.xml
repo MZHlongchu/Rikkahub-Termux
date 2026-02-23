@@ -915,4 +915,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_sponsor_alert_confirm">捐赠</string>
   <string name="setting_page_sponsor_alert_dismiss">暂不</string>
   <string name="db_migrating">正在迁移数据库…</string>
+  <string name="notification_channel_web_server">Web服务器</string>
+  <string name="notification_web_server_starting">正在启动...</string>
+  <string name="notification_web_server_running">Web服务器运行中</string>
+  <string name="notification_web_server_stop">停止</string>
+  <string name="assistant_page_local_tools_tts_title">文字转语音</string>
+  <string name="assistant_page_local_tools_tts_desc">让AI使用设备TTS引擎为您朗读文本</string>
 </resources>

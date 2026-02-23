@@ -15,6 +15,8 @@
     android:name="android.permission.READ_EXTERNAL_STORAGE"
     android:maxSdkVersion="29" />
   <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
   <uses-feature
     android:name="android.hardware.camera"
@@ -79,6 +81,11 @@
     <service
       android:name=".data.ai.tools.termux.TermuxResultService"
       android:exported="false" />
+
+    <service
+      android:name=".service.WebServerService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync" />
 
     <provider
       android:name="androidx.core.content.FileProvider"
