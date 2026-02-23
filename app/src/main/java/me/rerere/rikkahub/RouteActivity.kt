@@ -326,10 +326,6 @@ class RouteActivity : ComponentActivity() {
                                 AssistantPromptPage(key.id)
                             }
 
-                            entry<Screen.AssistantSchedule> {
-                                SettingScheduledTaskPage()
-                            }
-
                             entry<Screen.AssistantMemory> { key ->
                                 AssistantMemoryPage(key.id)
                             }
@@ -532,9 +528,6 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class AssistantPrompt(val id: String) : Screen
-
-    @Serializable
-    data class AssistantSchedule(val id: String) : Screen
 
     @Serializable
     data class AssistantMemory(val id: String) : Screen
