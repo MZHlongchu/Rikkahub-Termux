@@ -844,6 +844,12 @@
   <string name="setting_termux_page_workdir_desc">termux_exec 与 termux_python 的默认工作目录（例如 /data/data/com.termux/files/home/workspace）</string>
   <string name="setting_termux_page_background_title">后台运行</string>
   <string name="setting_termux_page_background_desc">让 Termux 工具在后台执行，不自动切换到 Termux 前台（推荐）</string>
+  <string name="setting_termux_page_run_command_permission_title">运行命令权限</string>
+  <string name="setting_termux_page_run_command_permission_desc">为本应用授予 com.termux.permission.RUN_COMMAND，以便 Termux 工具直接执行命令。</string>
+  <string name="setting_termux_page_run_command_permission_usage">用于从本应用调用 com.termux.app.RunCommandService。</string>
+  <string name="setting_termux_page_run_command_permission_granted">状态：已授权</string>
+  <string name="setting_termux_page_run_command_permission_not_granted">状态：未授权</string>
+  <string name="setting_termux_page_run_command_permission_action">授权</string>
   <string name="setting_termux_page_all_files_access_title">读取所有文件权限</string>
   <string name="setting_termux_page_all_files_access_desc">为本应用授予“所有文件访问”权限（Termux 工具需要读取本地文件）</string>
   <string name="setting_termux_page_all_files_access_granted">状态：已授权</string>
@@ -853,8 +859,10 @@
   <string name="setting_termux_page_timeout_desc">termux_exec 与 termux_python 的超时时间。最小 1000ms，默认 120000ms（2 分钟）。</string>
   <string name="setting_termux_page_setup_title">设置清单</string>
   <string name="setting_termux_page_setup_step_1">1）安装 Termux（com.termux）</string>
-  <string name="setting_termux_page_setup_step_2">2）在 Termux 中：在 ~/.termux/termux.properties 设置 allow-external-apps=true，然后重启 Termux</string>
-  <string name="setting_termux_page_setup_step_3">3）在系统设置中：为本应用授予“在 Termux 环境中运行命令”权限（额外权限）</string>
+  <string name="setting_termux_page_setup_step_2">2）打开 Termux 并执行下面这条命令：</string>
+  <string name="setting_termux_page_open_termux">打开 Termux</string>
+  <string name="setting_termux_page_open_termux_failed">未检测到 Termux，请先安装。</string>
+  <string name="setting_termux_page_setup_step_3">3）点击上方“授权”按钮，授予 com.termux.permission.RUN_COMMAND</string>
   <string name="setting_termux_page_setup_step_4">4）若使用 termux_python：在 Termux 中安装 Python（pkg install python）</string>
   <string name="setting_termux_page_open_app_settings">打开应用设置</string>
   <string name="favorite_page_title">收藏</string>

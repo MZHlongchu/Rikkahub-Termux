@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,8 +35,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -44,12 +47,20 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxProtocol
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
+import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
+import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.utils.plus
 import org.koin.compose.koinInject
+
+private const val TERMUX_ALLOW_EXTERNAL_APPS_COMMAND =
+    "mkdir -p ~/.termux && echo 'allow-external-apps=true' >> ~/.termux/termux.properties && " +
+        "termux-reload-settings"
 
 @Composable
 fun SettingTermuxPage() {
@@ -71,7 +82,19 @@ fun SettingTermuxPage() {
     }
 
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val toaster = LocalToaster.current
+    val copiedText = stringResource(R.string.copied)
+    val openTermuxFailedText = stringResource(R.string.setting_termux_page_open_termux_failed)
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val termuxRunCommandPermissionState = rememberPermissionState(
+        permission = TermuxProtocol.PERMISSION_RUN_COMMAND,
+        displayName = { Text(stringResource(R.string.setting_termux_page_run_command_permission_title)) },
+        usage = { Text(stringResource(R.string.setting_termux_page_run_command_permission_usage)) },
+        required = true,
+    )
+    PermissionManager(permissionState = termuxRunCommandPermissionState)
 
     var allFilesAccessGranted by remember { mutableStateOf(isAllFilesAccessGranted()) }
     DisposableEffect(lifecycleOwner) {
@@ -244,6 +267,38 @@ fun SettingTermuxPage() {
                 }
             }
 
+            item("runCommandPermission") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    FormItem(
+                        modifier = Modifier.padding(12.dp),
+                        label = { Text(stringResource(R.string.setting_termux_page_run_command_permission_title)) },
+                        description = {
+                            Text(stringResource(R.string.setting_termux_page_run_command_permission_desc))
+                            Text(
+                                if (termuxRunCommandPermissionState.allPermissionsGranted) {
+                                    stringResource(R.string.setting_termux_page_run_command_permission_granted)
+                                } else {
+                                    stringResource(R.string.setting_termux_page_run_command_permission_not_granted)
+                                }
+                            )
+                        },
+                        tail = {
+                            TextButton(
+                                onClick = {
+                                    termuxRunCommandPermissionState.requestPermissions()
+                                },
+                            ) {
+                                Text(stringResource(R.string.setting_termux_page_run_command_permission_action))
+                            }
+                        },
+                    )
+                }
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 item("allFilesAccess") {
                     Card(
@@ -323,18 +378,32 @@ fun SettingTermuxPage() {
                         )
                         Text(stringResource(R.string.setting_termux_page_setup_step_1))
                         Text(stringResource(R.string.setting_termux_page_setup_step_2))
-                        Text(stringResource(R.string.setting_termux_page_setup_step_3))
-                        Text(stringResource(R.string.setting_termux_page_setup_step_4))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = TERMUX_ALLOW_EXTERNAL_APPS_COMMAND,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            TextButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(TERMUX_ALLOW_EXTERNAL_APPS_COMMAND))
+                                    toaster.show(copiedText)
+                                },
+                            ) {
+                                Text(stringResource(R.string.copy))
+                            }
+                        }
                         TextButton(
                             onClick = {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.fromParts("package", context.packageName, null)
+                                if (!openTermuxApp(context)) {
+                                    toaster.show(openTermuxFailedText)
                                 }
-                                context.startActivity(intent)
-                            }
+                            },
                         ) {
-                            Text(stringResource(R.string.setting_termux_page_open_app_settings))
+                            Text(stringResource(R.string.setting_termux_page_open_termux))
                         }
+                        Text(stringResource(R.string.setting_termux_page_setup_step_3))
+                        Text(stringResource(R.string.setting_termux_page_setup_step_4))
                     }
                 }
             }
@@ -357,4 +426,11 @@ private fun openAllFilesAccessSettings(context: Context) {
     } catch (_: ActivityNotFoundException) {
         context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
     }
+}
+
+private fun openTermuxApp(context: Context): Boolean {
+    val launchIntent = context.packageManager.getLaunchIntentForPackage(TermuxProtocol.TERMUX_PACKAGE_NAME)
+        ?: return false
+    context.startActivity(launchIntent)
+    return true
 }

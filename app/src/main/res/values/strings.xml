@@ -879,6 +879,12 @@
   <string name="setting_termux_page_workdir_server_port_title">Port</string>
   <string name="setting_termux_page_background_title">Run in background</string>
   <string name="setting_termux_page_background_desc">Execute Termux tools in background without bringing Termux to the foreground (recommended)</string>
+  <string name="setting_termux_page_run_command_permission_title">Run Command Permission</string>
+  <string name="setting_termux_page_run_command_permission_desc">Grant com.termux.permission.RUN_COMMAND to this app so Termux tools can execute commands directly.</string>
+  <string name="setting_termux_page_run_command_permission_usage">Required to call com.termux.app.RunCommandService from this app.</string>
+  <string name="setting_termux_page_run_command_permission_granted">Status: Granted</string>
+  <string name="setting_termux_page_run_command_permission_not_granted">Status: Not granted</string>
+  <string name="setting_termux_page_run_command_permission_action">Grant</string>
   <string name="setting_termux_page_all_files_access_title">All files access</string>
   <string name="setting_termux_page_all_files_access_desc">Grant this app permission to read all files on your device (required for Termux tools).</string>
   <string name="setting_termux_page_all_files_access_granted">Status: Granted</string>
@@ -888,8 +894,10 @@
   <string name="setting_termux_page_timeout_desc">Timeout for termux_exec and termux_python. Minimum 1000ms. Default 120000ms (2 minutes).</string>
   <string name="setting_termux_page_setup_title">Setup checklist</string>
   <string name="setting_termux_page_setup_step_1">1) Install Termux (com.termux)</string>
-  <string name="setting_termux_page_setup_step_2">2) In Termux: set allow-external-apps=true in ~/.termux/termux.properties, then restart Termux</string>
-  <string name="setting_termux_page_setup_step_3">3) Android Settings: grant “Run commands in Termux environment” to this app (Additional permissions)</string>
+  <string name="setting_termux_page_setup_step_2">2) Open Termux and run this command:</string>
+  <string name="setting_termux_page_open_termux">Open Termux</string>
+  <string name="setting_termux_page_open_termux_failed">Termux is not installed.</string>
+  <string name="setting_termux_page_setup_step_3">3) Tap “Grant” above to authorize com.termux.permission.RUN_COMMAND</string>
   <string name="setting_termux_page_setup_step_4">4) For termux_python: install Python in Termux (pkg install python)</string>
   <string name="setting_termux_page_open_app_settings">Open App Settings</string>
   <string name="setting_display_page_enable_latex_rendering_title">Enable LaTeX Rendering</string>
