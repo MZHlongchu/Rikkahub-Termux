@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit
 
 private val mermaidHeightCache = SimpleCache.builder<String, Int>()
     .expireAfterWrite(1, TimeUnit.DAYS)
+    .maximumSize(100)
     .build()
 
 /**
