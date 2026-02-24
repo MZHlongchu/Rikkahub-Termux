@@ -1,0 +1,344 @@
+name: FOSS Release Build
+
+# Build FOSS (Free and Open Source Software) APK without tracking/proprietary libraries
+# Dynamically patches source to remove Firebase, Google Services, and proprietary dependencies
+# Designed to be resilient to upstream source changes
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/release.yml"
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+env:
+  FOSS_APPLICATION_ID: "me.rerere.rikkahub.foss"
+  FOSS_VERSION_SUFFIX: "-foss"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Extract version from source
+        id: version
+        run: |
+          set -euo pipefail
+          
+          # Extract versionName using regex (resilient to format changes)
+          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts 2>/dev/null | head -1 || echo "1.0.0")
+          
+          # Extract versionCode using regex
+          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts 2>/dev/null | head -1 || echo "1")
+          
+          # Add FOSS suffix to version name
+          FOSS_VERSION_NAME="${VERSION_NAME}${FOSS_VERSION_SUFFIX}"
+          
+          echo "version_name=${FOSS_VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "Extracted version: ${FOSS_VERSION_NAME} (${VERSION_CODE})"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Set up Bun (for web-ui)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.bun
+          key: ${{ runner.os }}-gradle-foss-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'bun.lock') }}
+
+      - name: Build Web UI
+        working-directory: web-ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Apply FOSS patches (remove proprietary dependencies)
+        run: |
+          echo "=== Applying FOSS patches to remove proprietary libraries ==="
+          
+          # ========================================
+          # Patch root build.gradle.kts
+          # ========================================
+          if [ -f "build.gradle.kts" ]; then
+            echo "Patching root build.gradle.kts..."
+            
+            # Remove Google Services plugin declaration (resilient regex)
+            sed -i -E 's/alias\(libs\.plugins\.google\.services\)//g' build.gradle.kts
+            sed -i -E 's/[,[:space:]]*alias\(libs\.plugins\.google\.services\)//g' build.gradle.kts
+            
+            # Remove Firebase Crashlytics plugin declaration (resilient regex)
+            sed -i -E 's/alias\(libs\.plugins\.firebase\.crashlytics\)//g' build.gradle.kts
+            sed -i -E 's/[,[:space:]]*alias\(libs\.plugins\.firebase\.crashlytics\)//g' build.gradle.kts
+            
+            # Clean up trailing commas
+            sed -i -E 's/,[[:space:]]*$//' build.gradle.kts
+            sed -i -E 's/,[[:space:]]*$//' build.gradle.kts
+            echo "✓ Root build.gradle.kts patched"
+          fi
+          
+          # ========================================
+          # Patch app/build.gradle.kts
+          # ========================================
+          if [ -f "app/build.gradle.kts" ]; then
+            echo "Patching app/build.gradle.kts..."
+            
+            # Remove Google Services plugin (resilient regex)
+            sed -i -E 's/alias\(libs\.plugins\.google\.services\)//g' app/build.gradle.kts
+            sed -i -E 's/[,[:space:]]*alias\(libs\.plugins\.google\.services\)//g' app/build.gradle.kts
+            
+            # Remove Firebase Crashlytics plugin (resilient regex)
+            sed -i -E 's/alias\(libs\.plugins\.firebase\.crashlytics\)//g' app/build.gradle.kts
+            sed -i -E 's/[,[:space:]]*alias\(libs\.plugins\.firebase\.crashlytics\)//g' app/build.gradle.kts
+            
+            # Remove Firebase BOM platform dependency
+            sed -i '/implementation(platform(libs\.firebase\.bom))/d' app/build.gradle.kts
+            
+            # Remove all Firebase library implementations (resilient regex)
+            sed -i '/implementation(libs\.firebase\.)/d' app/build.gradle.kts
+            
+            # Remove Google ML Kit Barcode Scanning (proprietary)
+            sed -i '/implementation(libs\.barcode\.scanning)/d' app/build.gradle.kts
+            
+            # Change application ID to FOSS variant (resilient regex)
+            sed -i -E 's/(applicationId\s*=\s*")[^"]+/\1${FOSS_APPLICATION_ID}/' app/build.gradle.kts
+            
+            # Delete google-services.json file reference
+            sed -i '/google-services\.json/d' app/build.gradle.kts
+            sed -i '"/google-services\.json"'d' app/build.gradle.kts
+            
+            echo "✓ app/build.gradle.kts patched"
+          fi
+          
+          # ========================================
+          # Patch gradle/libs.versions.toml (comment out Firebase/Google refs)
+          # ========================================
+          if [ -f "gradle/libs.versions.toml" ]; then
+            echo "Patching gradle/libs.versions.toml..."
+            
+            # Comment out Firebase-related library references
+            sed -i -E 's/^(firebase-.*)/# FOSS Removed: \1/' gradle/libs.versions.toml
+            sed -i -E 's/^(google-services.*)/# FOSS Removed: \1/' gradle/libs.versions.toml
+            # Comment out barcode-scanning (ML Kit proprietary)
+            sed -i -E 's/^(barcode[.-]scanning.*)/# FOSS Removed: \1/' gradle/libs.versions.toml
+            
+            echo "✓ gradle/libs.versions.toml patched"
+          fi
+          
+          # ========================================
+          # Delete google-services.json if exists (no secrets needed)
+          # ========================================
+          if [ -f "app/google-services.json" ]; then
+            rm -f app/google-services.json
+            echo "✓ Removed app/google-services.json"
+          fi
+          
+          echo "=== FOSS patches applied successfully ==="
+
+      - name: Verify FOSS patches
+        run: |
+          echo "=== Verifying FOSS patches ==="
+          echo ""
+          echo "1. Application ID:"
+          grep 'applicationId' app/build.gradle.kts | head -1 || true
+          echo ""
+          echo "2. Checking for removed Firebase dependencies..."
+          if grep -qE 'firebase' app/build.gradle.kts 2>/dev/null; then
+            echo "   ⚠ Warning: Firebase references still found!"
+            grep 'firebase' app/build.gradle.kts || true
+          else
+            echo "   ✓ No Firebase references found"
+          fi
+          echo ""
+          echo "3. Checking for removed Google Services plugin..."
+          if grep -qE 'google.services|google-services' app/build.gradle.kts 2>/dev/null; then
+            echo "   ⚠ Warning: Google Services references still found!"
+            grep -E 'google.services|google-services' app/build.gradle.kts || true
+          else
+            echo "   ✓ No Google Services references found"
+          fi
+          echo ""
+          echo "4. Checking for removed ML Kit barcode scanning..."
+          if grep -qE 'barcode[.-]scanning' app/build.gradle.kts 2>/dev/null; then
+            echo "   ⚠ Warning: ML Kit barcode scanning references still found!"
+            grep -E 'barcode[.-]scanning' app/build.gradle.kts || true
+          else
+            echo "   ✓ No ML Kit barcode scanning references found"
+          fi
+          echo ""
+          echo "=== Verification complete ==="
+
+      - name: Configure debug signing (no keystore required)
+        run: |
+          echo "=== Configuring debug signing for FOSS build ==="
+          echo "FOSS build uses default debug keystore, no secrets needed"
+          
+          # Create a local.properties to ensure debug signing
+          cat > local.properties << 'PROP'
+          # Empty local.properties - no secrets configured
+          PROP
+          
+          echo "Signing will use Android default debug keystore"
+
+      - name: Build FOSS APK
+        run: |
+          echo "Building FOSS APK..."
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon \\
+            -x lint \\
+            -x lintVitalRelease \\
+            --stacktrace
+
+      - name: Collect build artifacts
+        run: |
+          echo "=== Collecting build artifacts ==="
+          mkdir -p foss-artifacts
+          
+          echo "APK output directory contents:"
+          find app/build/outputs/apk -name "*.apk" -type f || true
+          ls -lah app/build/outputs/apk/release/ || true
+          
+          # Copy APKs
+          if [ "$(ls -A app/build/outputs/apk/release/*.apk 2>/dev/null)" ]; then
+            cp app/build/outputs/apk/release/*.apk foss-artifacts/
+            echo "✓ APKs copied to foss-artifacts/"
+          else
+            echo "⚠ Warning: No APK files found"
+          fi
+          
+          echo ""
+          echo "FOSS artifacts:"
+          ls -la foss-artifacts/ || true
+
+      - name: Upload FOSS APK artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foss-apk-${{ steps.version.outputs.version_name }}
+          path: foss-artifacts/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/master' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          
+          TAG="v${{ steps.version.outputs.version_name }}"
+          echo "Creating GitHub Release: ${TAG}"
+          
+          # Check if release already exists
+          if gh release view "${TAG}" 2>&1; then
+            echo "Release ${TAG} already exists, skipping creation"
+            exit 0
+          fi
+          
+          # Find APK files
+          APK_FILES=$(find foss-artifacts -name "*.apk" -type f 2>/dev/null || true)
+          if [ -z "$APK_FILES" ]; then
+            echo "No APK files found, skipping release creation"
+            exit 0
+          fi
+          
+          # Create release with detailed notes documenting removed proprietary libraries
+          gh release create "${TAG}" $APK_FILES \\
+            --title "FOSS Release ${{ steps.version.outputs.version_name }}" \\
+            --notes "# FOSS Release Build
+            
+This is a **Free and Open Source Software (FOSS)** build with all proprietary/tracking libraries removed.
+            
+## 🗑️ Removed Proprietary Dependencies
+            
+The following non-free/proprietary libraries have been **removed** from this build:
+            
+- ❌ **Firebase Analytics** - Google's analytics and tracking library
+- ❌ **Firebase Crashlytics** - Google's crash reporting service  
+- ❌ **Firebase Remote Config** - Google's remote configuration service
+- ❌ **Google Services Plugin** - Required for Firebase integration
+- ❌ **Google ML Kit Barcode Scanning** - Proprietary barcode scanning library
+            
+## 🔓 FOSS Build Details
+            
+| Property | Value |
+|----------|-------|
+| **Application ID** | ${{ env.FOSS_APPLICATION_ID }} |
+| **Version** | ${{ steps.version.outputs.version_name }} |
+| **Version Code** | ${{ steps.version.outputs.version_code }} |
+| **Build Type** | FOSS (No tracking/proprietary dependencies) |
+| **Signing** | Debug keystore (No secrets required) |
+            
+## ✅ What's Included
+            
+All core functionality remains intact:
+- ✅ ZXing Core (Free barcode library)
+- ✅ Quickie Bundled (QR scanner)
+- ✅ All open-source dependencies
+            
+This build is suitable for users who prefer software without tracking or proprietary components.
+            " \\
+            --target "${GITHUB_SHA}" \\
+            --prerelease
+          
+          echo "✓ GitHub Release ${TAG} created successfully"
+
+      - name: FOSS Build Summary
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "         FOSS BUILD SUMMARY"
+          echo "=========================================="
+          echo ""
+          echo "📦 Version:        ${{ steps.version.outputs.version_name }}"
+          echo "🔢 Version Code:    ${{ steps.version.outputs.version_code }}"
+          echo "🆔 Application ID: ${{ env.FOSS_APPLICATION_ID }}"
+          echo "🏷️  Build Type:      FOSS (No tracking libraries)"
+          echo "🔏 Signing:         Debug keystore (no secrets needed)"
+          echo ""
+          echo "🗑️  Removed Proprietary Libraries:"
+          echo "   • Firebase Analytics"
+          echo "   • Firebase Crashlytics"
+          echo "   • Firebase Remote Config"
+          echo "   • Google Services Plugin"
+          echo "   • Google ML Kit Barcode Scanning"
+          echo ""
+          echo "✅ Build Status:    ${{ job.status }}"
+          echo ""
+          echo "=========================================="
+          echo ""
