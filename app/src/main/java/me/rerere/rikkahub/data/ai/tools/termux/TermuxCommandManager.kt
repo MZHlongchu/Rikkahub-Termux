@@ -6,7 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -63,14 +65,15 @@ class TermuxCommandManager(
             error("Failed to start Termux RunCommandService (startService returned null)")
         }
 
-        return runCatching {
+        return try {
             withTimeout(request.timeoutMs) {
                 deferred.await()
             }
-        }.getOrElse {
-            pending.remove(executionId)
+        } catch (_: TimeoutCancellationException) {
             TermuxResult(timedOut = true, errMsg = "Timed out after ${request.timeoutMs}ms")
-        }.also {
+        } catch (e: CancellationException) {
+            throw e
+        } finally {
             pending.remove(executionId)
         }
     }
