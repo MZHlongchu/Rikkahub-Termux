@@ -78,6 +78,7 @@ val appModule = module {
             templateTransformer = get(),
             providerManager = get(),
             localTools = get(),
+            termuxCommandManager = get(),
             mcpManager = get(),
             filesManager = get()
         )
