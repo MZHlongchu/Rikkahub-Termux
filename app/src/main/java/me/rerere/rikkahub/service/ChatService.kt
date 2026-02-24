@@ -93,6 +93,7 @@ private const val TAG = "ChatService"
 
 data class ChatError(
     val id: Uuid = Uuid.random(),
+    val title: String? = null,
     val error: Throwable,
     val conversationId: Uuid? = null,
     val timestamp: Long = System.currentTimeMillis()
@@ -145,9 +146,9 @@ class ChatService(
     private val _errors = MutableStateFlow<List<ChatError>>(emptyList())
     val errors: StateFlow<List<ChatError>> = _errors.asStateFlow()
 
-    fun addError(error: Throwable, conversationId: Uuid? = null) {
+    fun addError(error: Throwable, conversationId: Uuid? = null, title: String? = null) {
         if (error is CancellationException) return
-        _errors.update { it + ChatError(error = error, conversationId = conversationId) }
+        _errors.update { it + ChatError(title = title, error = error, conversationId = conversationId) }
     }
 
     fun dismissError(id: Uuid) {
@@ -305,7 +306,7 @@ class ChatService(
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 e.printStackTrace()
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
             }
         }
         session.setJob(job)
@@ -485,7 +486,7 @@ class ChatService(
 
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
             }
         }
 
@@ -547,7 +548,7 @@ class ChatService(
 
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_tool_approval))
             }
         }
 
@@ -576,7 +577,8 @@ class ChatService(
                 if (settings.enableWebSearch || mcpTools.isNotEmpty()) {
                     addError(
                         IllegalStateException(context.getString(R.string.tools_warning)),
-                        conversationId
+                        conversationId,
+                        title = context.getString(R.string.error_title_tool_unavailable)
                     )
                 }
             }
@@ -666,7 +668,7 @@ class ChatService(
             cancelLiveUpdateNotification(conversationId)
 
             it.printStackTrace()
-            addError(it, conversationId)
+            addError(it, conversationId, title = context.getString(R.string.error_title_generation))
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
@@ -774,7 +776,7 @@ class ChatService(
             }
         }.onFailure {
             it.printStackTrace()
-            addError(it, conversationId)
+            addError(it, conversationId, title = context.getString(R.string.error_title_generate_title))
         }
     }
 
@@ -1102,7 +1104,7 @@ class ChatService(
             } catch (e: Exception) {
                 // Clear translation field on error
                 clearTranslationField(conversationId, message.id)
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_translate_message))
             }
         }
     }
