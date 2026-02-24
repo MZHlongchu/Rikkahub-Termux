@@ -59,9 +59,9 @@ import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParseResult
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParser
-import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandSource
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxResult
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxRunCommandRequest
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTemplateInjectionTransformer
@@ -347,38 +347,11 @@ class ChatService(
         parseResult: TermuxDirectCommandParseResult,
     ) {
         val command = parseResult.command.trim()
-        val source = parseResult.source ?: TermuxDirectCommandSource.SlashPrefix
-        val startReasoning = buildDirectTermuxStartReasoning(source = source, command = command)
-        val initialReasoningPart = UIMessagePart.Reasoning(
-            reasoning = startReasoning,
-            finishedAt = null
-        )
-        val assistantMessage = UIMessage(
-            role = MessageRole.ASSISTANT,
-            parts = listOf(initialReasoningPart),
-        )
-
-        updateConversationState(conversationId) { conversation ->
-            conversation.copy(
-                messageNodes = conversation.messageNodes + assistantMessage.toMessageNode()
-            )
-        }
-        saveConversation(conversationId, getConversationFlow(conversationId).value)
-
         if (command.isBlank()) {
-            val finalReasoning = initialReasoningPart.copy(
-                reasoning = "$startReasoning\n命令为空，已取消执行。",
-                finishedAt = Clock.System.now()
-            )
-            replaceMessageParts(
+            appendDirectTermuxResultMessage(
                 conversationId = conversationId,
-                messageId = assistantMessage.id,
-                parts = listOf(
-                    finalReasoning,
-                    UIMessagePart.Text("命令不能为空，请输入 /termux <command>")
-                )
+                payload = "命令不能为空，请输入 /termux <command>"
             )
-            saveConversation(conversationId, getConversationFlow(conversationId).value)
             return
         }
 
@@ -398,19 +371,10 @@ class ChatService(
         }.getOrElse { e ->
             if (e is CancellationException) {
                 withContext(NonCancellable) {
-                    val canceledReasoning = initialReasoningPart.copy(
-                        reasoning = "$startReasoning\n执行已取消。",
-                        finishedAt = Clock.System.now()
-                    )
-                    replaceMessageParts(
+                    appendDirectTermuxResultMessage(
                         conversationId = conversationId,
-                        messageId = assistantMessage.id,
-                        parts = listOf(
-                            canceledReasoning,
-                            UIMessagePart.Text("命令执行已取消。")
-                        )
+                        payload = "命令执行已取消。"
                     )
-                    saveConversation(conversationId, getConversationFlow(conversationId).value)
                 }
                 throw e
             }
@@ -426,114 +390,48 @@ class ChatService(
             )
         }
 
-        val finalReasoning = initialReasoningPart.copy(
-            reasoning = buildDirectTermuxFinishReasoning(
-                startReasoning = startReasoning,
-                result = result,
-                timeoutMs = settings.termuxTimeoutMs
-            ),
-            finishedAt = Clock.System.now()
-        )
-        replaceMessageParts(
+        appendDirectTermuxResultMessage(
             conversationId = conversationId,
-            messageId = assistantMessage.id,
-            parts = listOf(
-                finalReasoning,
-                UIMessagePart.Text(formatDirectTermuxOutput(result))
-            )
+            payload = formatDirectTermuxOutput(result)
         )
+    }
+
+    private suspend fun appendDirectTermuxResultMessage(
+        conversationId: Uuid,
+        payload: String,
+    ) {
+        val wrappedOutput = TermuxUserShellCommandCodec.wrap(payload)
+        updateConversationState(conversationId) { conversation ->
+            conversation.copy(
+                messageNodes = conversation.messageNodes + UIMessage(
+                    role = MessageRole.USER,
+                    parts = listOf(UIMessagePart.Text(wrappedOutput))
+                ).toMessageNode()
+            )
+        }
         saveConversation(conversationId, getConversationFlow(conversationId).value)
     }
 
-    private fun replaceMessageParts(
-        conversationId: Uuid,
-        messageId: Uuid,
-        parts: List<UIMessagePart>,
-    ) {
-        updateConversationState(conversationId) { conversation ->
-            conversation.copy(
-                messageNodes = conversation.messageNodes.map { node ->
-                    if (node.messages.none { it.id == messageId }) {
-                        node
-                    } else {
-                        node.copy(
-                            messages = node.messages.map { message ->
-                                if (message.id == messageId) {
-                                    message.copy(parts = parts)
-                                } else {
-                                    message
-                                }
-                            }
-                        )
-                    }
-                }
-            )
-        }
-    }
-
-    private fun buildDirectTermuxStartReasoning(
-        source: TermuxDirectCommandSource,
-        command: String,
-    ): String {
-        return buildString {
-            append("Termux 直连命令已拦截。")
-            append("\n触发方式: ")
-            append(
-                when (source) {
-                    TermuxDirectCommandSource.SlashPrefix -> "/termux 前缀"
-                    TermuxDirectCommandSource.CommandMode -> "指令模式"
-                }
-            )
-            if (command.isBlank()) {
-                append("\n命令为空。")
-            } else {
-                append("\n命令:\n")
-                append(command)
-            }
-            append("\n正在调用 Termux 执行...")
-        }
-    }
-
-    private fun buildDirectTermuxFinishReasoning(
-        startReasoning: String,
-        result: TermuxResult,
-        timeoutMs: Long,
-    ): String {
-        return buildString {
-            append(startReasoning)
-            append("\n执行结束。")
-            result.exitCode?.let {
-                append("\nexitCode: ")
-                append(it)
-            }
-            result.errCode?.let {
-                append("\nerrCode: ")
-                append(it)
-            }
-            if (result.timedOut) {
-                append("\n状态: 超时 (")
-                append(timeoutMs)
-                append("ms)")
-            }
-        }
-    }
-
     private fun formatDirectTermuxOutput(result: TermuxResult): String {
-        return buildString {
+        val output = buildString {
             append(result.stdout)
             if (result.stderr.isNotBlank()) {
                 if (isNotEmpty() && !endsWith('\n')) append('\n')
                 append(result.stderr)
             }
-            if (result.errMsg.isNullOrBlank().not()) {
-                if (isNotEmpty() && !endsWith('\n')) append('\n')
-                append(result.errMsg)
-            }
-            if (isEmpty()) {
-                append("Exit code: ")
-                append(result.exitCode?.toString() ?: "unknown")
-            }
         }
+        if (output.isNotBlank()) return output
+
+        val fallback = buildList {
+            result.errMsg?.takeIf { it.isNotBlank() }?.let(::add)
+            result.exitCode?.takeIf { it != 0 }?.let { add("Exit code: $it") }
+            result.errCode?.takeIf { it != 0 }?.let { add("Err code: $it") }
+            if (result.timedOut) add("状态: 超时")
+        }
+        if (fallback.isNotEmpty()) {
+            return fallback.joinToString(separator = "\n")
+        }
+        return "命令执行完成，但没有输出。"
     }
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>): List<UIMessagePart> {
