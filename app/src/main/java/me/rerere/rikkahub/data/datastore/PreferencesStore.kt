@@ -35,6 +35,7 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.PromptInjection
+import me.rerere.rikkahub.data.model.ScheduledPromptTask
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.sync.s3.S3Config
@@ -97,6 +98,8 @@ class SettingsStore(
         val SELECT_ASSISTANT = stringPreferencesKey("select_assistant")
         val ASSISTANTS = stringPreferencesKey("assistants")
         val ASSISTANT_TAGS = stringPreferencesKey("assistant_tags")
+        val SCHEDULED_TASKS = stringPreferencesKey("scheduled_tasks")
+        val SCHEDULED_TASK_KEEP_ALIVE_ENABLED = booleanPreferencesKey("scheduled_task_keep_alive_enabled")
 
         // 搜索
         val SEARCH_SERVICES = stringPreferencesKey("search_services")
@@ -186,6 +189,10 @@ class SettingsStore(
                 themeId = preferences[THEME_ID] ?: PresetThemes[0].id,
                 developerMode = preferences[DEVELOPER_MODE] == true,
                 displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
+                scheduledTasks = preferences[SCHEDULED_TASKS]?.let {
+                    JsonInstant.decodeFromString(it)
+                } ?: emptyList(),
+                scheduledTaskKeepAliveEnabled = preferences[SCHEDULED_TASK_KEEP_ALIVE_ENABLED] == true,
                 searchServices = preferences[SEARCH_SERVICES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: listOf(SearchServiceOptions.DEFAULT),
@@ -247,10 +254,27 @@ class SettingsStore(
                     )
                 } else provider
             }.toMutableList()
-            val assistants = it.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
+            var assistants = it.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
             DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
                 if (assistants.none { it.id == defaultAssistant.id }) {
                     assistants.add(defaultAssistant.copy())
+                }
+            }
+            var scheduledTasks = it.scheduledTasks
+            if (scheduledTasks.isEmpty()) {
+                val migratedTasks = assistants.flatMap { assistant ->
+                    assistant.scheduledPromptTasks.map { task ->
+                        task.copy(
+                            assistantId = assistant.id,
+                            lastRunId = null
+                        )
+                    }
+                }
+                if (migratedTasks.isNotEmpty()) {
+                    scheduledTasks = migratedTasks
+                    assistants = assistants.map { assistant ->
+                        assistant.copy(scheduledPromptTasks = emptyList())
+                    }.toMutableList()
                 }
             }
             val ttsProviders = it.ttsProviders.ifEmpty { DEFAULT_TTS_PROVIDERS }.toMutableList()
@@ -262,7 +286,8 @@ class SettingsStore(
             it.copy(
                 providers = providers,
                 assistants = assistants,
-                ttsProviders = ttsProviders
+                ttsProviders = ttsProviders,
+                scheduledTasks = scheduledTasks,
             )
         }
         .map { settings ->
@@ -270,6 +295,9 @@ class SettingsStore(
             val validMcpServerIds = settings.mcpServers.map { it.id }.toSet()
             val validModeInjectionIds = settings.modeInjections.map { it.id }.toSet()
             val validLorebookIds = settings.lorebooks.map { it.id }.toSet()
+            val validAssistantIds = settings.assistants.map { it.id }.toSet()
+            val fallbackAssistantId = settings.assistants.firstOrNull()?.id ?: DEFAULT_ASSISTANT_ID
+            val maxSearchIndex = (settings.searchServices.size - 1).coerceAtLeast(0)
             settings.copy(
                 providers = settings.providers.distinctBy { it.id }.map { provider ->
                     when (provider) {
@@ -308,6 +336,21 @@ class SettingsStore(
                 },
                 modeInjections = settings.modeInjections.distinctBy { it.id },
                 lorebooks = settings.lorebooks.distinctBy { it.id },
+                scheduledTasks = settings.scheduledTasks
+                    .distinctBy { it.id }
+                    .map { task ->
+                        task.copy(
+                            assistantId = if (task.assistantId in validAssistantIds) {
+                                task.assistantId
+                            } else {
+                                fallbackAssistantId
+                            },
+                            overrideMcpServers = task.overrideMcpServers?.filter { it in validMcpServerIds }?.toSet(),
+                            overrideSearchServiceIndex = task.overrideSearchServiceIndex?.let { index ->
+                                if (settings.searchServices.isEmpty()) null else index.coerceIn(0, maxSearchIndex)
+                            },
+                        )
+                    },
             )
         }
         .onEach {
@@ -350,6 +393,8 @@ class SettingsStore(
             preferences[ASSISTANTS] = JsonInstant.encodeToString(settings.assistants)
             preferences[SELECT_ASSISTANT] = settings.assistantId.toString()
             preferences[ASSISTANT_TAGS] = JsonInstant.encodeToString(settings.assistantTags)
+            preferences[SCHEDULED_TASKS] = JsonInstant.encodeToString(settings.scheduledTasks)
+            preferences[SCHEDULED_TASK_KEEP_ALIVE_ENABLED] = settings.scheduledTaskKeepAliveEnabled
 
             preferences[SEARCH_SERVICES] = JsonInstant.encodeToString(settings.searchServices)
             preferences[SEARCH_COMMON] = JsonInstant.encodeToString(settings.searchCommonOptions)
@@ -480,6 +525,8 @@ data class Settings(
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,
     val assistantTags: List<Tag> = emptyList(),
+    val scheduledTasks: List<ScheduledPromptTask> = emptyList(),
+    val scheduledTaskKeepAliveEnabled: Boolean = false,
     val searchServices: List<SearchServiceOptions> = listOf(SearchServiceOptions.DEFAULT),
     val searchCommonOptions: SearchCommonOptions = SearchCommonOptions(),
     val searchServiceSelected: Int = 0,
@@ -519,6 +566,7 @@ data class DisplaySetting(
     val showModelIcon: Boolean = true,
     val showModelName: Boolean = true,
     val showTokenUsage: Boolean = true,
+    val showThinkingContent: Boolean = true,
     val autoCloseThinking: Boolean = true,
     val showUpdates: Boolean = true,
     val showMessageJumper: Boolean = true,
@@ -528,6 +576,7 @@ data class DisplaySetting(
     val skipCropImage: Boolean = false,
     val enableNotificationOnMessageGeneration: Boolean = false,
     val enableLiveUpdateNotification: Boolean = false,
+    val enableScheduledTaskNotification: Boolean = true,
     val codeBlockAutoWrap: Boolean = false,
     val codeBlockAutoCollapse: Boolean = false,
     val showLineNumbers: Boolean = false,

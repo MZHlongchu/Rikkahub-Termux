@@ -94,10 +94,13 @@ import me.rerere.rikkahub.ui.pages.setting.SettingPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
+import me.rerere.rikkahub.ui.pages.setting.SettingScheduledTaskPage
 import me.rerere.rikkahub.ui.pages.setting.SettingTTSPage
 import me.rerere.rikkahub.ui.pages.setting.SettingTermuxPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
+import me.rerere.rikkahub.ui.pages.scheduled.ScheduledTaskRunDetailPage
+import me.rerere.rikkahub.ui.pages.scheduled.ScheduledTaskRunsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.theme.LocalDarkMode
@@ -175,10 +178,19 @@ class RouteActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        intent.getStringExtra("scheduledTaskRunId")?.let { runId ->
+            navStack?.add(Screen.ScheduledTaskRunDetail(runId))
+            return
+        }
+        if (intent.getBooleanExtra("openScheduledTaskSettings", false)) {
+            navStack?.add(Screen.SettingScheduledTasks)
+            return
+        }
         // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
             navStack?.add(Screen.Chat(text))
-        }    }
+        }
+    }
 
     @Composable
     fun AppRoutes() {
@@ -210,6 +222,20 @@ class RouteActivity : ComponentActivity() {
         SideEffect { this@RouteActivity.navStack = backStack }
 
         ShareHandler(backStack)
+        LaunchedEffect(backStack) {
+            intent?.getStringExtra("scheduledTaskRunId")?.let { runId ->
+                backStack.add(Screen.ScheduledTaskRunDetail(runId))
+                intent?.removeExtra("scheduledTaskRunId")
+            }
+            if (intent?.getBooleanExtra("openScheduledTaskSettings", false) == true) {
+                backStack.add(Screen.SettingScheduledTasks)
+                intent?.removeExtra("openScheduledTaskSettings")
+            }
+            intent?.getStringExtra("conversationId")?.let { chatId ->
+                backStack.add(Screen.Chat(chatId))
+                intent?.removeExtra("conversationId")
+            }
+        }
 
         SharedTransitionLayout {
             CompositionLocalProvider(
@@ -365,6 +391,10 @@ class RouteActivity : ComponentActivity() {
                                 SettingSearchPage()
                             }
 
+                            entry<Screen.SettingScheduledTasks> {
+                                SettingScheduledTaskPage()
+                            }
+
                             entry<Screen.SettingTTS> {
                                 SettingTTSPage()
                             }
@@ -406,6 +436,14 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.MessageSearch> {
                                 SearchPage()
+                            }
+
+                            entry<Screen.ScheduledTaskRuns> {
+                                ScheduledTaskRunsPage()
+                            }
+
+                            entry<Screen.ScheduledTaskRunDetail> { key ->
+                                ScheduledTaskRunDetailPage(key.id)
                             }
 
                             entry<Screen.Stats> {
@@ -540,6 +578,9 @@ sealed interface Screen : NavKey {
     data object SettingSearch : Screen
 
     @Serializable
+    data object SettingScheduledTasks : Screen
+
+    @Serializable
     data object SettingTTS : Screen
 
     @Serializable
@@ -571,6 +612,12 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object MessageSearch : Screen
+
+    @Serializable
+    data object ScheduledTaskRuns : Screen
+
+    @Serializable
+    data class ScheduledTaskRunDetail(val id: String) : Screen
 
     @Serializable
     data object Stats : Screen

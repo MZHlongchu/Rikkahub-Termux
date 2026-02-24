@@ -227,6 +227,29 @@ fun SettingDisplayPage(vm: SettingVM = koinViewModel()) {
                 )
             }
 
+            item {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = {
+                        Text(stringResource(R.string.setting_display_page_scheduled_task_notification))
+                    },
+                    supportingContent = {
+                        Text(stringResource(R.string.setting_display_page_scheduled_task_notification_desc))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = displaySetting.enableScheduledTaskNotification,
+                            onCheckedChange = {
+                                if (it && !permissionState.allPermissionsGranted) {
+                                    permissionState.requestPermissions()
+                                }
+                                updateDisplaySetting(displaySetting.copy(enableScheduledTaskNotification = it))
+                            }
+                        )
+                    },
+                )
+            }
+
             if (displaySetting.enableNotificationOnMessageGeneration) {
                 item {
                     ListItem(
@@ -372,6 +395,26 @@ fun SettingDisplayPage(vm: SettingVM = koinViewModel()) {
                             checked = displaySetting.showTokenUsage,
                             onCheckedChange = {
                                 updateDisplaySetting(displaySetting.copy(showTokenUsage = it))
+                            }
+                        )
+                    },
+                )
+            }
+
+            item {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = {
+                        Text(stringResource(R.string.setting_display_page_show_thinking_content_title))
+                    },
+                    supportingContent = {
+                        Text(stringResource(R.string.setting_display_page_show_thinking_content_desc))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = displaySetting.showThinkingContent,
+                            onCheckedChange = {
+                                updateDisplaySetting(displaySetting.copy(showThinkingContent = it))
                             }
                         )
                     },

@@ -9,6 +9,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import kotlin.uuid.Uuid
 
+private val DEFAULT_SCHEDULED_TASK_ASSISTANT_ID = Uuid.parse("0950e2dc-9bd5-4801-afa3-aa887aa36b4e")
+
 @Serializable
 data class Assistant(
     val id: Uuid = Uuid.random(),
@@ -28,6 +30,7 @@ data class Assistant(
     val messageTemplate: String = "{{ message }}",
     val presetMessages: List<UIMessage> = emptyList(),
     val quickMessages: List<QuickMessage> = emptyList(),
+    val scheduledPromptTasks: List<ScheduledPromptTask> = emptyList(),
     val regexes: List<AssistantRegex> = emptyList(),
     val thinkingBudget: Int? = 1024,
     val maxTokens: Int? = null,
@@ -42,6 +45,45 @@ data class Assistant(
     val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
 )
+
+@Serializable
+data class ScheduledPromptTask(
+    val id: Uuid = Uuid.random(),
+    val enabled: Boolean = true,
+    val title: String = "",
+    val prompt: String = "",
+    val scheduleType: ScheduleType = ScheduleType.DAILY,
+    val timeMinutesOfDay: Int = 9 * 60,
+    val dayOfWeek: Int? = null, // 1..7, Monday..Sunday, only used when scheduleType == WEEKLY
+    val assistantId: Uuid = DEFAULT_SCHEDULED_TASK_ASSISTANT_ID,
+    val overrideModelId: Uuid? = null,
+    val overrideLocalTools: List<LocalToolOption>? = null,
+    val overrideMcpServers: Set<Uuid>? = null,
+    val overrideEnableWebSearch: Boolean? = null,
+    val overrideSearchServiceIndex: Int? = null,
+    val overrideTermuxNeedsApproval: Boolean? = null,
+    @Deprecated("Scheduled tasks now run in isolated snapshots and no longer use chat conversations")
+    val conversationId: Uuid = Uuid.random(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastRunAt: Long = 0L,
+    val lastStatus: TaskRunStatus = TaskRunStatus.IDLE,
+    val lastError: String = "",
+    val lastRunId: Uuid? = null,
+)
+
+@Serializable
+enum class ScheduleType {
+    DAILY,
+    WEEKLY,
+}
+
+@Serializable
+enum class TaskRunStatus {
+    IDLE,
+    RUNNING,
+    SUCCESS,
+    FAILED,
+}
 
 @Serializable
 data class QuickMessage(

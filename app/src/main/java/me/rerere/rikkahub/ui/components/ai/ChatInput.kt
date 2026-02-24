@@ -5,11 +5,9 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,13 +26,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -65,7 +61,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -142,11 +137,6 @@ import java.io.File
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
-enum class ExpandState {
-    Collapsed,
-    Files,
-}
-
 @Composable
 fun ChatInput(
     state: ChatInputState,
@@ -183,29 +173,13 @@ fun ChatInput(
         if (loading) onCancelClick() else onLongSendClick()
     }
 
-    var expand by remember { mutableStateOf(ExpandState.Collapsed) }
+    var showFilesPicker by remember { mutableStateOf(false) }
     var showInjectionSheet by remember { mutableStateOf(false) }
     var showCompressDialog by remember { mutableStateOf(false) }
-    fun dismissExpand() {
-        expand = ExpandState.Collapsed
+    fun dismissFilesPicker() {
+        showFilesPicker = false
         showInjectionSheet = false
         showCompressDialog = false
-    }
-
-    fun expandToggle(type: ExpandState) {
-        if (expand == type) {
-            dismissExpand()
-        } else {
-            expand = type
-        }
-    }
-
-    // Collapse when ime is visible
-    val imeVisile = WindowInsets.isImeVisible
-    LaunchedEffect(imeVisile, showInjectionSheet, showCompressDialog) {
-        if (imeVisile && !showInjectionSheet && !showCompressDialog) {
-            dismissExpand()
-        }
     }
 
     Surface(
@@ -245,7 +219,7 @@ fun ChatInput(
                         providers = settings.providers,
                         onSelect = {
                             onUpdateChatModel(it)
-                            dismissExpand()
+                            dismissFilesPicker()
                         },
                         type = ModelType.CHAT,
                         onlyIcon = true,
@@ -311,11 +285,15 @@ fun ChatInput(
                 // Insert files
                 IconButton(
                     onClick = {
-                        expandToggle(ExpandState.Files)
+                        if (showFilesPicker) {
+                            dismissFilesPicker()
+                        } else {
+                            showFilesPicker = true
+                        }
                     }
                 ) {
                     Icon(
-                        if (expand == ExpandState.Files) Lucide.X else Lucide.Plus,
+                        if (showFilesPicker) Lucide.X else Lucide.Plus,
                         stringResource(R.string.more_options)
                     )
                 }
@@ -329,11 +307,11 @@ fun ChatInput(
                         .combinedClickable(
                             enabled = loading || !state.isEmpty(),
                             onClick = {
-                                dismissExpand()
+                                dismissFilesPicker()
                                 sendMessage()
                             },
                             onLongClick = {
-                                dismissExpand()
+                                dismissFilesPicker()
                                 sendMessageWithoutAnswer()
                             }
                         )
@@ -362,38 +340,32 @@ fun ChatInput(
                     }
                 }
             }
+        }
+    }
 
-            // Expanded content
-            Box(
+    if (showFilesPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { dismissFilesPicker() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(
                 modifier = Modifier
-                    .animateContentSize()
                     .fillMaxWidth()
+                    .fillMaxHeight(0.7f)
             ) {
-                BackHandler(
-                    enabled = expand != ExpandState.Collapsed,
-                ) {
-                    dismissExpand()
-                }
-                if (expand == ExpandState.Files) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                    ) {
-                        FilesPicker(
-                            conversation = conversation,
-                            state = state,
-                            assistant = assistant,
-                            onClearContext = onClearContext,
-                            onCompressContext = onCompressContext,
-                            onUpdateAssistant = onUpdateAssistant,
-                            showInjectionSheet = showInjectionSheet,
-                            onShowInjectionSheetChange = { showInjectionSheet = it },
-                            showCompressDialog = showCompressDialog,
-                            onShowCompressDialogChange = { showCompressDialog = it },
-                            onDismiss = { dismissExpand() }
-                        )
-                    }
-                }
+                FilesPicker(
+                    conversation = conversation,
+                    state = state,
+                    assistant = assistant,
+                    onClearContext = onClearContext,
+                    onCompressContext = onCompressContext,
+                    onUpdateAssistant = onUpdateAssistant,
+                    showInjectionSheet = showInjectionSheet,
+                    onShowInjectionSheetChange = { showInjectionSheet = it },
+                    showCompressDialog = showCompressDialog,
+                    onShowCompressDialogChange = { showCompressDialog = it },
+                    onDismiss = { dismissFilesPicker() }
+                )
             }
         }
     }
