@@ -62,6 +62,15 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
+      - name: Modify package name
+        run: |
+          # 将 applicationId 从 me.rerere.rikkahub.ywxk 改为 me.rerere.rikkahub.termux
+          sed -i 's/applicationId = "me\.rerere\.rikkahub\.ywxk"/applicationId = "me.rerere.rikkahub.termux"/g' app/build.gradle.kts
+          
+          # 验证修改
+          echo "Modified applicationId:"
+          grep -n 'applicationId = ' app/build.gradle.kts
+
       - name: Prepare build files
         run: |
           # 解码base64编码的keystore文件
@@ -98,3 +107,4 @@ jobs:
             --title "${tag}" \
             --generate-notes \
             --target "${GITHUB_SHA}"
+
