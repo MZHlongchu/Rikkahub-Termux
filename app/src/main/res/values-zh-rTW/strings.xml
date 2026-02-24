@@ -968,6 +968,11 @@
   <string name="setting_scheduled_tasks_title">定時任務</string>
   <string name="setting_scheduled_tasks_keep_alive_title">背景保活</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">使用前景常駐通知保持定時任務排程運作。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">精準鬧鐘權限</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">精準觸發定時任務所需權限。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">狀態：已授權</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">狀態：未授權</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">授權</string>
   <string name="setting_scheduled_tasks_assistant_line">助手：%1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">使用助手模型</string>
   <string name="setting_scheduled_tasks_assistant">助手</string>

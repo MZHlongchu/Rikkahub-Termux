@@ -963,6 +963,11 @@
   <string name="setting_scheduled_tasks_title">Запланированные задачи</string>
   <string name="setting_scheduled_tasks_keep_alive_title">Поддерживать в фоне</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">Использовать постоянное уведомление для работы планировщика задач.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">Разрешение на точные будильники</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">Требуется для точного запуска запланированных задач.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">Статус: Разрешено</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">Статус: Не разрешено</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">Разрешить</string>
   <string name="setting_scheduled_tasks_assistant_line">Ассистент: %1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">Использовать модель ассистента</string>
   <string name="setting_scheduled_tasks_assistant">Ассистент</string>

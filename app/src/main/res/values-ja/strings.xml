@@ -970,6 +970,11 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_scheduled_tasks_title">スケジュールタスク</string>
   <string name="setting_scheduled_tasks_keep_alive_title">バックグラウンドで常駐</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">前景常駐通知でスケジュールタスクを維持します。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">正確なアラーム権限</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">スケジュールタスクを正確にトリガーするために必要です。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">状態: 許可済み</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">状態: 未許可</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">許可</string>
   <string name="setting_scheduled_tasks_assistant_line">アシスタント: %1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">アシスタントのモデルを使用</string>
   <string name="setting_scheduled_tasks_assistant">アシスタント</string>

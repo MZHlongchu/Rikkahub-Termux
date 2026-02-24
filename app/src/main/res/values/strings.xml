@@ -976,6 +976,11 @@
   <string name="setting_scheduled_tasks_title">Scheduled Tasks</string>
   <string name="setting_scheduled_tasks_keep_alive_title">Keep scheduler alive in background</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">Use an ongoing foreground notification to keep scheduled tasks running.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">Exact alarm permission</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">Required for precise scheduled task triggering.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">Status: Granted</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">Status: Not granted</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">Grant</string>
   <string name="setting_scheduled_tasks_assistant_line">Assistant: %1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">Use assistant model</string>
   <string name="setting_scheduled_tasks_assistant">Assistant</string>

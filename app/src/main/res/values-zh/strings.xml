@@ -978,6 +978,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_scheduled_tasks_title">定时任务</string>
   <string name="setting_scheduled_tasks_keep_alive_title">后台保活</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">使用前台常驻通知保持定时任务调度存活。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">精准闹钟权限</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">精准触发定时任务所需权限。</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">状态：已授权</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">状态：未授权</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">授权</string>
   <string name="setting_scheduled_tasks_assistant_line">助手：%1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">使用助手模型</string>
   <string name="setting_scheduled_tasks_assistant">助手</string>
