@@ -30,6 +30,9 @@
   <string name="assistant_page_add_body">본문 추가</string>
   <string name="assistant_page_add_header">헤더 추가</string>
   <string name="assistant_page_available_variables">사용 가능한 변수: </string>
+  <string name="assistant_page_background_opacity">배경 투명도</string>
+  <string name="assistant_page_background_opacity_desc">채팅 배경 이미지의 표시 투명도를 조절합니다</string>
+  <string name="assistant_page_background_opacity_value">투명도: %1$d%%</string>
   <string name="assistant_page_background_set">배경 이미지 설정됨</string>
   <string name="assistant_page_balanced">균형</string>
   <string name="assistant_page_body_key">본문 키</string>
