@@ -1,0 +1,109 @@
+name: Release Build
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next tag
+        id: tag
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          latest="$(git tag -l 'v0.0.*' | grep -E '^v0[.]0[.][0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "${latest}" ]]; then
+            next="v0.0.1"
+          else
+            patch="${latest##*.}"
+            next="v0.0.$((10#$patch + 1))"
+          fi
+          echo "next_tag=${next}" >> "$GITHUB_OUTPUT"
+          echo "Next tag: ${next}"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build Web UI
+        working-directory: web-ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Modify package name
+        run: |
+          # 将 applicationId 从 me.rerere.rikkahub.ywxk 改为 me.rerere.rikkahub.termux
+          sed -i 's/applicationId = "me\.rerere\.rikkahub\.ywxk"/applicationId = "me.rerere.rikkahub.termux"/g' app/build.gradle.kts
+          
+          # 验证修改
+          echo "Modified applicationId:"
+          grep -n 'applicationId = ' app/build.gradle.kts
+
+      - name: Prepare build files
+        run: |
+          # 解码base64编码的keystore文件
+          echo "${{ secrets.KEY_BASE64 }}" | base64 -d > app/app.key
+          
+          # 写入签名配置到local.properties
+          echo "${{ secrets.SIGNING_CONFIG }}" > local.properties
+
+      - name: Gradle Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: artifacts
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.tag.outputs.next_tag }}"
+          apk_dir="app/build/outputs/apk/release"
+          echo "APK directory contents:"
+          ls -la "${apk_dir}"
+          apk_count="$(ls -1 ${apk_dir}/*.apk | wc -l | tr -d ' ')"
+          echo "Found ${apk_count} APK(s)."
+          gh release create "${tag}" ${apk_dir}/*.apk \
+            --title "${tag}" \
+            --generate-notes \
+            --target "${GITHUB_SHA}"
