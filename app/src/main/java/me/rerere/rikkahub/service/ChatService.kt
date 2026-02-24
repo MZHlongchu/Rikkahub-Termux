@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.jsonObject
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
@@ -394,7 +396,24 @@ class ChatService(
                 )
             )
         }.getOrElse { e ->
-            if (e is CancellationException) throw e
+            if (e is CancellationException) {
+                withContext(NonCancellable) {
+                    val canceledReasoning = initialReasoningPart.copy(
+                        reasoning = "$startReasoning\n执行已取消。",
+                        finishedAt = Clock.System.now()
+                    )
+                    replaceMessageParts(
+                        conversationId = conversationId,
+                        messageId = assistantMessage.id,
+                        parts = listOf(
+                            canceledReasoning,
+                            UIMessagePart.Text("命令执行已取消。")
+                        )
+                    )
+                    saveConversation(conversationId, getConversationFlow(conversationId).value)
+                }
+                throw e
+            }
             TermuxResult(
                 errMsg = buildString {
                     append(e.message ?: e.javaClass.name)

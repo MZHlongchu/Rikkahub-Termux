@@ -330,19 +330,6 @@ private fun ChatPageContent(
                     },
                     onLongSendClick = {
                         val contents = inputState.getContents()
-                        val termuxDirect = if (inputState.isEditing()) {
-                            null
-                        } else {
-                            TermuxDirectCommandParser.parse(
-                                parts = contents,
-                                commandModeEnabled = setting.termuxCommandModeEnabled
-                            )
-                        }
-
-                        if (currentChatModel == null && termuxDirect?.isDirect != true) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
-                        }
                         if (inputState.isEditing()) {
                             vm.handleMessageEdit(
                                 parts = contents,
