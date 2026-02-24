@@ -1,6 +1,5 @@
 package me.rerere.rikkahub.ui.components.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,7 +53,6 @@ fun <T> Select(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(4.dp))
-                    .clickable { expanded = true }
                     .padding(vertical = 8.dp, horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
