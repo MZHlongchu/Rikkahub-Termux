@@ -25,10 +25,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.model.ScheduledTaskRun
 import me.rerere.rikkahub.data.model.TaskRunStatus
 import me.rerere.rikkahub.data.repository.ScheduledTaskRunRepository
+import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.nav.BackButton
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.utils.toLocalDateTime
 import org.koin.compose.koinInject
 import java.time.Instant
@@ -91,6 +94,7 @@ private fun ScheduledTaskRunDetailContent(
     run: ScheduledTaskRun,
     modifier: Modifier = Modifier
 ) {
+    val settings = LocalSettings.current
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -141,7 +145,10 @@ private fun ScheduledTaskRunDetailContent(
                     ColumnListItem(stringResource(R.string.scheduled_task_run_provider), run.providerNameSnapshot)
                 }
                 run.modelIdSnapshot?.let { modelId ->
-                    ColumnListItem(stringResource(R.string.scheduled_task_run_model_id), modelId.toString())
+                    val modelDisplayName = settings.findModelById(modelId)?.let { model ->
+                        model.displayName.ifBlank { model.modelId.ifBlank { model.id.toString() } }
+                    } ?: modelId.toString()
+                    ColumnListItem(stringResource(R.string.setting_scheduled_tasks_model), modelDisplayName)
                 }
             }
         }
@@ -183,8 +190,18 @@ private fun ScheduledTaskRunDetailContent(
                 ListItem(
                     headlineContent = { Text(contentTitle) },
                     supportingContent = {
-                        SelectionContainer {
-                            Text(text = contentText, style = MaterialTheme.typography.bodyMedium)
+                        if (run.status == TaskRunStatus.SUCCESS) {
+                            SelectionContainer {
+                                MarkdownBlock(
+                                    content = contentText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        } else {
+                            SelectionContainer {
+                                Text(text = contentText, style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 )

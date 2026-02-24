@@ -1,7 +1,12 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.app.AlarmManager
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -42,6 +47,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +56,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,7 +109,9 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var editingTask by remember { mutableStateOf<ScheduledPromptTask?>(null) }
+    var exactAlarmGranted by remember { mutableStateOf(context.canScheduleExactAlarmsCompat()) }
 
     val permissionState = rememberPermissionState(
         permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,6 +122,16 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
     )
     PermissionManager(permissionState = permissionState)
     var pendingEnableKeepAlive by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
+                exactAlarmGranted = context.canScheduleExactAlarmsCompat()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     fun setKeepAlive(enabled: Boolean) {
         scope.launch {
@@ -237,6 +258,45 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
                 }
             }
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.setting_scheduled_tasks_exact_alarm_title)) },
+                            supportingContent = {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(stringResource(R.string.setting_scheduled_tasks_exact_alarm_desc))
+                                    Text(
+                                        if (exactAlarmGranted) {
+                                            stringResource(R.string.setting_scheduled_tasks_exact_alarm_granted)
+                                        } else {
+                                            stringResource(R.string.setting_scheduled_tasks_exact_alarm_not_granted)
+                                        },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (exactAlarmGranted) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        }
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                if (!exactAlarmGranted) {
+                                    TextButton(
+                                        onClick = { openExactAlarmSettings(context) }
+                                    ) {
+                                        Text(stringResource(R.string.setting_scheduled_tasks_exact_alarm_action))
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -265,7 +325,12 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
                     ScheduledTaskCard(
                         task = task,
                         settings = settings,
-                        onToggleEnabled = { enabled -> saveTask(task.copy(enabled = enabled)) },
+                        onToggleEnabled = { enabled ->
+                            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !exactAlarmGranted) {
+                                openExactAlarmSettings(context)
+                            }
+                            saveTask(task.copy(enabled = enabled))
+                        },
                         onEdit = { editingTask = task },
                         onDelete = { deleteTask(task.id) }
                     )
@@ -612,7 +677,7 @@ private fun TaskEditorSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        enabledServers.forEach { server ->
+                        for (server in enabledServers) {
                             FilterChip(
                                 selected = mcpOverride.contains(server.id),
                                 onClick = {
@@ -833,4 +898,28 @@ private fun localToolOptions(): List<LocalToolOption> {
         LocalToolOption.TermuxPython,
         LocalToolOption.Tts,
     )
+}
+
+private fun Context.canScheduleExactAlarmsCompat(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+    val alarmManager = getSystemService(AlarmManager::class.java) ?: return false
+    return alarmManager.canScheduleExactAlarms()
+}
+
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    val intent = Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+        data = Uri.parse("package:${context.packageName}")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        val fallbackIntent = Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(fallbackIntent)
+    }
 }

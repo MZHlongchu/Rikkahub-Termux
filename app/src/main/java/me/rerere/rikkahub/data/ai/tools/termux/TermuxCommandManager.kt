@@ -106,7 +106,7 @@ class TermuxCommandManager(
 
         check(granted) {
             "Permission ${TermuxProtocol.PERMISSION_RUN_COMMAND} is not granted. " +
-                "Grant it in Android Settings -> App Info -> Permissions -> Additional permissions."
+                "Open this app -> Settings -> Termux and tap the Grant button."
         }
     }
 }

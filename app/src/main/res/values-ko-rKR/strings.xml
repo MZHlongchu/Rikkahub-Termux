@@ -30,6 +30,9 @@
   <string name="assistant_page_add_body">본문 추가</string>
   <string name="assistant_page_add_header">헤더 추가</string>
   <string name="assistant_page_available_variables">사용 가능한 변수: </string>
+  <string name="assistant_page_background_opacity">배경 투명도</string>
+  <string name="assistant_page_background_opacity_desc">채팅 배경 이미지의 표시 투명도를 조절합니다</string>
+  <string name="assistant_page_background_opacity_value">투명도: %1$d%%</string>
   <string name="assistant_page_background_set">배경 이미지 설정됨</string>
   <string name="assistant_page_balanced">균형</string>
   <string name="assistant_page_body_key">본문 키</string>
@@ -970,6 +973,11 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_scheduled_tasks_title">예약 작업</string>
   <string name="setting_scheduled_tasks_keep_alive_title">백그라운드 유지</string>
   <string name="setting_scheduled_tasks_keep_alive_desc">상시 알림으로 예약 작업 스케줄러를 유지합니다.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_title">정확한 알람 권한</string>
+  <string name="setting_scheduled_tasks_exact_alarm_desc">예약 작업을 정확한 시간에 실행하려면 필요합니다.</string>
+  <string name="setting_scheduled_tasks_exact_alarm_granted">상태: 허용됨</string>
+  <string name="setting_scheduled_tasks_exact_alarm_not_granted">상태: 허용되지 않음</string>
+  <string name="setting_scheduled_tasks_exact_alarm_action">허용</string>
   <string name="setting_scheduled_tasks_assistant_line">어시스턴트: %1$s</string>
   <string name="setting_scheduled_tasks_use_assistant_model">어시스턴트 모델 사용</string>
   <string name="setting_scheduled_tasks_assistant">어시스턴트</string>
