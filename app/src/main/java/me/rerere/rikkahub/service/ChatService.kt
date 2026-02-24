@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.jsonObject
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
@@ -54,6 +56,12 @@ import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParseResult
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParser
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandSource
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxResult
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxRunCommandRequest
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTemplateInjectionTransformer
@@ -82,17 +90,20 @@ import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
 import me.rerere.rikkahub.utils.applyPlaceholders
-import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.rikkahub.utils.cancelNotification
+import me.rerere.rikkahub.utils.sendNotification
 import java.time.Instant
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 private const val TAG = "ChatService"
+private const val TERMUX_BASH_PATH = "/data/data/com.termux/files/usr/bin/bash"
 
 data class ChatError(
     val id: Uuid = Uuid.random(),
+    val title: String? = null,
     val error: Throwable,
     val conversationId: Uuid? = null,
     val timestamp: Long = System.currentTimeMillis()
@@ -134,6 +145,7 @@ class ChatService(
     private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
     private val localTools: LocalTools,
+    private val termuxCommandManager: TermuxCommandManager,
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
 ) {
@@ -145,9 +157,9 @@ class ChatService(
     private val _errors = MutableStateFlow<List<ChatError>>(emptyList())
     val errors: StateFlow<List<ChatError>> = _errors.asStateFlow()
 
-    fun addError(error: Throwable, conversationId: Uuid? = null) {
+    fun addError(error: Throwable, conversationId: Uuid? = null, title: String? = null) {
         if (error is CancellationException) return
-        _errors.update { it + ChatError(error = error, conversationId = conversationId) }
+        _errors.update { it + ChatError(title = title, error = error, conversationId = conversationId) }
     }
 
     fun dismissError(id: Uuid) {
@@ -277,12 +289,26 @@ class ChatService(
 
     // ---- 发送消息 ----
 
-    fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true) {
+    fun sendMessage(
+        conversationId: Uuid,
+        content: List<UIMessagePart>,
+        answer: Boolean = true,
+        forceTermuxCommandMode: Boolean = false
+    ) {
         if (content.isEmptyInputMessage()) return
 
         val session = getOrCreateSession(conversationId)
         session.getJob()?.cancel()
-        val processedContent = preprocessUserInputParts(content)
+        val commandModeEnabled = forceTermuxCommandMode || settingsStore.settingsFlow.value.termuxCommandModeEnabled
+        val directCommand = TermuxDirectCommandParser.parse(
+            parts = content,
+            commandModeEnabled = commandModeEnabled
+        )
+        val processedContent = if (directCommand.isDirect) {
+            content
+        } else {
+            preprocessUserInputParts(content)
+        }
 
         val job = appScope.launch {
             try {
@@ -297,18 +323,217 @@ class ChatService(
                 )
                 saveConversation(conversationId, newConversation)
 
-                // 开始补全
-                if (answer) {
+                if (directCommand.isDirect) {
+                    handleDirectTermuxCommand(
+                        conversationId = conversationId,
+                        parseResult = directCommand
+                    )
+                } else if (answer) {
+                    // 开始补全
                     handleMessageComplete(conversationId)
                 }
 
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 e.printStackTrace()
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
             }
         }
         session.setJob(job)
+    }
+
+    private suspend fun handleDirectTermuxCommand(
+        conversationId: Uuid,
+        parseResult: TermuxDirectCommandParseResult,
+    ) {
+        val command = parseResult.command.trim()
+        val source = parseResult.source ?: TermuxDirectCommandSource.SlashPrefix
+        val startReasoning = buildDirectTermuxStartReasoning(source = source, command = command)
+        val initialReasoningPart = UIMessagePart.Reasoning(
+            reasoning = startReasoning,
+            finishedAt = null
+        )
+        val assistantMessage = UIMessage(
+            role = MessageRole.ASSISTANT,
+            parts = listOf(initialReasoningPart),
+        )
+
+        updateConversationState(conversationId) { conversation ->
+            conversation.copy(
+                messageNodes = conversation.messageNodes + assistantMessage.toMessageNode()
+            )
+        }
+        saveConversation(conversationId, getConversationFlow(conversationId).value)
+
+        if (command.isBlank()) {
+            val finalReasoning = initialReasoningPart.copy(
+                reasoning = "$startReasoning\n命令为空，已取消执行。",
+                finishedAt = Clock.System.now()
+            )
+            replaceMessageParts(
+                conversationId = conversationId,
+                messageId = assistantMessage.id,
+                parts = listOf(
+                    finalReasoning,
+                    UIMessagePart.Text("命令不能为空，请输入 /termux <command>")
+                )
+            )
+            saveConversation(conversationId, getConversationFlow(conversationId).value)
+            return
+        }
+
+        val settings = settingsStore.settingsFlow.value
+        val result = runCatching {
+            termuxCommandManager.run(
+                TermuxRunCommandRequest(
+                    commandPath = TERMUX_BASH_PATH,
+                    arguments = listOf("-lc", command),
+                    workdir = settings.termuxWorkdir,
+                    background = settings.termuxRunInBackground,
+                    timeoutMs = settings.termuxTimeoutMs,
+                    label = "RikkaHub /termux",
+                    description = "Direct command mode"
+                )
+            )
+        }.getOrElse { e ->
+            if (e is CancellationException) {
+                withContext(NonCancellable) {
+                    val canceledReasoning = initialReasoningPart.copy(
+                        reasoning = "$startReasoning\n执行已取消。",
+                        finishedAt = Clock.System.now()
+                    )
+                    replaceMessageParts(
+                        conversationId = conversationId,
+                        messageId = assistantMessage.id,
+                        parts = listOf(
+                            canceledReasoning,
+                            UIMessagePart.Text("命令执行已取消。")
+                        )
+                    )
+                    saveConversation(conversationId, getConversationFlow(conversationId).value)
+                }
+                throw e
+            }
+            TermuxResult(
+                errMsg = buildString {
+                    append(e.message ?: e.javaClass.name)
+                    append("\n")
+                    append(
+                        "请确认已安装 Termux，并在 Termux 中开启 allow-external-apps，" +
+                            "同时授予本应用 com.termux.permission.RUN_COMMAND 权限。"
+                    )
+                }
+            )
+        }
+
+        val finalReasoning = initialReasoningPart.copy(
+            reasoning = buildDirectTermuxFinishReasoning(
+                startReasoning = startReasoning,
+                result = result,
+                timeoutMs = settings.termuxTimeoutMs
+            ),
+            finishedAt = Clock.System.now()
+        )
+        replaceMessageParts(
+            conversationId = conversationId,
+            messageId = assistantMessage.id,
+            parts = listOf(
+                finalReasoning,
+                UIMessagePart.Text(formatDirectTermuxOutput(result))
+            )
+        )
+        saveConversation(conversationId, getConversationFlow(conversationId).value)
+    }
+
+    private fun replaceMessageParts(
+        conversationId: Uuid,
+        messageId: Uuid,
+        parts: List<UIMessagePart>,
+    ) {
+        updateConversationState(conversationId) { conversation ->
+            conversation.copy(
+                messageNodes = conversation.messageNodes.map { node ->
+                    if (node.messages.none { it.id == messageId }) {
+                        node
+                    } else {
+                        node.copy(
+                            messages = node.messages.map { message ->
+                                if (message.id == messageId) {
+                                    message.copy(parts = parts)
+                                } else {
+                                    message
+                                }
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    private fun buildDirectTermuxStartReasoning(
+        source: TermuxDirectCommandSource,
+        command: String,
+    ): String {
+        return buildString {
+            append("Termux 直连命令已拦截。")
+            append("\n触发方式: ")
+            append(
+                when (source) {
+                    TermuxDirectCommandSource.SlashPrefix -> "/termux 前缀"
+                    TermuxDirectCommandSource.CommandMode -> "指令模式"
+                }
+            )
+            if (command.isBlank()) {
+                append("\n命令为空。")
+            } else {
+                append("\n命令:\n")
+                append(command)
+            }
+            append("\n正在调用 Termux 执行...")
+        }
+    }
+
+    private fun buildDirectTermuxFinishReasoning(
+        startReasoning: String,
+        result: TermuxResult,
+        timeoutMs: Long,
+    ): String {
+        return buildString {
+            append(startReasoning)
+            append("\n执行结束。")
+            result.exitCode?.let {
+                append("\nexitCode: ")
+                append(it)
+            }
+            result.errCode?.let {
+                append("\nerrCode: ")
+                append(it)
+            }
+            if (result.timedOut) {
+                append("\n状态: 超时 (")
+                append(timeoutMs)
+                append("ms)")
+            }
+        }
+    }
+
+    private fun formatDirectTermuxOutput(result: TermuxResult): String {
+        return buildString {
+            append(result.stdout)
+            if (result.stderr.isNotBlank()) {
+                if (isNotEmpty() && !endsWith('\n')) append('\n')
+                append(result.stderr)
+            }
+            if (result.errMsg.isNullOrBlank().not()) {
+                if (isNotEmpty() && !endsWith('\n')) append('\n')
+                append(result.errMsg)
+            }
+            if (isEmpty()) {
+                append("Exit code: ")
+                append(result.exitCode?.toString() ?: "unknown")
+            }
+        }
     }
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>): List<UIMessagePart> {
@@ -485,7 +710,7 @@ class ChatService(
 
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
             }
         }
 
@@ -547,7 +772,7 @@ class ChatService(
 
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_tool_approval))
             }
         }
 
@@ -576,7 +801,8 @@ class ChatService(
                 if (settings.enableWebSearch || mcpTools.isNotEmpty()) {
                     addError(
                         IllegalStateException(context.getString(R.string.tools_warning)),
-                        conversationId
+                        conversationId,
+                        title = context.getString(R.string.error_title_tool_unavailable)
                     )
                 }
             }
@@ -666,7 +892,7 @@ class ChatService(
             cancelLiveUpdateNotification(conversationId)
 
             it.printStackTrace()
-            addError(it, conversationId)
+            addError(it, conversationId, title = context.getString(R.string.error_title_generation))
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
@@ -774,7 +1000,7 @@ class ChatService(
             }
         }.onFailure {
             it.printStackTrace()
-            addError(it, conversationId)
+            addError(it, conversationId, title = context.getString(R.string.error_title_generate_title))
         }
     }
 
@@ -1102,7 +1328,7 @@ class ChatService(
             } catch (e: Exception) {
                 // Clear translation field on error
                 clearTranslationField(conversationId, message.id)
-                addError(e, conversationId)
+                addError(e, conversationId, title = context.getString(R.string.error_title_translate_message))
             }
         }
     }

@@ -54,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -99,6 +100,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Package2
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.Video
 import com.composables.icons.lucide.X
 import com.composables.icons.lucide.Zap
@@ -145,7 +147,9 @@ fun ChatInput(
     settings: Settings,
     mcpManager: McpManager,
     enableSearch: Boolean,
+    termuxCommandModeEnabled: Boolean,
     onToggleSearch: (Boolean) -> Unit,
+    onToggleTermuxCommandMode: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onUpdateChatModel: (Model) -> Unit,
     onUpdateAssistant: (Assistant) -> Unit,
@@ -198,6 +202,7 @@ fun ChatInput(
             TextInputRow(
                 state = state,
                 context = context,
+                termuxCommandModeEnabled = termuxCommandModeEnabled,
                 onSendMessage = { sendMessage() }
             )
 
@@ -364,6 +369,8 @@ fun ChatInput(
                     onShowInjectionSheetChange = { showInjectionSheet = it },
                     showCompressDialog = showCompressDialog,
                     onShowCompressDialogChange = { showCompressDialog = it },
+                    termuxCommandModeEnabled = termuxCommandModeEnabled,
+                    onToggleTermuxCommandMode = onToggleTermuxCommandMode,
                     onDismiss = { dismissFilesPicker() }
                 )
             }
@@ -375,6 +382,7 @@ fun ChatInput(
 private fun TextInputRow(
     state: ChatInputState,
     context: Context,
+    termuxCommandModeEnabled: Boolean,
     onSendMessage: () -> Unit,
 ) {
     val settings = LocalSettings.current
@@ -494,11 +502,21 @@ private fun TextInputRow(
                             }
                         }
                     },
-                    leadingIcon = if (assistant.quickMessages.isNotEmpty()) {
-                        {
-                            QuickMessageButton(assistant = assistant, state = state)
+                    leadingIcon = when {
+                        termuxCommandModeEnabled && !state.isEditing() -> {
+                            {
+                                TermuxCommandModePrefix()
+                            }
                         }
-                    } else null,
+
+                        assistant.quickMessages.isNotEmpty() -> {
+                            {
+                                QuickMessageButton(assistant = assistant, state = state)
+                            }
+                        }
+
+                        else -> null
+                    },
                 )
                 if (isFullScreen) {
                     FullScreenEditor(state = state) {
@@ -507,6 +525,21 @@ private fun TextInputRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TermuxCommandModePrefix() {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(
+            text = "/termux",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
     }
 }
 
@@ -720,6 +753,8 @@ private fun FilesPicker(
     onShowInjectionSheetChange: (Boolean) -> Unit,
     showCompressDialog: Boolean,
     onShowCompressDialogChange: (Boolean) -> Unit,
+    termuxCommandModeEnabled: Boolean,
+    onToggleTermuxCommandMode: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val settings = LocalSettings.current
@@ -850,6 +885,32 @@ private fun FilesPicker(
                         onClearContext()
                     }
                 ),
+        )
+
+        ListItem(
+            leadingContent = {
+                Icon(
+                    imageVector = Lucide.Terminal,
+                    contentDescription = "Termux Command Mode",
+                )
+            },
+            headlineContent = {
+                Text("指令模式")
+            },
+            supportingContent = {
+                Text("/termux")
+            },
+            trailingContent = {
+                Switch(
+                    checked = termuxCommandModeEnabled,
+                    onCheckedChange = onToggleTermuxCommandMode,
+                )
+            },
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.large)
+                .clickable {
+                    onToggleTermuxCommandMode(!termuxCommandModeEnabled)
+                },
         )
     }
 

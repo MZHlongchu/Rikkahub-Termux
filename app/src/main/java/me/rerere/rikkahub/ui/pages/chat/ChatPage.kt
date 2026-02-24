@@ -59,6 +59,7 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParser
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.service.ChatError
@@ -289,21 +290,38 @@ private fun ChatPageContent(
                         loadingJob?.cancel()
                     },
                     enableSearch = enableWebSearch,
+                    termuxCommandModeEnabled = setting.termuxCommandModeEnabled,
                     onToggleSearch = {
                         vm.updateSettings(setting.copy(enableWebSearch = !enableWebSearch))
                     },
+                    onToggleTermuxCommandMode = {
+                        vm.updateSettings(setting.copy(termuxCommandModeEnabled = it))
+                    },
                     onSendClick = {
-                        if (currentChatModel == null) {
+                        val contents = inputState.getContents()
+                        val termuxDirect = if (inputState.isEditing()) {
+                            null
+                        } else {
+                            TermuxDirectCommandParser.parse(
+                                parts = contents,
+                                commandModeEnabled = setting.termuxCommandModeEnabled
+                            )
+                        }
+
+                        if (currentChatModel == null && termuxDirect?.isDirect != true) {
                             toaster.show("请先选择模型", type = ToastType.Error)
                             return@ChatInput
                         }
                         if (inputState.isEditing()) {
                             vm.handleMessageEdit(
-                                parts = inputState.getContents(),
+                                parts = contents,
                                 messageId = inputState.editingMessage!!,
                             )
                         } else {
-                            vm.handleMessageSend(inputState.getContents())
+                            vm.handleMessageSend(
+                                content = contents,
+                                forceTermuxCommandMode = setting.termuxCommandModeEnabled
+                            )
                             scope.launch {
                                 chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
                             }
@@ -311,13 +329,18 @@ private fun ChatPageContent(
                         inputState.clearInput()
                     },
                     onLongSendClick = {
+                        val contents = inputState.getContents()
                         if (inputState.isEditing()) {
                             vm.handleMessageEdit(
-                                parts = inputState.getContents(),
+                                parts = contents,
                                 messageId = inputState.editingMessage!!,
                             )
                         } else {
-                            vm.handleMessageSend(content = inputState.getContents(), answer = false)
+                            vm.handleMessageSend(
+                                content = contents,
+                                answer = false,
+                                forceTermuxCommandMode = setting.termuxCommandModeEnabled
+                            )
                             scope.launch {
                                 chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
                             }
