@@ -139,7 +139,6 @@ jobs:
             
             # Delete google-services.json file reference
             sed -i '/google-services\.json/d' app/build.gradle.kts
-            sed -i '"/google-services\.json"'d' app/build.gradle.kts
             
             echo "✓ app/build.gradle.kts patched"
           fi
@@ -218,9 +217,9 @@ jobs:
         run: |
           echo "Building FOSS APK..."
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon \\
-            -x lint \\
-            -x lintVitalRelease \\
+          ./gradlew assembleRelease --no-daemon \
+            -x lint \
+            -x lintVitalRelease \
             --stacktrace
 
       - name: Collect build artifacts
@@ -277,8 +276,8 @@ jobs:
           fi
           
           # Create release with detailed notes documenting removed proprietary libraries
-          gh release create "${TAG}" $APK_FILES \\
-            --title "FOSS Release ${{ steps.version.outputs.version_name }}" \\
+          gh release create "${TAG}" $APK_FILES \
+            --title "FOSS Release ${{ steps.version.outputs.version_name }}" \
             --notes "# FOSS Release Build
             
 This is a **Free and Open Source Software (FOSS)** build with all proprietary/tracking libraries removed.
@@ -311,8 +310,8 @@ All core functionality remains intact:
 - ✅ All open-source dependencies
             
 This build is suitable for users who prefer software without tracking or proprietary components.
-            " \\
-            --target "${GITHUB_SHA}" \\
+            " \
+            --target "${GITHUB_SHA}" \
             --prerelease
           
           echo "✓ GitHub Release ${TAG} created successfully"
