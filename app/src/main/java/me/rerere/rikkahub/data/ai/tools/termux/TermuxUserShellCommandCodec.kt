@@ -13,18 +13,14 @@ object TermuxUserShellCommandCodec {
             append(StartTag)
             append('\n')
             append(payload)
-            if (payload.isNotEmpty() && !payload.endsWith('\n')) {
-                append('\n')
-            }
+            append('\n')
             append(EndTag)
         }
     }
 
     fun unwrap(text: String): String? {
         val match = WrappedRegex.matchEntire(text) ?: return null
-        return match.groupValues[1]
-            .removeSuffix("\r\n")
-            .removeSuffix("\n")
+        return match.groupValues[1].removeSuffix("\n")
     }
 
     fun isWrapped(text: String): Boolean {

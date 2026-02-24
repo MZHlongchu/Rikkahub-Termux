@@ -421,7 +421,17 @@ class ChatService(
             }
         }
         if (output.isNotBlank()) return output
-        return result.errMsg?.takeIf { it.isNotBlank() } ?: "命令执行完成，但没有输出。"
+
+        val fallback = buildList {
+            result.errMsg?.takeIf { it.isNotBlank() }?.let(::add)
+            result.exitCode?.takeIf { it != 0 }?.let { add("Exit code: $it") }
+            result.errCode?.takeIf { it != 0 }?.let { add("Err code: $it") }
+            if (result.timedOut) add("状态: 超时")
+        }
+        if (fallback.isNotEmpty()) {
+            return fallback.joinToString(separator = "\n")
+        }
+        return "命令执行完成，但没有输出。"
     }
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>): List<UIMessagePart> {

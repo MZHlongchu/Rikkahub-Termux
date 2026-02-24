@@ -17,6 +17,15 @@ class TermuxUserShellCommandCodecTest {
     }
 
     @Test
+    fun `wrap and unwrap should preserve trailing newline`() {
+        val payload = "line1\nline2\n"
+        val wrapped = TermuxUserShellCommandCodec.wrap(payload)
+
+        assertTrue(TermuxUserShellCommandCodec.isWrapped(wrapped))
+        assertEquals(payload, TermuxUserShellCommandCodec.unwrap(wrapped))
+    }
+
+    @Test
     fun `wrap and unwrap should handle empty payload`() {
         val wrapped = TermuxUserShellCommandCodec.wrap("")
 
