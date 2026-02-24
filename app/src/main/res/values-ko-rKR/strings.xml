@@ -1008,4 +1008,14 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="scheduled_task_run_result_snapshot">결과 스냅샷</string>
   <string name="scheduled_task_run_error_snapshot">오류 스냅샷</string>
   <string name="scheduled_task_run_empty">(비어 있음)</string>
+  <string name="error_title_send_message">메시지 전송 실패</string>
+  <string name="error_title_regenerate_message">메시지 재생성 실패</string>
+  <string name="error_title_tool_approval">도구 호출 처리 실패</string>
+  <string name="error_title_tool_unavailable">도구를 사용할 수 없음</string>
+  <string name="error_title_generation">메시지 생성 실패</string>
+  <string name="error_title_generate_title">자동 제목 생성 실패</string>
+  <string name="error_title_translate_message">메시지 번역 실패</string>
+  <string name="error_title_compress_conversation">대화 압축 실패</string>
+  <string name="error_title_operation">작업 실패</string>
 </resources>
+

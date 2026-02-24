@@ -116,6 +116,7 @@ class SettingsStore(
         val TERMUX_TIMEOUT_MS = longPreferencesKey("termux_timeout_ms")
         val TERMUX_WORKDIR_SERVER_ENABLED = booleanPreferencesKey("termux_workdir_server_enabled")
         val TERMUX_WORKDIR_SERVER_PORT = intPreferencesKey("termux_workdir_server_port")
+        val TERMUX_COMMAND_MODE_ENABLED = booleanPreferencesKey("termux_command_mode_enabled")
 
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
@@ -209,6 +210,7 @@ class SettingsStore(
                 termuxTimeoutMs = (preferences[TERMUX_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS).coerceAtLeast(1_000L),
                 termuxWorkdirServerEnabled = preferences[TERMUX_WORKDIR_SERVER_ENABLED] == true,
                 termuxWorkdirServerPort = preferences[TERMUX_WORKDIR_SERVER_PORT] ?: 9090,
+                termuxCommandModeEnabled = preferences[TERMUX_COMMAND_MODE_ENABLED] == true,
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: WebDavConfig(),
@@ -407,6 +409,7 @@ class SettingsStore(
             preferences[TERMUX_TIMEOUT_MS] = settings.termuxTimeoutMs.coerceAtLeast(1_000L)
             preferences[TERMUX_WORKDIR_SERVER_ENABLED] = settings.termuxWorkdirServerEnabled
             preferences[TERMUX_WORKDIR_SERVER_PORT] = settings.termuxWorkdirServerPort
+            preferences[TERMUX_COMMAND_MODE_ENABLED] = settings.termuxCommandModeEnabled
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
@@ -537,6 +540,7 @@ data class Settings(
     val termuxTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
     val termuxWorkdirServerEnabled: Boolean = false,
     val termuxWorkdirServerPort: Int = 9090,
+    val termuxCommandModeEnabled: Boolean = false,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
