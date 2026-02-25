@@ -29,6 +29,7 @@ import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.ui.limitContext
 import me.rerere.ai.ui.truncate
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
@@ -178,11 +179,19 @@ class GenerationHandler(
 
                 // Check for tools that need approval
                 var hasPendingApproval = false
+                val blacklistRules = TermuxApprovalBlacklistMatcher.parseBlacklistRules(
+                    settings.termuxApprovalBlacklist
+                )
                 val updatedTools = tools.map { tool ->
                     val toolDef = toolsInternal.find { it.name == tool.toolName }
+                    val forceApproval = TermuxApprovalBlacklistMatcher.shouldForceApproval(
+                        tool = tool,
+                        blacklistRules = blacklistRules
+                    )
                     when {
                         // Tool needs approval and state is Auto -> set to Pending
-                        toolDef?.needsApproval == true && tool.approvalState is ToolApprovalState.Auto -> {
+                        (toolDef?.needsApproval == true || forceApproval) &&
+                            tool.approvalState is ToolApprovalState.Auto -> {
                             hasPendingApproval = true
                             tool.copy(approvalState = ToolApprovalState.Pending)
                         }

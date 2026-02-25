@@ -18,6 +18,7 @@ data class TermuxDirectCommandParseResult(
 }
 
 object TermuxDirectCommandParser {
+    private const val SlashCommandPrefix = "/termux"
     private val SlashCommandRegex = Regex("^/termux(?:\\s+([\\s\\S]*))?$")
 
     fun parse(parts: List<UIMessagePart>, commandModeEnabled: Boolean): TermuxDirectCommandParseResult {
@@ -49,6 +50,15 @@ object TermuxDirectCommandParser {
             command = command,
             source = TermuxDirectCommandSource.CommandMode
         )
+    }
+
+    fun toSlashCommandText(command: String): String {
+        val normalized = command.trim()
+        return if (normalized.isBlank()) {
+            SlashCommandPrefix
+        } else {
+            "$SlashCommandPrefix $normalized"
+        }
     }
 
     private fun firstText(parts: List<UIMessagePart>): String? {

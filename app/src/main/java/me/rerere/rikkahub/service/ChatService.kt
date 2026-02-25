@@ -240,6 +240,18 @@ class ChatService(
         sessions[conversationId]?.release()
     }
 
+    private fun launchWithConversationReference(
+        conversationId: Uuid,
+        block: suspend () -> Unit
+    ): Job = appScope.launch {
+        addConversationReference(conversationId)
+        try {
+            block()
+        } finally {
+            removeConversationReference(conversationId)
+        }
+    }
+
     // ---- 对话状态访问 ----
 
     fun getConversationFlow(conversationId: Uuid): StateFlow<Conversation> {
@@ -305,7 +317,7 @@ class ChatService(
             commandModeEnabled = commandModeEnabled
         )
         val processedContent = if (directCommand.isDirect) {
-            content
+            listOf(UIMessagePart.Text(TermuxDirectCommandParser.toSlashCommandText(directCommand.command)))
         } else {
             preprocessUserInputParts(content)
         }
@@ -400,12 +412,11 @@ class ChatService(
         conversationId: Uuid,
         payload: String,
     ) {
-        val wrappedOutput = TermuxUserShellCommandCodec.wrap(payload)
         updateConversationState(conversationId) { conversation ->
             conversation.copy(
                 messageNodes = conversation.messageNodes + UIMessage(
                     role = MessageRole.USER,
-                    parts = listOf(UIMessagePart.Text(wrappedOutput))
+                    parts = listOf(TermuxUserShellCommandCodec.createTextPart(payload))
                 ).toMessageNode()
             )
         }
@@ -526,7 +537,7 @@ class ChatService(
                     localTools.getTools(
                         options = effectiveAssistant.localTools,
                         assistant = effectiveAssistant,
-                        overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval ?: false
+                        overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval
                     )
                 )
                 mcpManager.getAvailableToolsForServers(mcpServerScope).forEach { tool ->
@@ -797,8 +808,12 @@ class ChatService(
             val finalConversation = getConversationFlow(conversationId).value
             saveConversation(conversationId, finalConversation)
 
-            appScope.launch { generateTitle(conversationId, finalConversation) }
-            appScope.launch { generateSuggestion(conversationId, finalConversation) }
+            launchWithConversationReference(conversationId) {
+                generateTitle(conversationId, finalConversation)
+            }
+            launchWithConversationReference(conversationId) {
+                generateSuggestion(conversationId, finalConversation)
+            }
         }
     }
 
@@ -910,10 +925,12 @@ class ChatService(
             val model = settings.findModelById(settings.suggestionModelId) ?: return
             val provider = model.findProvider(settings.providers) ?: return
 
-            updateConversation(
-                conversationId,
-                getConversationFlow(conversationId).value.copy(chatSuggestions = emptyList())
-            )
+            sessions[conversationId]?.let { session ->
+                updateConversation(
+                    conversationId,
+                    session.state.value.copy(chatSuggestions = emptyList())
+                )
+            }
 
             val providerHandler = providerManager.getProviderByType(provider)
             val result = providerHandler.generateText(
@@ -936,9 +953,12 @@ class ChatService(
                 result.choices[0].message?.toText()?.split("\n")?.map { it.trim() }
                     ?.filter { it.isNotBlank() } ?: emptyList()
 
+            val latestConversation = conversationRepo.getConversationById(conversationId)
+                ?: sessions[conversationId]?.state?.value
+                ?: conversation
             saveConversation(
                 conversationId,
-                getConversationFlow(conversationId).value.copy(
+                latestConversation.copy(
                     chatSuggestions = suggestions.take(
                         10
                     )

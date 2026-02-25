@@ -779,6 +779,8 @@
   <string name="injection_selector_lorebooks_empty">No lorebooks available</string>
   <string name="setting_display_page_show_line_numbers_title">Show Line Numbers</string>
   <string name="setting_display_page_show_line_numbers_desc">Display line numbers in code blocks</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">Render HTML/SVG Code Blocks</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">Render HTML/SVG code blocks as preview instead of plain code</string>
   <string name="export_title">Export</string>
   <string name="export_to_file">Export to file</string>
   <string name="export_to_file_desc">Save as JSON file</string>
@@ -882,6 +884,8 @@
   <string name="setting_termux_page_workdir_server_port_title">Port</string>
   <string name="setting_termux_page_background_title">Run in background</string>
   <string name="setting_termux_page_background_desc">Execute Termux tools in background without bringing Termux to the foreground (recommended)</string>
+  <string name="setting_termux_page_approval_blacklist_title">Forced Approval Command Blacklist</string>
+  <string name="setting_termux_page_approval_blacklist_desc">Commands matching these rules always require approval, even when Require Approval is off. Use one rule per line or separate with commas.</string>
   <string name="setting_termux_page_run_command_permission_title">Run Command Permission</string>
   <string name="setting_termux_page_run_command_permission_desc">Grant com.termux.permission.RUN_COMMAND to this app so Termux tools can execute commands directly.</string>
   <string name="setting_termux_page_run_command_permission_usage">Required to call com.termux.app.RunCommandService from this app.</string>
@@ -1024,4 +1028,3 @@
   <string name="error_title_compress_conversation">Conversation compression failed</string>
   <string name="error_title_operation">Operation failed</string>
 </resources>
-

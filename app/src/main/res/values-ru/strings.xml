@@ -720,6 +720,8 @@
   <string name="injection_selector_lorebooks_empty">Нет доступных книг знаний</string>
   <string name="setting_display_page_show_line_numbers_title">Показывать номера строк</string>
   <string name="setting_display_page_show_line_numbers_desc">Отображать номера строк в блоках кода</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">Рендерить HTML/SVG-блоки кода</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">Отображать HTML/SVG-блоки кода как предпросмотр, а не как обычный код</string>
   <string name="export_title">Экспорт</string>
   <string name="export_to_file">Экспорт в файл</string>
   <string name="export_to_file_desc">Сохранить как файл JSON</string>
@@ -943,6 +945,8 @@
   <string name="setting_termux_page_workdir_server_port_title">Порт</string>
   <string name="setting_termux_page_background_title">Запуск в фоне</string>
   <string name="setting_termux_page_background_desc">Выполнять инструменты Termux в фоне без вывода Termux на передний план (рекомендуется)</string>
+  <string name="setting_termux_page_approval_blacklist_title">Черный список команд с принудительным подтверждением</string>
+  <string name="setting_termux_page_approval_blacklist_desc">Команды, соответствующие этим правилам, всегда требуют подтверждения, даже если параметр «Требовать подтверждение» выключен. Указывайте по одному правилу в строке или через запятую.</string>
   <string name="setting_termux_page_all_files_access_title">Доступ ко всем файлам</string>
   <string name="setting_termux_page_all_files_access_desc">Разрешить этому приложению читать все файлы на устройстве (требуется для инструментов Termux).</string>
   <string name="setting_termux_page_all_files_access_granted">Статус: Разрешено</string>
@@ -1011,4 +1015,3 @@
   <string name="error_title_compress_conversation">Сжатие переписки не удалось</string>
   <string name="error_title_operation">Операция не выполнена</string>
 </resources>
-

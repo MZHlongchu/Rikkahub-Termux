@@ -722,6 +722,8 @@
   <string name="injection_selector_lorebooks_empty">利用可能なロアブックがありません</string>
   <string name="setting_display_page_show_line_numbers_title">行番号を表示</string>
   <string name="setting_display_page_show_line_numbers_desc">コードブロックに行番号を表示</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">HTML/SVG コードブロックをレンダリング</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">HTML/SVG コードブロックをプレーンコードではなくプレビューとして表示します</string>
   <string name="export_title">エクスポート</string>
   <string name="export_to_file">ファイルにエクスポート</string>
   <string name="export_to_file_desc">JSONファイルとして保存</string>
@@ -950,6 +952,8 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_termux_page_workdir_server_port_title">ポート</string>
   <string name="setting_termux_page_background_title">バックグラウンド実行</string>
   <string name="setting_termux_page_background_desc">Termux を前面表示せず、Termux ツールをバックグラウンドで実行します（推奨）</string>
+  <string name="setting_termux_page_approval_blacklist_title">強制承認コマンドのブラックリスト</string>
+  <string name="setting_termux_page_approval_blacklist_desc">これらのルールに一致するコマンドは、「承認を必須にする」がオフでも常に承認が必要です。1行に1つ、またはカンマ区切りで入力してください。</string>
   <string name="setting_termux_page_all_files_access_title">すべてのファイルへのアクセス</string>
   <string name="setting_termux_page_all_files_access_desc">このアプリに端末上の全ファイルを読み取る権限を付与します（Termux ツールに必要）。</string>
   <string name="setting_termux_page_all_files_access_granted">状態: 許可済み</string>
@@ -1018,4 +1022,3 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="error_title_compress_conversation">会話の圧縮に失敗しました</string>
   <string name="error_title_operation">操作に失敗しました</string>
 </resources>
-

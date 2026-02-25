@@ -80,6 +80,9 @@ fun SettingTermuxPage() {
     var timeoutText by remember(settings.termuxTimeoutMs) {
         mutableStateOf(settings.termuxTimeoutMs.toString())
     }
+    var approvalBlacklistText by remember(settings.termuxApprovalBlacklist) {
+        mutableStateOf(settings.termuxApprovalBlacklist)
+    }
 
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -261,6 +264,34 @@ fun SettingTermuxPage() {
                                         settingsStore.update { it.copy(termuxNeedsApproval = enabled) }
                                     }
                                 },
+                            )
+                        },
+                    )
+                }
+            }
+
+            item("approvalBlacklist") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    FormItem(
+                        modifier = Modifier.padding(12.dp),
+                        label = { Text(stringResource(R.string.setting_termux_page_approval_blacklist_title)) },
+                        description = { Text(stringResource(R.string.setting_termux_page_approval_blacklist_desc)) },
+                        content = {
+                            OutlinedTextField(
+                                modifier = Modifier.fillMaxWidth(),
+                                value = approvalBlacklistText,
+                                onValueChange = { value ->
+                                    approvalBlacklistText = value
+                                    scope.launch {
+                                        settingsStore.update { it.copy(termuxApprovalBlacklist = value) }
+                                    }
+                                },
+                                minLines = 3,
+                                maxLines = 8,
                             )
                         },
                     )

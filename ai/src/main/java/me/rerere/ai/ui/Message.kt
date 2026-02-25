@@ -157,7 +157,13 @@ data class UIMessage(
 
     fun toText() = parts.joinToString(separator = "\n") { part ->
         when (part) {
-            is UIMessagePart.Text -> part.text
+            is UIMessagePart.Text -> {
+                if (role == MessageRole.USER) {
+                    unwrapLegacyUserShellCommand(part.text) ?: part.text
+                } else {
+                    part.text
+                }
+            }
             else -> ""
         }
     }
@@ -191,6 +197,10 @@ data class UIMessage(
     }
 
     companion object {
+        private val LegacyUserShellCommandRegex = Regex(
+            pattern = "^<user_shell_command>\\r?\\n([\\s\\S]*?)</user_shell_command>$"
+        )
+
         fun system(prompt: String) = UIMessage(
             role = MessageRole.SYSTEM,
             parts = listOf(UIMessagePart.Text(prompt))
@@ -205,6 +215,11 @@ data class UIMessage(
             role = MessageRole.ASSISTANT,
             parts = listOf(UIMessagePart.Text(prompt))
         )
+    }
+
+    private fun unwrapLegacyUserShellCommand(text: String): String? {
+        val match = LegacyUserShellCommandRegex.matchEntire(text) ?: return null
+        return match.groupValues[1].removeSuffix("\n")
     }
 }
 

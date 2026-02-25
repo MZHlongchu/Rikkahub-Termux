@@ -109,7 +109,7 @@ private fun UIMessage.previewText(): String {
     return parts
         .filterIsInstance<UIMessagePart.Text>()
         .joinToString("\n") { textPart ->
-            TermuxUserShellCommandCodec.unwrap(textPart.text) ?: textPart.text
+            TermuxUserShellCommandCodec.extractOutput(role, textPart) ?: textPart.text
         }
 }
 
