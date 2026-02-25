@@ -722,6 +722,8 @@
   <string name="injection_selector_lorebooks_empty">사용 가능한 러북이 없습니다</string>
   <string name="setting_display_page_show_line_numbers_title">줄 번호 표시</string>
   <string name="setting_display_page_show_line_numbers_desc">코드 블록에 줄 번호 표시</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">HTML/SVG 코드 블록 렌더링</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">HTML/SVG 코드 블록을 일반 코드 대신 미리보기로 렌더링합니다</string>
   <string name="export_title">내보내기</string>
   <string name="export_to_file">파일로 내보내기</string>
   <string name="export_to_file_desc">JSON 파일로 저장</string>

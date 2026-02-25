@@ -722,6 +722,8 @@
   <string name="injection_selector_lorebooks_empty">利用可能なロアブックがありません</string>
   <string name="setting_display_page_show_line_numbers_title">行番号を表示</string>
   <string name="setting_display_page_show_line_numbers_desc">コードブロックに行番号を表示</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">HTML/SVG コードブロックをレンダリング</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">HTML/SVG コードブロックをプレーンコードではなくプレビューとして表示します</string>
   <string name="export_title">エクスポート</string>
   <string name="export_to_file">ファイルにエクスポート</string>
   <string name="export_to_file_desc">JSONファイルとして保存</string>
