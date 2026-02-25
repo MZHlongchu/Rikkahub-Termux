@@ -65,7 +65,7 @@ jobs:
       - name: Modify package name
         run: |
           # 将 applicationId 从 me.rerere.rikkahub.ywxk 改为 me.rerere.rikkahub.termux
-          sed -i 's/applicationId = "me\.rerere\.rikkahub\.ywxk"/applicationId = "me.rerere.rikkahub.termux"/g' app/build.gradle.kts
+          sed -i 's/applicationId = "me\.rerere\.rikkahub\.ywxk"/applicationId = "me.rerere.rikkahub.termux001"/g' app/build.gradle.kts
           
           # 验证修改
           echo "Modified applicationId:"
