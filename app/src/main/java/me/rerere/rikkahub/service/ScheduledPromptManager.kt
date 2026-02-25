@@ -11,9 +11,11 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
@@ -41,7 +43,7 @@ class ScheduledPromptManager(
     fun start() {
         if (!started.compareAndSet(false, true)) return
         appScope.launch {
-            settingsStore.settingsFlow.collectLatest { settings ->
+            settingsStore.settingsFlowRaw.collectLatest { settings ->
                 runCatching {
                     reconcile(settings)
                 }.onFailure {
@@ -64,8 +66,10 @@ class ScheduledPromptManager(
 
         val now = ZonedDateTime.now()
         enabledTasks.forEach { task ->
+            cancelLegacyPeriodicWork(task.id)
             scheduleNextAlarm(task, now)
-            if (ScheduledPromptTime.shouldRunCatchUp(task, now)) {
+            val shouldRunCatchUp = ScheduledPromptTime.shouldRunCatchUp(task, now)
+            if (shouldRunCatchUp && !hasPendingTriggeredWork(task.id)) {
                 enqueueRun(
                     taskId = task.id,
                     workName = catchUpWorkName(task.id)
@@ -119,7 +123,22 @@ class ScheduledPromptManager(
 
     private fun cancelTaskSchedule(taskId: Uuid) {
         alarmManager.cancel(scheduledPromptAlarmPendingIntent(appContext, taskId))
+        cancelLegacyPeriodicWork(taskId)
         workManager.cancelAllWorkByTag(taskIdTag(taskId))
+    }
+
+    private fun cancelLegacyPeriodicWork(taskId: Uuid) {
+        workManager.cancelUniqueWork(legacyPeriodicWorkName(taskId))
+    }
+
+    private suspend fun hasPendingTriggeredWork(taskId: Uuid): Boolean {
+        return runCatching {
+            withContext(Dispatchers.IO) {
+                workManager.getWorkInfosForUniqueWork(triggeredWorkName(taskId)).get()
+            }.any { !it.state.isFinished }
+        }.onFailure {
+            Log.w(TAG, "Failed to query triggered work state for task: $taskId", it)
+        }.getOrDefault(false)
     }
 
     @SuppressLint("ScheduleExactAlarm")

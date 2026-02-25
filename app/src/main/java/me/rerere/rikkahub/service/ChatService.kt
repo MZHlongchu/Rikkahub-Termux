@@ -525,7 +525,7 @@ class ChatService(
                     localTools.getTools(
                         options = effectiveAssistant.localTools,
                         assistant = effectiveAssistant,
-                        overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval ?: false
+                        overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval
                     )
                 )
                 mcpManager.getAvailableToolsForServers(mcpServerScope).forEach { tool ->

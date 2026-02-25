@@ -32,7 +32,7 @@ class ScheduledPromptWorker(
         val taskId = inputData.getString(INPUT_TASK_ID)?.let { runCatching { Uuid.parse(it) }.getOrNull() }
             ?: return Result.failure()
 
-        val settings = settingsStore.settingsFlow.first()
+        val settings = settingsStore.settingsFlowRaw.first()
         val task = settings.scheduledTasks.firstOrNull { it.id == taskId } ?: return Result.success()
         if (!task.enabled || task.prompt.isBlank()) return Result.success()
 
@@ -140,7 +140,7 @@ class ScheduledPromptWorker(
     }
 
     private suspend fun maybeNotifySuccess(task: ScheduledPromptTask, replyPreview: String?, runId: Uuid) {
-        val settings = settingsStore.settingsFlow.first()
+        val settings = settingsStore.settingsFlowRaw.first()
         if (!settings.displaySetting.enableScheduledTaskNotification) return
 
         applicationContext.sendNotification(
@@ -162,7 +162,7 @@ class ScheduledPromptWorker(
     }
 
     private suspend fun maybeNotifyFailure(task: ScheduledPromptTask, error: Throwable, runId: Uuid) {
-        val settings = settingsStore.settingsFlow.first()
+        val settings = settingsStore.settingsFlowRaw.first()
         if (!settings.displaySetting.enableScheduledTaskNotification) return
 
         applicationContext.sendNotification(
