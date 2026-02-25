@@ -190,17 +190,30 @@ class FilesManager(
                     when (part) {
                         is UIMessagePart.Image -> {
                             if (part.url.startsWith("data:image")) {
+                                val mimeType = parseDataImageMimeType(part.url)
                                 val sourceByteArray = Base64.decode(part.url.substringAfter("base64,").toByteArray())
-                                val bitmap = BitmapFactory.decodeByteArray(sourceByteArray, 0, sourceByteArray.size)
-                                val byteArray = bitmap.compressToPng()
-                                val urls = createChatFilesByByteArrays(listOf(byteArray))
-                                Log.i(
-                                    TAG,
-                                    "convertBase64ImagePartToLocalFile: convert base64 img to ${urls.joinToString(", ")}"
-                                )
-                                part.copy(
-                                    url = urls.first().toString(),
-                                )
+                                if (mimeType == "image/svg+xml") {
+                                    val file = createTargetFile(FileFolders.UPLOAD, "image.svg", mimeType)
+                                    file.writeBytes(sourceByteArray)
+                                    trackUploadFile(file = file, displayName = "image.svg", mimeType = mimeType)
+                                    Log.i(
+                                        TAG,
+                                        "convertBase64ImagePartToLocalFile: convert base64 svg to ${file.toUri()}"
+                                    )
+                                    part.copy(url = file.toUri().toString())
+                                } else {
+                                    val bitmap = BitmapFactory.decodeByteArray(sourceByteArray, 0, sourceByteArray.size)
+                                        ?: return@map part
+                                    val byteArray = bitmap.compressToPng()
+                                    val urls = createChatFilesByByteArrays(listOf(byteArray))
+                                    Log.i(
+                                        TAG,
+                                        "convertBase64ImagePartToLocalFile: convert base64 img to ${urls.joinToString(", ")}"
+                                    )
+                                    part.copy(
+                                        url = urls.first().toString(),
+                                    )
+                                }
                             } else {
                                 part
                             }
@@ -283,7 +296,7 @@ class FilesManager(
     fun listImageFiles(): List<File> {
         val imagesDir = getImagesDir()
         return imagesDir.listFiles()
-            ?.filter { it.isFile && it.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp") }
+            ?.filter { it.isFile && it.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp", "svg") }
             ?.toList()
             ?: emptyList()
     }
@@ -293,32 +306,65 @@ class FilesManager(
         val activity = requireNotNull(activityContext.getActivity()) { "Activity not found" }
         when {
             image.startsWith("data:image") -> {
-                val byteArray = Base64.decode(image.substringAfter("base64,").toByteArray())
-                val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-                activityContext.exportImage(activity, bitmap)
+                val mimeType = parseDataImageMimeType(image)
+                val data = image.substringAfter("base64,", missingDelimiterValue = "")
+                if (data.isBlank()) {
+                    error("Invalid base64 image data")
+                }
+                val byteArray = Base64.decode(data.toByteArray())
+                if (mimeType == "image/svg+xml") {
+                    saveBytesAsImageFile(activityContext, activity, byteArray, mimeType)
+                } else {
+                    val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+                        ?: error("Failed to decode image data: $mimeType")
+                    activityContext.exportImage(activity, bitmap)
+                }
             }
 
             image.startsWith("file:") -> {
                 val file = image.toUri().toFile()
-                activityContext.exportImageFile(activity, file)
+                val extension = file.extension.lowercase().ifBlank { "png" }
+                val mimeType = mimeTypeFromImageExtension(extension)
+                activityContext.exportImageFile(
+                    activity = activity,
+                    file = file,
+                    fileName = "RikkaHub_${System.currentTimeMillis()}.$extension",
+                    mimeType = mimeType
+                )
             }
 
             image.startsWith("http") -> {
                 runCatching {
                     val url = URL(image)
                     val connection = url.openConnection() as HttpURLConnection
-                    connection.connect()
+                    try {
+                        connection.connect()
 
-                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        val bitmap = BitmapFactory.decodeStream(connection.inputStream)
-                        activityContext.exportImage(activity, bitmap)
-                    } else {
-                        Log.e(
-                            TAG,
-                            "saveMessageImage: Failed to download image from $image, response code: ${connection.responseCode}"
-                        )
+                        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                            val mimeType = connection.contentType
+                                ?.substringBefore(';')
+                                ?.trim()
+                                ?.lowercase()
+                                .orEmpty()
+                            val byteArray = connection.inputStream.use { it.readBytes() }
+                            if (mimeType == "image/svg+xml") {
+                                saveBytesAsImageFile(activityContext, activity, byteArray, mimeType)
+                            } else {
+                                val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+                                    ?: error("Failed to decode remote image")
+                                activityContext.exportImage(activity, bitmap)
+                            }
+                        } else {
+                            error(
+                                "Failed to download image from $image, response code: ${connection.responseCode}"
+                            )
+                        }
+                    } finally {
+                        connection.disconnect()
                     }
-                }.getOrNull()
+                }.onFailure {
+                    Log.e(TAG, "saveMessageImage: Failed to save remote image $image", it)
+                }.getOrThrow()
             }
 
             else -> error("Invalid image format")
@@ -524,6 +570,51 @@ class FilesManager(
             if ((this[i].toInt() and 0xFF) != values[i]) return false
         }
         return true
+    }
+
+    private fun parseDataImageMimeType(dataImage: String): String {
+        return dataImage.substringAfter("data:").substringBefore(";").lowercase()
+    }
+
+    private fun mimeTypeFromImageExtension(extension: String): String {
+        return when (extension.lowercase()) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            "svg" -> "image/svg+xml"
+            else -> "image/png"
+        }
+    }
+
+    private fun extensionFromImageMimeType(mimeType: String): String {
+        return when (mimeType.lowercase()) {
+            "image/jpeg" -> "jpg"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            "image/svg+xml" -> "svg"
+            else -> "png"
+        }
+    }
+
+    private fun saveBytesAsImageFile(
+        activityContext: Context,
+        activity: android.app.Activity,
+        bytes: ByteArray,
+        mimeType: String
+    ) {
+        val extension = extensionFromImageMimeType(mimeType)
+        val tempFile = File.createTempFile("rikkahub_image_", ".$extension", context.cacheDir)
+        try {
+            tempFile.writeBytes(bytes)
+            activityContext.exportImageFile(
+                activity = activity,
+                file = tempFile,
+                fileName = "RikkaHub_${System.currentTimeMillis()}.$extension",
+                mimeType = mimeType
+            )
+        } finally {
+            tempFile.delete()
+        }
     }
 
     private fun Bitmap.compressToPng(): ByteArray = ByteArrayOutputStream().use {
