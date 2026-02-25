@@ -722,6 +722,8 @@
   <string name="injection_selector_lorebooks_empty">无可用的lorebooks</string>
   <string name="setting_display_page_show_line_numbers_title">显示行号</string>
   <string name="setting_display_page_show_line_numbers_desc">在代码块中显示行号</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">渲染 HTML/SVG 代码块</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">将 HTML/SVG 代码块渲染为预览，而不是纯代码</string>
   <string name="export_title">导出</string>
   <string name="export_to_file">导出到文件</string>
   <string name="export_to_file_desc">保存为JSON文件</string>

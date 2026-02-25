@@ -779,6 +779,8 @@
   <string name="injection_selector_lorebooks_empty">No lorebooks available</string>
   <string name="setting_display_page_show_line_numbers_title">Show Line Numbers</string>
   <string name="setting_display_page_show_line_numbers_desc">Display line numbers in code blocks</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_title">Render HTML/SVG Code Blocks</string>
+  <string name="setting_display_page_enable_html_code_block_rendering_desc">Render HTML/SVG code blocks as preview instead of plain code</string>
   <string name="export_title">Export</string>
   <string name="export_to_file">Export to file</string>
   <string name="export_to_file_desc">Save as JSON file</string>
@@ -1026,4 +1028,3 @@
   <string name="error_title_compress_conversation">Conversation compression failed</string>
   <string name="error_title_operation">Operation failed</string>
 </resources>
-

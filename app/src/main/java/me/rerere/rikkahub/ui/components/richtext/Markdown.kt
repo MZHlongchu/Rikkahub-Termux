@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.mapLatest
 import me.rerere.rikkahub.ui.components.table.DataTable
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
+import me.rerere.rikkahub.utils.base64Encode
 import me.rerere.rikkahub.utils.toDp
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
@@ -543,15 +544,40 @@ private fun MarkdownNode(
             val language =
                 node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content) ?: "plaintext"
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
+            val enableHtmlCodeBlockRendering = LocalSettings.current.displaySetting.enableHtmlCodeBlockRendering
+            val normalizedLanguage = language.trim().lowercase().substringBefore(' ').substringBefore('\t')
+            val shouldRenderSvgCodeBlock = hasEnd &&
+                enableHtmlCodeBlockRendering &&
+                normalizedLanguage == "svg"
+            val shouldRenderHtmlCodeBlock = hasEnd &&
+                enableHtmlCodeBlockRendering &&
+                (normalizedLanguage == "html" || normalizedLanguage == "htm" || normalizedLanguage == "xhtml")
 
-            HighlightCodeBlock(
-                code = code,
-                language = language,
-                modifier = Modifier
-                    .padding(bottom = 4.dp)
-                    .fillMaxWidth(),
-                completeCodeBlock = hasEnd
-            )
+            if (shouldRenderSvgCodeBlock) {
+                ZoomableAsyncImage(
+                    model = "data:image/svg+xml;base64,${code.base64Encode()}",
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(bottom = 4.dp)
+                        .fillMaxWidth()
+                )
+            } else if (shouldRenderHtmlCodeBlock) {
+                BrowserHtmlBlock(
+                    html = code,
+                    modifier = Modifier
+                        .padding(bottom = 4.dp)
+                        .fillMaxWidth()
+                )
+            } else {
+                HighlightCodeBlock(
+                    code = code,
+                    language = language,
+                    modifier = Modifier
+                        .padding(bottom = 4.dp)
+                        .fillMaxWidth(),
+                    completeCodeBlock = hasEnd
+                )
+            }
         }
 
         MarkdownTokenTypes.TEXT -> {
