@@ -305,7 +305,7 @@ class ChatService(
             commandModeEnabled = commandModeEnabled
         )
         val processedContent = if (directCommand.isDirect) {
-            content
+            listOf(UIMessagePart.Text(TermuxDirectCommandParser.toSlashCommandText(directCommand.command)))
         } else {
             preprocessUserInputParts(content)
         }

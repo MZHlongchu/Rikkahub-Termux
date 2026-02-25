@@ -36,8 +36,13 @@ object TermuxUserShellCommandCodec {
     }
 
     fun createTextPart(payload: String): UIMessagePart.Text {
+        val wrappedPayload = if (isWrapped(payload)) {
+            payload
+        } else {
+            wrap(trimSingleTrailingLineBreak(payload))
+        }
         return UIMessagePart.Text(
-            text = payload,
+            text = wrappedPayload,
             metadata = buildJsonObject {
                 put(MetadataKey, JsonPrimitive(true))
             }
@@ -51,8 +56,16 @@ object TermuxUserShellCommandCodec {
             ?.jsonPrimitive
             ?.booleanOrNull == true
         if (markedShellOutput) {
-            return textPart.text
+            return unwrap(textPart.text) ?: textPart.text
         }
         return unwrap(textPart.text)
+    }
+
+    private fun trimSingleTrailingLineBreak(text: String): String {
+        return when {
+            text.endsWith("\r\n") -> text.dropLast(2)
+            text.endsWith('\n') -> text.dropLast(1)
+            else -> text
+        }
     }
 }

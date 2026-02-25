@@ -46,8 +46,39 @@ class TermuxUserShellCommandCodecTest {
     fun `extractOutput should read metadata marked part for user role`() {
         val part = TermuxUserShellCommandCodec.createTextPart("echo hello")
 
+        assertTrue(TermuxUserShellCommandCodec.isWrapped(part.text))
         assertEquals(
             "echo hello",
+            TermuxUserShellCommandCodec.extractOutput(MessageRole.USER, part)
+        )
+    }
+
+    @Test
+    fun `extractOutput should support legacy metadata marked plain text`() {
+        val legacyPart = TermuxUserShellCommandCodec.createTextPart("echo hello").copy(text = "echo hello")
+
+        assertEquals(
+            "echo hello",
+            TermuxUserShellCommandCodec.extractOutput(MessageRole.USER, legacyPart)
+        )
+    }
+
+    @Test
+    fun `createTextPart should trim one trailing line break from payload`() {
+        val part = TermuxUserShellCommandCodec.createTextPart("line1\nline2\n")
+
+        assertEquals(
+            "line1\nline2",
+            TermuxUserShellCommandCodec.extractOutput(MessageRole.USER, part)
+        )
+    }
+
+    @Test
+    fun `createTextPart should trim one trailing CRLF from payload`() {
+        val part = TermuxUserShellCommandCodec.createTextPart("line1\r\n")
+
+        assertEquals(
+            "line1",
             TermuxUserShellCommandCodec.extractOutput(MessageRole.USER, part)
         )
     }
