@@ -562,7 +562,7 @@ private fun MarkdownNode(
                         .fillMaxWidth()
                 )
             } else if (shouldRenderHtmlCodeBlock) {
-                SimpleHtmlBlock(
+                BrowserHtmlBlock(
                     html = code,
                     modifier = Modifier
                         .padding(bottom = 4.dp)
