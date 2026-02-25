@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -65,6 +66,7 @@ import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Image
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.Wrench
 import com.dokar.sonner.ToastType
 import kotlinx.coroutines.CoroutineScope
@@ -82,6 +84,7 @@ import me.rerere.common.android.appTempFolder
 import me.rerere.highlight.Highlighter
 import me.rerere.highlight.LocalHighlighter
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.model.Conversation
@@ -256,8 +259,20 @@ private fun exportToMarkdown(
             message.parts.forEach { part ->
                 when (part) {
                     is UIMessagePart.Text -> {
-                        append(part.text)
-                        appendLine()
+                        val shellOutput = TermuxUserShellCommandCodec.extractOutput(message.role, part)
+                        if (shellOutput != null) {
+                            append("**User Shell Command**")
+                            appendLine()
+                            append("```shell")
+                            appendLine()
+                            append(shellOutput)
+                            appendLine()
+                            append("```")
+                            appendLine()
+                        } else {
+                            append(part.text)
+                            appendLine()
+                        }
                     }
 
                     is UIMessagePart.Image -> {
@@ -582,13 +597,18 @@ private fun ExportedChatMessage(
                                 if (part.text.isNotBlank()) {
                                     ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
                                         if (message.role == MessageRole.USER) {
-                                            Card(
-                                                shape = MaterialTheme.shapes.medium,
-                                            ) {
-                                                MarkdownBlock(
-                                                    content = part.text,
-                                                    modifier = Modifier.padding(8.dp)
-                                                )
+                                            val shellOutput = TermuxUserShellCommandCodec.extractOutput(message.role, part)
+                                            if (shellOutput != null) {
+                                                ExportedUserShellCommandCard(output = shellOutput)
+                                            } else {
+                                                Card(
+                                                    shape = MaterialTheme.shapes.medium,
+                                                ) {
+                                                    MarkdownBlock(
+                                                        content = part.text,
+                                                        modifier = Modifier.padding(8.dp)
+                                                    )
+                                                }
                                             }
                                         } else {
                                             if (settings.displaySetting.showAssistantBubble) {
@@ -658,6 +678,52 @@ private fun ExportedChatMessage(
         }
     }
     messageContent()
+}
+
+@Composable
+private fun ExportedUserShellCommandCard(output: String) {
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Lucide.Terminal,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+                Text(
+                    text = "User Shell Command",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = output,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable

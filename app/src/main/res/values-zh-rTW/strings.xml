@@ -847,6 +847,8 @@
   <string name="setting_termux_page_workdir_desc">termux_exec 與 termux_python 的預設工作目錄（例如 /data/data/com.termux/files/home/workspace）</string>
   <string name="setting_termux_page_background_title">背景執行</string>
   <string name="setting_termux_page_background_desc">讓 Termux 工具在背景執行，不自動切換到 Termux 前景（推薦）</string>
+  <string name="setting_termux_page_approval_blacklist_title">強制審批命令黑名單</string>
+  <string name="setting_termux_page_approval_blacklist_desc">命中這些規則的命令將一律需要審批，即使已關閉「需要審批」。可每行一條，或使用逗號分隔。</string>
   <string name="setting_termux_page_all_files_access_title">讀取所有檔案權限</string>
   <string name="setting_termux_page_all_files_access_desc">為本應用程式授予「所有檔案存取」權限（Termux 工具需要讀取本機檔案）</string>
   <string name="setting_termux_page_all_files_access_granted">狀態：已授權</string>
@@ -1016,4 +1018,3 @@
   <string name="error_title_compress_conversation">對話壓縮失敗</string>
   <string name="error_title_operation">操作失敗</string>
 </resources>
-

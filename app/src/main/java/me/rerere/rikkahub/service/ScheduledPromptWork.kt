@@ -16,6 +16,8 @@ internal fun catchUpWorkName(taskId: Uuid): String = "scheduled_prompt_catchup_$
 
 internal fun triggeredWorkName(taskId: Uuid): String = "scheduled_prompt_triggered_$taskId"
 
+internal fun legacyPeriodicWorkName(taskId: Uuid): String = "scheduled_prompt_periodic_$taskId"
+
 internal fun taskIdTag(taskId: Uuid): String = "$TASK_ID_TAG_PREFIX$taskId"
 
 internal fun scheduledPromptAlarmPendingIntent(

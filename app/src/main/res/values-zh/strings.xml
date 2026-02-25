@@ -847,6 +847,8 @@
   <string name="setting_termux_page_workdir_desc">termux_exec 与 termux_python 的默认工作目录（例如 /data/data/com.termux/files/home/workspace）</string>
   <string name="setting_termux_page_background_title">后台运行</string>
   <string name="setting_termux_page_background_desc">让 Termux 工具在后台执行，不自动切换到 Termux 前台（推荐）</string>
+  <string name="setting_termux_page_approval_blacklist_title">强制审批命令黑名单</string>
+  <string name="setting_termux_page_approval_blacklist_desc">命中这些规则的命令将始终需要审批，即使关闭了“需要审批”。可每行一条，或使用逗号分隔。</string>
   <string name="setting_termux_page_run_command_permission_title">运行命令权限</string>
   <string name="setting_termux_page_run_command_permission_desc">为本应用授予 com.termux.permission.RUN_COMMAND，以便 Termux 工具直接执行命令。</string>
   <string name="setting_termux_page_run_command_permission_usage">用于从本应用调用 com.termux.app.RunCommandService。</string>
@@ -1026,4 +1028,3 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="error_title_compress_conversation">对话压缩失败</string>
   <string name="error_title_operation">操作失败</string>
 </resources>
-

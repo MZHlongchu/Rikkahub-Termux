@@ -121,6 +121,34 @@ class MessageTest {
         assertEquals(messages, result)
     }
 
+    @Test
+    fun `toText should unwrap legacy user shell wrapper for user role`() {
+        val message = UIMessage(
+            role = MessageRole.USER,
+            parts = listOf(
+                UIMessagePart.Text(
+                    "<user_shell_command>\nline1\nline2\n</user_shell_command>"
+                )
+            )
+        )
+
+        assertEquals("line1\nline2", message.toText())
+    }
+
+    @Test
+    fun `toText should keep legacy user shell wrapper text for assistant role`() {
+        val message = UIMessage(
+            role = MessageRole.ASSISTANT,
+            parts = listOf(
+                UIMessagePart.Text(
+                    "<user_shell_command>\nline1\nline2\n</user_shell_command>"
+                )
+            )
+        )
+
+        assertEquals("<user_shell_command>\nline1\nline2\n</user_shell_command>", message.toText())
+    }
+
     // ==================== isValidToUpload Tests ====================
 
     @Test

@@ -83,7 +83,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getAssistantById
@@ -102,6 +104,14 @@ import kotlin.uuid.Uuid
 private const val TAG = "ChatList"
 private const val LoadingIndicatorKey = "LoadingIndicator"
 private const val ScrollBottomKey = "ScrollBottomKey"
+
+private fun UIMessage.previewText(): String {
+    return parts
+        .filterIsInstance<UIMessagePart.Text>()
+        .joinToString("\n") { textPart ->
+            TermuxUserShellCommandCodec.extractOutput(role, textPart) ?: textPart.text
+        }
+}
 
 @Composable
 fun ChatList(
@@ -549,7 +559,7 @@ private fun ChatListPreview(
             conversation.messageNodes.mapIndexed { index, node -> index to node }
         } else {
             conversation.messageNodes.mapIndexed { index, node -> index to node }
-                .filter { (_, node) -> node.currentMessage.toText().contains(searchQuery, ignoreCase = true) }
+                .filter { (_, node) -> node.currentMessage.previewText().contains(searchQuery, ignoreCase = true) }
         }
     }
 
@@ -626,7 +636,7 @@ private fun ChatListPreview(
                         ) {
                             val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                             val highlightedText = remember(searchQuery, message) {
-                                val fullText = message.toText().trim().ifBlank { "[...]" }
+                                val fullText = message.previewText().trim().ifBlank { "[...]" }
                                 val messageText = extractMatchingSnippet(
                                     text = fullText,
                                     query = searchQuery

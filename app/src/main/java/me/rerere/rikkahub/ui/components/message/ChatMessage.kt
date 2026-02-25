@@ -62,6 +62,7 @@ import androidx.core.net.toUri
 import com.composables.icons.lucide.File
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.Video
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -76,11 +77,13 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyUIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.replaceRegexes
+import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.richtext.buildMarkdownPreviewHtml
@@ -334,19 +337,27 @@ private fun MessagePartsBlock(
                 is UIMessagePart.Text -> {
                     SelectionContainer {
                         if (role == MessageRole.USER) {
-                            Card(
-                                modifier = Modifier.animateContentSize(),
-                                shape = MaterialTheme.shapes.medium,
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    MarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.USER,
-                                            visual = true,
-                                        ),
-                                        onClickCitation = { id -> handleClickCitation(id) }
-                                    )
+                            val shellOutput = TermuxUserShellCommandCodec.extractOutput(role, part)
+                            if (shellOutput != null) {
+                                UserShellCommandCard(
+                                    output = shellOutput,
+                                    modifier = Modifier.animateContentSize()
+                                )
+                            } else {
+                                Card(
+                                    modifier = Modifier.animateContentSize(),
+                                    shape = MaterialTheme.shapes.medium,
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        MarkdownBlock(
+                                            content = part.text.replaceRegexes(
+                                                assistant = assistant,
+                                                scope = AssistantAffectScope.USER,
+                                                visual = true,
+                                            ),
+                                            onClickCitation = { id -> handleClickCitation(id) }
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -574,6 +585,46 @@ private fun MessagePartsBlock(
             ) {
                 Text(stringResource(R.string.citations_count, annotations.size))
             }
+        }
+    }
+}
+
+@Composable
+private fun UserShellCommandCard(
+    output: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Lucide.Terminal,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+                Text(
+                    text = "User Shell Command",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            HighlightCodeBlock(
+                code = output,
+                language = "bash"
+            )
         }
     }
 }

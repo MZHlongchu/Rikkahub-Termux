@@ -63,4 +63,14 @@ class TermuxDirectCommandParserTest {
         assertEquals("echo hi", result.command)
         assertEquals(TermuxDirectCommandSource.CommandMode, result.source)
     }
+
+    @Test
+    fun `toSlashCommandText should prefix command`() {
+        assertEquals("/termux ls -la", TermuxDirectCommandParser.toSlashCommandText("ls -la"))
+    }
+
+    @Test
+    fun `toSlashCommandText should return bare prefix for blank command`() {
+        assertEquals("/termux", TermuxDirectCommandParser.toSlashCommandText("   "))
+    }
 }

@@ -113,6 +113,7 @@ class SettingsStore(
         val TERMUX_WORKDIR = stringPreferencesKey("termux_workdir")
         val TERMUX_RUN_IN_BACKGROUND = booleanPreferencesKey("termux_run_in_background")
         val TERMUX_NEEDS_APPROVAL = booleanPreferencesKey("termux_needs_approval")
+        val TERMUX_APPROVAL_BLACKLIST = stringPreferencesKey("termux_approval_blacklist")
         val TERMUX_TIMEOUT_MS = longPreferencesKey("termux_timeout_ms")
         val TERMUX_WORKDIR_SERVER_ENABLED = booleanPreferencesKey("termux_workdir_server_enabled")
         val TERMUX_WORKDIR_SERVER_PORT = intPreferencesKey("termux_workdir_server_port")
@@ -207,6 +208,7 @@ class SettingsStore(
                 termuxWorkdir = preferences[TERMUX_WORKDIR] ?: "/data/data/com.termux/files/home",
                 termuxRunInBackground = preferences[TERMUX_RUN_IN_BACKGROUND] != false,
                 termuxNeedsApproval = preferences[TERMUX_NEEDS_APPROVAL] != false,
+                termuxApprovalBlacklist = preferences[TERMUX_APPROVAL_BLACKLIST].orEmpty(),
                 termuxTimeoutMs = (preferences[TERMUX_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS).coerceAtLeast(1_000L),
                 termuxWorkdirServerEnabled = preferences[TERMUX_WORKDIR_SERVER_ENABLED] == true,
                 termuxWorkdirServerPort = preferences[TERMUX_WORKDIR_SERVER_PORT] ?: 9090,
@@ -406,6 +408,7 @@ class SettingsStore(
             preferences[TERMUX_WORKDIR] = settings.termuxWorkdir
             preferences[TERMUX_RUN_IN_BACKGROUND] = settings.termuxRunInBackground
             preferences[TERMUX_NEEDS_APPROVAL] = settings.termuxNeedsApproval
+            preferences[TERMUX_APPROVAL_BLACKLIST] = settings.termuxApprovalBlacklist
             preferences[TERMUX_TIMEOUT_MS] = settings.termuxTimeoutMs.coerceAtLeast(1_000L)
             preferences[TERMUX_WORKDIR_SERVER_ENABLED] = settings.termuxWorkdirServerEnabled
             preferences[TERMUX_WORKDIR_SERVER_PORT] = settings.termuxWorkdirServerPort
@@ -537,6 +540,7 @@ data class Settings(
     val termuxWorkdir: String = "/data/data/com.termux/files/home",
     val termuxRunInBackground: Boolean = true,
     val termuxNeedsApproval: Boolean = true,
+    val termuxApprovalBlacklist: String = "",
     val termuxTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
     val termuxWorkdirServerEnabled: Boolean = false,
     val termuxWorkdirServerPort: Int = 9090,
