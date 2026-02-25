@@ -337,7 +337,7 @@ private fun MessagePartsBlock(
                 is UIMessagePart.Text -> {
                     SelectionContainer {
                         if (role == MessageRole.USER) {
-                            val shellOutput = TermuxUserShellCommandCodec.unwrap(part.text)
+                            val shellOutput = TermuxUserShellCommandCodec.extractOutput(role, part)
                             if (shellOutput != null) {
                                 UserShellCommandCard(
                                     output = shellOutput,

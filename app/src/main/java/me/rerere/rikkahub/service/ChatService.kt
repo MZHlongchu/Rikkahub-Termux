@@ -400,12 +400,11 @@ class ChatService(
         conversationId: Uuid,
         payload: String,
     ) {
-        val wrappedOutput = TermuxUserShellCommandCodec.wrap(payload)
         updateConversationState(conversationId) { conversation ->
             conversation.copy(
                 messageNodes = conversation.messageNodes + UIMessage(
                     role = MessageRole.USER,
-                    parts = listOf(UIMessagePart.Text(wrappedOutput))
+                    parts = listOf(TermuxUserShellCommandCodec.createTextPart(payload))
                 ).toMessageNode()
             )
         }

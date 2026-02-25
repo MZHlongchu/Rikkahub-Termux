@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.data.ai.tools.termux
 
+import me.rerere.ai.core.MessageRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -39,5 +40,23 @@ class TermuxUserShellCommandCodecTest {
         assertNull(TermuxUserShellCommandCodec.unwrap("<user_shell_command>abc</user_shell_command>"))
         assertNull(TermuxUserShellCommandCodec.unwrap("<user_shell_command>\nabc"))
         assertFalse(TermuxUserShellCommandCodec.isWrapped("<user_shell_command>\nabc"))
+    }
+
+    @Test
+    fun `extractOutput should read metadata marked part for user role`() {
+        val part = TermuxUserShellCommandCodec.createTextPart("echo hello")
+
+        assertEquals(
+            "echo hello",
+            TermuxUserShellCommandCodec.extractOutput(MessageRole.USER, part)
+        )
+    }
+
+    @Test
+    fun `extractOutput should not parse assistant role even with wrapped text`() {
+        val wrapped = TermuxUserShellCommandCodec.wrap("echo hello")
+        val textPart = me.rerere.ai.ui.UIMessagePart.Text(wrapped)
+
+        assertNull(TermuxUserShellCommandCodec.extractOutput(MessageRole.ASSISTANT, textPart))
     }
 }

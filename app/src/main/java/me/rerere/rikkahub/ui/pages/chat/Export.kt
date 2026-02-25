@@ -259,7 +259,7 @@ private fun exportToMarkdown(
             message.parts.forEach { part ->
                 when (part) {
                     is UIMessagePart.Text -> {
-                        val shellOutput = TermuxUserShellCommandCodec.unwrap(part.text)
+                        val shellOutput = TermuxUserShellCommandCodec.extractOutput(message.role, part)
                         if (shellOutput != null) {
                             append("**User Shell Command**")
                             appendLine()
@@ -597,7 +597,7 @@ private fun ExportedChatMessage(
                                 if (part.text.isNotBlank()) {
                                     ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
                                         if (message.role == MessageRole.USER) {
-                                            val shellOutput = TermuxUserShellCommandCodec.unwrap(part.text)
+                                            val shellOutput = TermuxUserShellCommandCodec.extractOutput(message.role, part)
                                             if (shellOutput != null) {
                                                 ExportedUserShellCommandCard(output = shellOutput)
                                             } else {
