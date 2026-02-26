@@ -126,21 +126,70 @@ private const val HTML_HELPER_SCRIPT = """
           return 0;
         }
 
-        return Math.max(
+        var baseHeight = Math.max(
           body.scrollHeight || 0,
           body.offsetHeight || 0,
-          body.clientHeight || 0,
-          doc.clientHeight || 0,
           doc.scrollHeight || 0,
           doc.offsetHeight || 0
         );
+
+        var scrollOffsetY = window.scrollY || window.pageYOffset || 0;
+        var bodyRect = body.getBoundingClientRect ? body.getBoundingClientRect() : null;
+        var docRect = doc.getBoundingClientRect ? doc.getBoundingClientRect() : null;
+        var maxBottom = Math.max(
+          bodyRect && isFinite(bodyRect.bottom) ? bodyRect.bottom : 0,
+          docRect && isFinite(docRect.bottom) ? docRect.bottom : 0
+        ) + scrollOffsetY;
+
+        var elements = body.querySelectorAll('*');
+        var scanLimit = Math.min(elements.length, 1200);
+        for (var i = 0; i < scanLimit; i++) {
+          var el = elements[i];
+          if (!el || !el.getBoundingClientRect) {
+            continue;
+          }
+
+          var rect = el.getBoundingClientRect();
+          if (!rect || !isFinite(rect.bottom)) {
+            continue;
+          }
+
+          var bottom = rect.bottom + scrollOffsetY;
+          if (bottom > maxBottom) {
+            maxBottom = bottom;
+          }
+
+          var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+          if (!style) {
+            continue;
+          }
+
+          var overflowY = style.overflowY || '';
+          var isScrollable = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+          if (!isScrollable) {
+            continue;
+          }
+
+          var elScrollHeight = el.scrollHeight || 0;
+          var elClientHeight = el.clientHeight || 0;
+          if (elScrollHeight <= elClientHeight + 1) {
+            continue;
+          }
+
+          var scrollBottom = rect.top + scrollOffsetY + elScrollHeight;
+          if (scrollBottom > maxBottom) {
+            maxBottom = scrollBottom;
+          }
+        }
+
+        return Math.ceil(Math.max(baseHeight, maxBottom));
       }
 
       function updateViewportHeightVariable() {
-        var viewportHeight = window.innerHeight || 0;
-        if (window.visualViewport && window.visualViewport.height) {
-          viewportHeight = window.visualViewport.height;
-        }
+        var viewportHeight = Math.max(
+          window.innerHeight || 0,
+          document.documentElement ? document.documentElement.clientHeight || 0 : 0
+        );
 
         if (viewportHeight > 0) {
           document.documentElement.style.setProperty('--TH-viewport-height', Math.ceil(viewportHeight) + 'px');
@@ -185,13 +234,10 @@ private const val HTML_HELPER_SCRIPT = """
           setTimeout(reportHeight, 80);
           setTimeout(reportHeight, 300);
           setTimeout(reportHeight, 1000);
+          setTimeout(reportHeight, 2000);
         });
 
         window.addEventListener('resize', scheduleReport);
-
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', scheduleReport);
-        }
 
         window.addEventListener('message', function(event) {
           if (event && event.data && event.data.type === 'TH_UPDATE_VIEWPORT_HEIGHT') {
@@ -417,8 +463,8 @@ fun BrowserHtmlBlock(
         settings = {
             builtInZoomControls = true
             displayZoomControls = false
-            useWideViewPort = true
-            loadWithOverviewMode = true
+            useWideViewPort = false
+            loadWithOverviewMode = false
         }
     )
 

@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.components.richtext
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -44,6 +45,16 @@ class BrowserHtmlBlockDocumentTest {
         assertTrue(rendered.contains("id=\"rikkahub-html-style\""))
         assertTrue(rendered.contains("id=\"rikkahub-html-third-party\""))
         assertTrue(rendered.contains("id=\"rikkahub-html-bridge\""))
+    }
+
+    @Test
+    fun bridgeScriptMeasuresContentHeightInsteadOfViewportHeight() {
+        val rendered = buildBrowserHtmlDocument("<div>hello</div>")
+
+        assertTrue(rendered.contains("body.scrollHeight || 0"))
+        assertTrue(rendered.contains("var scanLimit = Math.min(elements.length, 1200)"))
+        assertTrue(rendered.contains("overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay'"))
+        assertFalse(rendered.contains("body.clientHeight || 0"))
     }
 
     @Test
