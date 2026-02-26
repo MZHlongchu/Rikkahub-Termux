@@ -103,7 +103,6 @@ private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MAT
 val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)
 private val CODE_BLOCK_REGEX = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
 private val BREAK_LINE_REGEX = Regex("(?i)<br\\s*/?>")
-private val SVG_TAG_REGEX = Regex("<\\s*svg\\b", RegexOption.IGNORE_CASE)
 
 // 预处理markdown内容
 private fun preProcess(content: String): String {
@@ -139,8 +138,75 @@ private fun preProcess(content: String): String {
     return result
 }
 
-private fun containsSvgMarkup(code: String): Boolean {
-    return SVG_TAG_REGEX.containsMatchIn(code)
+internal fun isStandaloneSvgDocument(code: String): Boolean {
+    var offset = skipWhitespace(code, 0)
+    if (offset >= code.length) {
+        return false
+    }
+
+    if (code.regionMatches(offset, "<?xml", 0, 5, ignoreCase = true)) {
+        val xmlDeclarationEnd = code.indexOf("?>", startIndex = offset + 5)
+        if (xmlDeclarationEnd == -1) {
+            return false
+        }
+        offset = skipWhitespace(code, xmlDeclarationEnd + 2)
+    }
+
+    if (offset < code.length && code.regionMatches(offset, "<!DOCTYPE", 0, 9, ignoreCase = true)) {
+        offset = consumeDoctypeDeclaration(code, offset) ?: return false
+        offset = skipWhitespace(code, offset)
+    }
+
+    return startsWithSvgRootTag(code, offset)
+}
+
+internal fun isFrontendHtmlContent(code: String): Boolean {
+    val normalized = code.lowercase()
+    return normalized.contains("html>") ||
+        normalized.contains("<head") ||
+        normalized.contains("<body") ||
+        normalized.contains("<!doctype html")
+}
+
+private fun skipWhitespace(text: String, start: Int): Int {
+    var index = start
+    while (index < text.length && text[index].isWhitespace()) {
+        index++
+    }
+    return index
+}
+
+private fun consumeDoctypeDeclaration(text: String, start: Int): Int? {
+    var index = start + 9
+    var inSingleQuote = false
+    var inDoubleQuote = false
+    var internalSubsetDepth = 0
+
+    while (index < text.length) {
+        when (text[index]) {
+            '\'' -> if (!inDoubleQuote) inSingleQuote = !inSingleQuote
+            '"' -> if (!inSingleQuote) inDoubleQuote = !inDoubleQuote
+            '[' -> if (!inSingleQuote && !inDoubleQuote) internalSubsetDepth++
+            ']' -> if (!inSingleQuote && !inDoubleQuote && internalSubsetDepth > 0) internalSubsetDepth--
+            '>' -> {
+                if (!inSingleQuote && !inDoubleQuote && internalSubsetDepth == 0) {
+                    return index + 1
+                }
+            }
+        }
+        index++
+    }
+
+    return null
+}
+
+private fun startsWithSvgRootTag(text: String, start: Int): Boolean {
+    if (start >= text.length || !text.regionMatches(start, "<svg", 0, 4, ignoreCase = true)) {
+        return false
+    }
+
+    val nextChar = text.getOrNull(start + 4) ?: return true
+    return nextChar.isWhitespace() || nextChar == '>' || nextChar == '/'
 }
 
 @Preview(showBackground = true)
@@ -546,18 +612,28 @@ private fun MarkdownNode(
                 codeContentStartOffset, codeContentEndOffset
             ).trimIndent()
 
-            val language =
-                node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content) ?: "plaintext"
+            val languageToken = node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content).orEmpty()
+            val language = languageToken.ifBlank { "plaintext" }
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
-            val enableHtmlCodeBlockRendering = LocalSettings.current.displaySetting.enableHtmlCodeBlockRendering
-            val normalizedLanguage = language.trim().lowercase().substringBefore(' ').substringBefore('\t')
-            val isXmlSvgCodeBlock = normalizedLanguage == "xml" && containsSvgMarkup(code)
+            val displaySetting = LocalSettings.current.displaySetting
+            val enableHtmlCodeBlockRendering = displaySetting.enableHtmlCodeBlockRendering
+            val enableHtmlCodeBlockBlobUrlRendering = displaySetting.enableHtmlCodeBlockBlobUrlRendering
+            val normalizedLanguage = languageToken.trim().lowercase().substringBefore(' ').substringBefore('\t')
+            val isXmlSvgCodeBlock = normalizedLanguage == "xml" && isStandaloneSvgDocument(code)
+            val isFrontendHtmlCodeBlock = isFrontendHtmlContent(code)
+            val isGenericCodeLanguage =
+                normalizedLanguage.isBlank() || normalizedLanguage == "plaintext" || normalizedLanguage == "text"
             val shouldRenderSvgCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
                 (normalizedLanguage == "svg" || isXmlSvgCodeBlock)
             val shouldRenderHtmlCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
-                (normalizedLanguage == "html" || normalizedLanguage == "htm" || normalizedLanguage == "xhtml")
+                (
+                    normalizedLanguage == "html" ||
+                        normalizedLanguage == "htm" ||
+                        normalizedLanguage == "xhtml" ||
+                        (isGenericCodeLanguage && isFrontendHtmlCodeBlock)
+                    )
 
             if (shouldRenderSvgCodeBlock) {
                 ZoomableAsyncImage(
@@ -570,6 +646,7 @@ private fun MarkdownNode(
             } else if (shouldRenderHtmlCodeBlock) {
                 BrowserHtmlBlock(
                     html = code,
+                    useBlobUrl = enableHtmlCodeBlockBlobUrlRendering,
                     modifier = Modifier
                         .padding(bottom = 4.dp)
                         .fillMaxWidth()
@@ -596,9 +673,19 @@ private fun MarkdownNode(
 
         MarkdownElementTypes.HTML_BLOCK -> {
             val text = node.getTextInNode(content)
-            SimpleHtmlBlock(
-                html = text, modifier = modifier
-            )
+            val displaySetting = LocalSettings.current.displaySetting
+            if (displaySetting.enableHtmlCodeBlockRendering) {
+                BrowserHtmlBlock(
+                    html = text,
+                    useBlobUrl = displaySetting.enableHtmlCodeBlockBlobUrlRendering,
+                    modifier = modifier.fillMaxWidth()
+                )
+            } else {
+                SimpleHtmlBlock(
+                    html = text,
+                    modifier = modifier
+                )
+            }
         }
 
         // 其他类型的节点，递归处理子节点

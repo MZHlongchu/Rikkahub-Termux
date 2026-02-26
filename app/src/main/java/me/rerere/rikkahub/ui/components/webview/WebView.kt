@@ -3,9 +3,13 @@ package me.rerere.rikkahub.ui.components.webview
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup.LayoutParams
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -21,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.abs
 
 private const val TAG = "WebView"
 
@@ -47,6 +52,13 @@ internal class MyWebChromeClient(private val state: WebViewState) : WebChromeCli
 }
 
 internal class MyWebViewClient(private val state: WebViewState) : WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+        val callback = state.shouldOverrideUrlLoading ?: return false
+        val webView = view ?: return false
+        val webRequest = request ?: return false
+        return callback(webView, webRequest)
+    }
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         state.isLoading = true
@@ -68,12 +80,14 @@ internal class MyWebViewClient(private val state: WebViewState) : WebViewClient(
 fun WebView(
     state: WebViewState,
     modifier: Modifier = Modifier,
+    enableVerticalScrollHandoff: Boolean = false,
     onCreated: (WebView) -> Unit = {},
     onUpdated: (WebView) -> Unit = {},
 ) {
     // Remember the clients based on the state
     val webChromeClient = remember { MyWebChromeClient(state) }
     val webViewClient = remember { MyWebViewClient(state) }
+    val scrollHandoffTouchListener = remember { VerticalScrollHandoffTouchListener() }
 
     Box(
         modifier = modifier
@@ -85,8 +99,6 @@ fun WebView(
                         LayoutParams.MATCH_PARENT,
                         LayoutParams.MATCH_PARENT
                     )
-
-                    state.webView = this // Assign the WebView instance to the state
 
                     onCreated(this)
 
@@ -102,21 +114,34 @@ fun WebView(
                     state.interfaces.forEach { (name, obj) ->
                         addJavascriptInterface(obj, name)
                     }
+                    if (enableVerticalScrollHandoff) {
+                        setOnTouchListener(scrollHandoffTouchListener)
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth(), // Make WebView fill the width
             onReset = {
+                it.setOnTouchListener(null)
                 state.interfaces.forEach { (name, _) ->
                     it.removeJavascriptInterface(name)
+                }
+                if (state.webView === it) {
+                    state.webView = null
                 }
                 state.lastLoadedData = null
                 Log.d(TAG, "AndroidView: Resetting WebView")
             },
             update = { webView ->
-                val isNewWebViewInstance = state.webView !== webView
+                val previousWebView = state.webView
+                val isNewWebViewInstance = previousWebView !== webView
                 state.webView = webView
                 state.interfaces.forEach { (name, obj) ->
                     webView.addJavascriptInterface(obj, name)
+                }
+                if (enableVerticalScrollHandoff) {
+                    webView.setOnTouchListener(scrollHandoffTouchListener)
+                } else {
+                    webView.setOnTouchListener(null)
                 }
                 Log.d(TAG, "AndroidView: Updating WebView")
                 // Ensure clients are updated if state changes (though unlikely here)
@@ -173,6 +198,57 @@ fun WebView(
     }
 }
 
+private class VerticalScrollHandoffTouchListener : View.OnTouchListener {
+    private var touchSlop = -1
+    private var lastRawY = 0f
+    private var dragging = false
+
+    override fun onTouch(view: View?, event: MotionEvent?): Boolean {
+        val webView = view as? WebView ?: return false
+        val motionEvent = event ?: return false
+        if (touchSlop < 0) {
+            touchSlop = ViewConfiguration.get(webView.context).scaledTouchSlop
+        }
+
+        when (motionEvent.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastRawY = motionEvent.rawY
+                dragging = false
+                val canScroll =
+                    webView.canScrollVertically(-1) || webView.canScrollVertically(1)
+                webView.parent?.requestDisallowInterceptTouchEvent(canScroll)
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val deltaY = motionEvent.rawY - lastRawY
+                lastRawY = motionEvent.rawY
+
+                if (!dragging && abs(deltaY) >= touchSlop) {
+                    dragging = true
+                }
+                if (!dragging) {
+                    return false
+                }
+
+                val draggingDown = deltaY > 0
+                val canScrollInCurrentDirection = if (draggingDown) {
+                    webView.canScrollVertically(-1)
+                } else {
+                    webView.canScrollVertically(1)
+                }
+                webView.parent?.requestDisallowInterceptTouchEvent(canScrollInCurrentDirection)
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                dragging = false
+                webView.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+        }
+
+        return false
+    }
+}
+
 // --- State and Content Definition ---
 sealed class WebContent {
     data class Url(
@@ -196,6 +272,7 @@ sealed class WebContent {
 class WebViewState(
     initialContent: WebContent = WebContent.NavigatorOnly,
     val interfaces: Map<String, Any> = emptyMap(),
+    val shouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     val settings: WebSettings.() -> Unit = {}
 ) {
     // --- Content State ---
@@ -301,11 +378,13 @@ fun rememberWebViewState(
     url: String = "about:blank",
     additionalHttpHeaders: Map<String, String> = emptyMap(),
     interfaces: Map<String, Any> = emptyMap(),
+    onShouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     settings: WebSettings.() -> Unit = {},
 ) = remember(url, additionalHttpHeaders) { // Use keys for better recomposition control
     WebViewState(
         initialContent = WebContent.Url(url, additionalHttpHeaders),
         interfaces = interfaces,
+        shouldOverrideUrlLoading = onShouldOverrideUrlLoading,
         settings = settings
     )
 }
@@ -318,11 +397,13 @@ fun rememberWebViewState(
     mimeType: String? = null,
     historyUrl: String? = null,
     interfaces: Map<String, Any> = emptyMap(),
+    onShouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     settings: WebSettings.() -> Unit = {},
 ) = remember(data, baseUrl, encoding, mimeType, historyUrl) { // Use keys
     WebViewState(
         initialContent = WebContent.Data(data, baseUrl, encoding, mimeType, historyUrl),
         interfaces = interfaces,
+        shouldOverrideUrlLoading = onShouldOverrideUrlLoading,
         settings = settings
     )
 }

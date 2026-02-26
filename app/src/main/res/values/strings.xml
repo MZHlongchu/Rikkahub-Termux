@@ -781,6 +781,8 @@
   <string name="setting_display_page_show_line_numbers_desc">Display line numbers in code blocks</string>
   <string name="setting_display_page_enable_html_code_block_rendering_title">Render HTML/SVG Code Blocks</string>
   <string name="setting_display_page_enable_html_code_block_rendering_desc">Render HTML/SVG code blocks as preview instead of plain code</string>
+  <string name="setting_display_page_enable_html_code_block_blob_url_rendering_title">Use Blob URL for HTML Rendering</string>
+  <string name="setting_display_page_enable_html_code_block_blob_url_rendering_desc">Render HTML previews through Blob URL for better JS/CSS compatibility</string>
   <string name="export_title">Export</string>
   <string name="export_to_file">Export to file</string>
   <string name="export_to_file_desc">Save as JSON file</string>
