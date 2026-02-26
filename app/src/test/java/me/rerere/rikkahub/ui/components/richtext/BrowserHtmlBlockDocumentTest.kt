@@ -16,8 +16,10 @@ class BrowserHtmlBlockDocumentTest {
         )
 
         assertTrue(rendered.contains("id=\"rikkahub-html-style\""))
+        assertTrue(rendered.contains("id=\"rikkahub-html-third-party\""))
         assertTrue(rendered.contains("id=\"rikkahub-html-bridge\""))
         assertTrue(rendered.contains("window.__rikkahubReportHeight"))
+        assertTrue(rendered.contains("__TH_UPDATE_VIEWPORT_HEIGHT"))
         assertTrue(rendered.contains("<body>"))
     }
 
@@ -40,6 +42,7 @@ class BrowserHtmlBlockDocumentTest {
         assertTrue(rendered.contains("<title>Hello</title>"))
         assertTrue(rendered.contains("<main>content</main>"))
         assertTrue(rendered.contains("id=\"rikkahub-html-style\""))
+        assertTrue(rendered.contains("id=\"rikkahub-html-third-party\""))
         assertTrue(rendered.contains("id=\"rikkahub-html-bridge\""))
     }
 
@@ -49,6 +52,7 @@ class BrowserHtmlBlockDocumentTest {
         val secondPass = buildBrowserHtmlDocument(firstPass)
 
         assertEquals(1, "id=\"rikkahub-html-style\"".toRegex().findAll(secondPass).count())
+        assertEquals(1, "id=\"rikkahub-html-third-party\"".toRegex().findAll(secondPass).count())
         assertEquals(1, "id=\"rikkahub-html-bridge\"".toRegex().findAll(secondPass).count())
     }
 
@@ -65,11 +69,11 @@ class BrowserHtmlBlockDocumentTest {
             """.trimIndent()
         )
 
-        assertTrue(replaced.contains("min-height:var(--rikkahub-viewport-height)"))
-        assertTrue(replaced.contains("min-height:calc(var(--rikkahub-viewport-height) * 0.5)"))
-        assertTrue(replaced.contains("min-height:calc(var(--rikkahub-viewport-height) * 0.75)"))
-        assertTrue(replaced.contains("minHeight = \"calc(var(--rikkahub-viewport-height) * 0.6)\""))
-        assertTrue(replaced.contains("setProperty('min-height', 'calc(var(--rikkahub-viewport-height) * 0.25)')"))
+        assertTrue(replaced.contains("min-height:var(--TH-viewport-height)"))
+        assertTrue(replaced.contains("min-height:calc(var(--TH-viewport-height) * 0.5)"))
+        assertTrue(replaced.contains("min-height:calc(var(--TH-viewport-height) * 0.75)"))
+        assertTrue(replaced.contains("minHeight = \"calc(var(--TH-viewport-height) * 0.6)\""))
+        assertTrue(replaced.contains("setProperty('min-height', 'calc(var(--TH-viewport-height) * 0.25)')"))
     }
 
     @Test

@@ -26,7 +26,7 @@ import java.math.BigDecimal
 
 private const val MIN_HTML_BLOCK_HEIGHT = 120
 private const val DEFAULT_HTML_BLOCK_HEIGHT = 220
-private const val VIEWPORT_HEIGHT_VARIABLE = "var(--rikkahub-viewport-height)"
+private const val VIEWPORT_HEIGHT_VARIABLE = "var(--TH-viewport-height)"
 private val VH_VALUE_REGEX = Regex("(\\d+(?:\\.\\d+)?)vh\\b", RegexOption.IGNORE_CASE)
 private val MIN_HEIGHT_DECLARATION_REGEX =
     Regex("(min-height\\s*:\\s*)([^;{}]*?\\d+(?:\\.\\d+)?vh)(?=\\s*[;}])", RegexOption.IGNORE_CASE)
@@ -47,10 +47,11 @@ private val JS_SET_PROPERTY_MIN_HEIGHT_REGEX = Regex(
 
 private const val HTML_HELPER_STYLE_ID = "rikkahub-html-style"
 private const val HTML_HELPER_SCRIPT_ID = "rikkahub-html-bridge"
+private const val HTML_HELPER_THIRD_PARTY_ID = "rikkahub-html-third-party"
 
 private const val HTML_HELPER_STYLE = """
     :root {
-      --rikkahub-viewport-height: 100vh;
+      --TH-viewport-height: 100vh;
     }
 
     *,
@@ -62,24 +63,59 @@ private const val HTML_HELPER_STYLE = """
     html,
     body {
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 0;
+      overflow: hidden !important;
       max-width: 100% !important;
-      overflow-x: hidden !important;
     }
 
     img,
     svg,
     video,
     canvas,
-    iframe {
-      max-width: 100%;
-      height: auto;
-    }
-
+    iframe,
     pre,
     table {
       max-width: 100%;
     }
+"""
+
+private const val HTML_HELPER_THIRD_PARTY_SCRIPT = """
+    (function() {
+      var resources = [
+        { type: 'style', url: 'https://testingcf.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css' },
+        { type: 'script', url: 'https://testingcf.jsdelivr.net/npm/jquery/dist/jquery.min.js' },
+        { type: 'script', url: 'https://testingcf.jsdelivr.net/npm/jquery-ui/dist/jquery-ui.min.js' },
+        { type: 'style', url: 'https://testingcf.jsdelivr.net/npm/jquery-ui/themes/base/theme.min.css' },
+        { type: 'script', url: 'https://testingcf.jsdelivr.net/npm/jquery-ui-touch-punch' },
+        { type: 'script', url: 'https://testingcf.jsdelivr.net/npm/vue/dist/vue.runtime.global.prod.min.js' },
+        { type: 'script', url: 'https://testingcf.jsdelivr.net/npm/vue-router/dist/vue-router.global.prod.min.js' }
+      ];
+
+      var head = document.head || document.getElementsByTagName('head')[0];
+      if (!head) {
+        return;
+      }
+
+      resources.forEach(function(resource) {
+        if (head.querySelector('[data-rikkahub-resource="' + resource.url + '"]')) {
+          return;
+        }
+
+        var node;
+        if (resource.type === 'style') {
+          node = document.createElement('link');
+          node.rel = 'stylesheet';
+          node.href = resource.url;
+        } else {
+          node = document.createElement('script');
+          node.src = resource.url;
+          node.async = false;
+        }
+
+        node.setAttribute('data-rikkahub-resource', resource.url);
+        head.appendChild(node);
+      });
+    })();
 """
 
 private const val HTML_HELPER_SCRIPT = """
@@ -91,7 +127,7 @@ private const val HTML_HELPER_SCRIPT = """
           return 0;
         }
 
-        var maxHeight = Math.max(
+        return Math.max(
           body.scrollHeight || 0,
           body.offsetHeight || 0,
           body.clientHeight || 0,
@@ -99,34 +135,16 @@ private const val HTML_HELPER_SCRIPT = """
           doc.scrollHeight || 0,
           doc.offsetHeight || 0
         );
-
-        var elements = body.querySelectorAll('*');
-        for (var i = 0; i < elements.length; i++) {
-          var el = elements[i];
-          var rect = el.getBoundingClientRect();
-          var pageTop = rect.top + (window.scrollY || window.pageYOffset || 0);
-          var elementBottom = pageTop + Math.max(
-            rect.height,
-            el.scrollHeight || 0,
-            el.offsetHeight || 0,
-            el.clientHeight || 0
-          );
-          if (elementBottom > maxHeight) {
-            maxHeight = Math.ceil(elementBottom);
-          }
-        }
-
-        return maxHeight;
       }
 
-      function updateViewportCssVariable() {
+      function updateViewportHeightVariable() {
         var viewportHeight = window.innerHeight || 0;
         if (window.visualViewport && window.visualViewport.height) {
           viewportHeight = window.visualViewport.height;
         }
 
         if (viewportHeight > 0) {
-          document.documentElement.style.setProperty('--rikkahub-viewport-height', Math.ceil(viewportHeight) + 'px');
+          document.documentElement.style.setProperty('--TH-viewport-height', Math.ceil(viewportHeight) + 'px');
         }
       }
 
@@ -157,31 +175,8 @@ private const val HTML_HELPER_SCRIPT = """
           return false;
         }
 
-        var parsedUrl = null;
-        try {
-          parsedUrl = new URL(normalized, document.baseURI);
-        } catch (error) {
-          return false;
-        }
-
-        var protocol = parsedUrl.protocol ? parsedUrl.protocol.toLowerCase() : '';
-        if (protocol !== 'http:' &&
-            protocol !== 'https:' &&
-            protocol !== 'mailto:' &&
-            protocol !== 'tel:' &&
-            protocol !== 'sms:' &&
-            protocol !== 'geo:') {
-          return false;
-        }
-
-        if ((protocol === 'http:' || protocol === 'https:') &&
-            parsedUrl.hostname &&
-            parsedUrl.hostname.toLowerCase() === 'rikkahub.local') {
-          return false;
-        }
-
         if (window.AndroidInterface && typeof window.AndroidInterface.openExternalUrl === 'function') {
-          window.AndroidInterface.openExternalUrl(parsedUrl.toString());
+          window.AndroidInterface.openExternalUrl(normalized);
           return true;
         }
 
@@ -193,7 +188,7 @@ private const val HTML_HELPER_SCRIPT = """
 
       function reportHeight() {
         reportScheduled = false;
-        updateViewportCssVariable();
+        updateViewportHeightVariable();
 
         var height = Math.ceil(getDocumentHeight());
         if (!isFinite(height) || height <= 0) return;
@@ -259,6 +254,13 @@ private const val HTML_HELPER_SCRIPT = """
           window.visualViewport.addEventListener('resize', scheduleReport);
         }
 
+        window.addEventListener('message', function(event) {
+          if (event && event.data && event.data.type === 'TH_UPDATE_VIEWPORT_HEIGHT') {
+            updateViewportHeightVariable();
+            scheduleReport();
+          }
+        });
+
         if (typeof ResizeObserver !== 'undefined') {
           var resizeObserver = new ResizeObserver(function() {
             scheduleReport();
@@ -282,7 +284,12 @@ private const val HTML_HELPER_SCRIPT = """
         window.__rikkahubMutationObserver = mutationObserver;
       }
 
+      window.__TH_UPDATE_VIEWPORT_HEIGHT = function() {
+        updateViewportHeightVariable();
+        scheduleReport();
+      };
       window.__rikkahubReportHeight = reportHeight;
+      updateViewportHeightVariable();
       scheduleReport();
     })();
 """
@@ -360,6 +367,13 @@ internal fun buildBrowserHtmlDocument(html: String): String {
         head.appendElement("style")
             .attr("id", HTML_HELPER_STYLE_ID)
             .appendText(HTML_HELPER_STYLE)
+    }
+
+    if (head.getElementById(HTML_HELPER_THIRD_PARTY_ID) == null) {
+        head.appendElement("script")
+            .attr("id", HTML_HELPER_THIRD_PARTY_ID)
+            .attr("type", "text/javascript")
+            .append(HTML_HELPER_THIRD_PARTY_SCRIPT)
     }
 
     val body = document.body()
@@ -443,10 +457,6 @@ fun BrowserHtmlBlock(
             },
             onOpenExternalUrl = { rawUrl ->
                 val uri = runCatching { Uri.parse(rawUrl.trim()) }.getOrNull() ?: return@HtmlBridge
-                val scheme = uri.scheme?.lowercase()
-                if (scheme !in setOf("http", "https", "mailto", "tel", "sms", "geo")) {
-                    return@HtmlBridge
-                }
 
                 handler.post {
                     runCatching {
