@@ -83,5 +83,21 @@ class BrowserHtmlBlockDocumentTest {
         assertTrue(bootstrap.contains("URL.createObjectURL"))
         assertTrue(bootstrap.contains("window.location.replace(blobUrl)"))
         assertTrue(bootstrap.contains("atob('"))
+        assertTrue(bootstrap.contains("new Uint8Array(binary.length)"))
+        assertTrue(bootstrap.contains("new Blob([bytes], { type: 'text/html;charset=utf-8' })"))
+        assertTrue(bootstrap.contains("new TextDecoder('utf-8').decode(bytes)"))
+    }
+
+    @Test
+    fun trustedExternalSchemeAllowsOnlyHttpAndHttps() {
+        assertTrue(isTrustedExternalScheme("http"))
+        assertTrue(isTrustedExternalScheme("https"))
+        assertTrue(isTrustedExternalScheme("HTTP"))
+        assertTrue(isTrustedExternalScheme("HtTpS"))
+        assertTrue(!isTrustedExternalScheme("intent"))
+        assertTrue(!isTrustedExternalScheme("market"))
+        assertTrue(!isTrustedExternalScheme("tel"))
+        assertTrue(!isTrustedExternalScheme("javascript"))
+        assertTrue(!isTrustedExternalScheme(null))
     }
 }

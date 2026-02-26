@@ -1,10 +1,8 @@
 package me.rerere.rikkahub.ui.components.richtext
 
 import android.content.Intent
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +21,7 @@ import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
 import me.rerere.rikkahub.utils.base64Encode
 import org.jsoup.Jsoup
 import java.math.BigDecimal
+import java.util.Locale
 
 private const val MIN_HTML_BLOCK_HEIGHT = 120
 private const val DEFAULT_HTML_BLOCK_HEIGHT = 220
@@ -148,41 +147,6 @@ private const val HTML_HELPER_SCRIPT = """
         }
       }
 
-      function normalizeUrl(rawUrl) {
-        if (!rawUrl) {
-          return '';
-        }
-
-        var url = String(rawUrl).trim();
-        if (!url) {
-          return '';
-        }
-
-        if (/^javascript:/i.test(url)) {
-          return '';
-        }
-
-        try {
-          return new URL(url, document.baseURI).toString();
-        } catch (error) {
-          return url;
-        }
-      }
-
-      function openExternalUrl(rawUrl) {
-        var normalized = normalizeUrl(rawUrl);
-        if (!normalized || normalized.charAt(0) === '#') {
-          return false;
-        }
-
-        if (window.AndroidInterface && typeof window.AndroidInterface.openExternalUrl === 'function') {
-          window.AndroidInterface.openExternalUrl(normalized);
-          return true;
-        }
-
-        return false;
-      }
-
       var lastReportedHeight = 0;
       var reportScheduled = false;
 
@@ -215,31 +179,6 @@ private const val HTML_HELPER_SCRIPT = """
 
       if (!window.__rikkahubObserverInstalled) {
         window.__rikkahubObserverInstalled = true;
-
-        document.addEventListener('click', function(event) {
-          var node = event.target;
-
-          while (node && node !== document) {
-            if (node.tagName && node.tagName.toLowerCase() === 'a') {
-              break;
-            }
-            node = node.parentElement;
-          }
-
-          if (!node || node === document || !node.getAttribute) {
-            return;
-          }
-
-          var href = node.getAttribute('href');
-          if (!href) {
-            return;
-          }
-
-          if (openExternalUrl(href)) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
-        }, true);
 
         window.addEventListener('load', function() {
           reportHeight();
@@ -401,9 +340,13 @@ internal fun buildBlobBootstrapHtml(contentHtml: String): String {
         <script>
           (function() {
             try {
-              var html = atob('$encodedHtml');
+              var binary = atob('$encodedHtml');
+              var bytes = new Uint8Array(binary.length);
+              for (var i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
               if (window.URL && typeof URL.createObjectURL === 'function') {
-                var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                var blob = new Blob([bytes], { type: 'text/html;charset=utf-8' });
                 var blobUrl = URL.createObjectURL(blob);
                 window.location.replace(blobUrl);
                 setTimeout(function() {
@@ -412,6 +355,9 @@ internal fun buildBlobBootstrapHtml(contentHtml: String): String {
                   } catch (_ignored) {}
                 }, 30000);
               } else {
+                var html = typeof TextDecoder === 'function'
+                  ? new TextDecoder('utf-8').decode(bytes)
+                  : binary;
                 document.open();
                 document.write(html);
                 document.close();
@@ -433,7 +379,6 @@ fun BrowserHtmlBlock(
     useBlobUrl: Boolean = false,
 ) {
     val context = LocalContext.current
-    val handler = remember { Handler(Looper.getMainLooper()) }
     val density = LocalDensity.current
     val renderedHtml = remember(html) { buildBrowserHtmlDocument(html) }
     val webContent = remember(renderedHtml, useBlobUrl) {
@@ -448,25 +393,12 @@ fun BrowserHtmlBlock(
         mutableIntStateOf(with(density) { DEFAULT_HTML_BLOCK_HEIGHT.dp.toPx().toInt() })
     }
 
-    val htmlBridge = remember(density.density, context, minHeightPx, handler) {
+    val htmlBridge = remember(density.density, minHeightPx) {
         HtmlBridge(
             onHeightChanged = { cssHeight ->
                 if (cssHeight <= 0) return@HtmlBridge
                 val height = (cssHeight * density.density).toInt()
                 contentHeightPx = height.coerceAtLeast(minHeightPx)
-            },
-            onOpenExternalUrl = { rawUrl ->
-                val uri = runCatching { Uri.parse(rawUrl.trim()) }.getOrNull() ?: return@HtmlBridge
-
-                handler.post {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, uri).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                        )
-                    }
-                }
             }
         )
     }
@@ -479,6 +411,9 @@ fun BrowserHtmlBlock(
         mimeType = "text/html",
         encoding = "UTF-8",
         interfaces = mapOf("AndroidInterface" to htmlBridge),
+        onShouldOverrideUrlLoading = { _, request ->
+            handleExternalNavigation(context = context, request = request)
+        },
         settings = {
             builtInZoomControls = true
             displayZoomControls = false
@@ -504,15 +439,46 @@ fun BrowserHtmlBlock(
 
 private class HtmlBridge(
     private val onHeightChanged: (Int) -> Unit,
-    private val onOpenExternalUrl: (String) -> Unit
 ) {
     @JavascriptInterface
     fun updateHeight(height: Int) {
         onHeightChanged(height)
     }
+}
 
-    @JavascriptInterface
-    fun openExternalUrl(url: String) {
-        onOpenExternalUrl(url)
+private fun handleExternalNavigation(
+    context: android.content.Context,
+    request: WebResourceRequest
+): Boolean {
+    if (!request.isForMainFrame) {
+        return false
     }
+
+    val uri = request.url ?: return true
+    if (!isTrustedExternalScheme(uri.scheme)) {
+        return true
+    }
+
+    val hasUserGesture = runCatching { request.hasGesture() }.getOrDefault(false)
+    if (!hasUserGesture) {
+        return true
+    }
+
+    if (uri.host.equals("rikkahub.local", ignoreCase = true)) {
+        return false
+    }
+
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
+    return true
+}
+
+internal fun isTrustedExternalScheme(scheme: String?): Boolean {
+    val normalized = scheme?.lowercase(Locale.ROOT)
+    return normalized == "http" || normalized == "https"
 }
