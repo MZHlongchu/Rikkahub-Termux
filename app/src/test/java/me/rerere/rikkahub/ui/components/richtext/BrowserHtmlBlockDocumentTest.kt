@@ -51,4 +51,33 @@ class BrowserHtmlBlockDocumentTest {
         assertEquals(1, "id=\"rikkahub-html-style\"".toRegex().findAll(secondPass).count())
         assertEquals(1, "id=\"rikkahub-html-bridge\"".toRegex().findAll(secondPass).count())
     }
+
+    @Test
+    fun minHeightVhIsConvertedToViewportVariable() {
+        val replaced = replaceMinHeightVhForViewport(
+            """
+                <style>.a{min-height:100vh}.b{min-height:50vh}</style>
+                <div style="min-height:75vh"></div>
+                <script>
+                  el.style.minHeight = "60vh";
+                  el.style.setProperty('min-height', '25vh');
+                </script>
+            """.trimIndent()
+        )
+
+        assertTrue(replaced.contains("min-height:var(--rikkahub-viewport-height)"))
+        assertTrue(replaced.contains("min-height:calc(var(--rikkahub-viewport-height) * 0.5)"))
+        assertTrue(replaced.contains("min-height:calc(var(--rikkahub-viewport-height) * 0.75)"))
+        assertTrue(replaced.contains("minHeight = \"calc(var(--rikkahub-viewport-height) * 0.6)\""))
+        assertTrue(replaced.contains("setProperty('min-height', 'calc(var(--rikkahub-viewport-height) * 0.25)')"))
+    }
+
+    @Test
+    fun blobBootstrapHtmlContainsBlobRenderer() {
+        val bootstrap = buildBlobBootstrapHtml("<html><body>Hello</body></html>")
+
+        assertTrue(bootstrap.contains("URL.createObjectURL"))
+        assertTrue(bootstrap.contains("window.location.replace(blobUrl)"))
+        assertTrue(bootstrap.contains("atob('"))
+    }
 }

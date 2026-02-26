@@ -20,10 +20,30 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import me.rerere.rikkahub.ui.components.webview.WebView
 import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
+import me.rerere.rikkahub.utils.base64Encode
 import org.jsoup.Jsoup
+import java.math.BigDecimal
 
 private const val MIN_HTML_BLOCK_HEIGHT = 120
 private const val DEFAULT_HTML_BLOCK_HEIGHT = 220
+private const val VIEWPORT_HEIGHT_VARIABLE = "var(--rikkahub-viewport-height)"
+private val VH_VALUE_REGEX = Regex("(\\d+(?:\\.\\d+)?)vh\\b", RegexOption.IGNORE_CASE)
+private val MIN_HEIGHT_DECLARATION_REGEX =
+    Regex("(min-height\\s*:\\s*)([^;{}]*?\\d+(?:\\.\\d+)?vh)(?=\\s*[;}])", RegexOption.IGNORE_CASE)
+private val INLINE_STYLE_REGEX = Regex(
+    "(style\\s*=\\s*([\"']))([\\s\\S]*?)(\\2)",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val INLINE_MIN_HEIGHT_REGEX =
+    Regex("(min-height\\s*:\\s*)([^;]*?\\d+(?:\\.\\d+)?vh)", RegexOption.IGNORE_CASE)
+private val JS_STYLE_MIN_HEIGHT_REGEX = Regex(
+    "(\\.style\\.minHeight\\s*=\\s*([\"']))([\\s\\S]*?)(\\2)",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val JS_SET_PROPERTY_MIN_HEIGHT_REGEX = Regex(
+    "(setProperty\\s*\\(\\s*([\"'])min-height\\2\\s*,\\s*([\"']))([\\s\\S]*?)(\\3\\s*\\))",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
 
 private const val HTML_HELPER_STYLE_ID = "rikkahub-html-style"
 private const val HTML_HELPER_SCRIPT_ID = "rikkahub-html-bridge"
@@ -267,8 +287,66 @@ private const val HTML_HELPER_SCRIPT = """
     })();
 """
 
+private fun Double.toCompactString(): String {
+    return BigDecimal.valueOf(this).stripTrailingZeros().toPlainString()
+}
+
+private fun convertVhToViewportVariable(value: String): String {
+    return VH_VALUE_REGEX.replace(value) { match ->
+        val vhValue = match.groupValues[1].toDoubleOrNull() ?: return@replace match.value
+        if (!vhValue.isFinite()) return@replace match.value
+        if (vhValue == 100.0) {
+            VIEWPORT_HEIGHT_VARIABLE
+        } else {
+            "calc($VIEWPORT_HEIGHT_VARIABLE * ${(vhValue / 100.0).toCompactString()})"
+        }
+    }
+}
+
+internal fun replaceMinHeightVhForViewport(content: String): String {
+    if (!content.contains("vh", ignoreCase = true)) {
+        return content
+    }
+
+    var replaced = MIN_HEIGHT_DECLARATION_REGEX.replace(content) { match ->
+        "${match.groupValues[1]}${convertVhToViewportVariable(match.groupValues[2])}"
+    }
+
+    replaced = INLINE_STYLE_REGEX.replace(replaced) { match ->
+        val styleContent = match.groupValues[3]
+        if (!styleContent.contains("min-height", ignoreCase = true) ||
+            !styleContent.contains("vh", ignoreCase = true)
+        ) {
+            return@replace match.value
+        }
+        val updatedStyle = INLINE_MIN_HEIGHT_REGEX.replace(styleContent) { inlineMatch ->
+            "${inlineMatch.groupValues[1]}${convertVhToViewportVariable(inlineMatch.groupValues[2])}"
+        }
+        "${match.groupValues[1]}$updatedStyle${match.groupValues[4]}"
+    }
+
+    replaced = JS_STYLE_MIN_HEIGHT_REGEX.replace(replaced) { match ->
+        val value = match.groupValues[3]
+        if (!value.contains("vh", ignoreCase = true)) {
+            return@replace match.value
+        }
+        "${match.groupValues[1]}${convertVhToViewportVariable(value)}${match.groupValues[4]}"
+    }
+
+    replaced = JS_SET_PROPERTY_MIN_HEIGHT_REGEX.replace(replaced) { match ->
+        val value = match.groupValues[4]
+        if (!value.contains("vh", ignoreCase = true)) {
+            return@replace match.value
+        }
+        "${match.groupValues[1]}${convertVhToViewportVariable(value)}${match.groupValues[5]}"
+    }
+
+    return replaced
+}
+
 internal fun buildBrowserHtmlDocument(html: String): String {
-    val document = Jsoup.parse(html)
+    val preprocessedHtml = replaceMinHeightVhForViewport(html)
+    val document = Jsoup.parse(preprocessedHtml)
     document.outputSettings().prettyPrint(false)
 
     val head = document.head()
@@ -295,17 +373,64 @@ internal fun buildBrowserHtmlDocument(html: String): String {
     return document.outerHtml()
 }
 
+internal fun buildBlobBootstrapHtml(contentHtml: String): String {
+    val encodedHtml = contentHtml.base64Encode()
+    return """
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>RikkaHub HTML Renderer</title>
+        </head>
+        <body>
+        <script>
+          (function() {
+            try {
+              var html = atob('$encodedHtml');
+              if (window.URL && typeof URL.createObjectURL === 'function') {
+                var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                var blobUrl = URL.createObjectURL(blob);
+                window.location.replace(blobUrl);
+                setTimeout(function() {
+                  try {
+                    URL.revokeObjectURL(blobUrl);
+                  } catch (_ignored) {}
+                }, 30000);
+              } else {
+                document.open();
+                document.write(html);
+                document.close();
+              }
+            } catch (error) {
+              document.body.textContent = 'Failed to render HTML: ' + error.message;
+            }
+          })();
+        </script>
+        </body>
+        </html>
+    """.trimIndent()
+}
+
 @Composable
 fun BrowserHtmlBlock(
     html: String,
     modifier: Modifier = Modifier,
+    useBlobUrl: Boolean = false,
 ) {
     val context = LocalContext.current
     val handler = remember { Handler(Looper.getMainLooper()) }
     val density = LocalDensity.current
     val renderedHtml = remember(html) { buildBrowserHtmlDocument(html) }
+    val webContent = remember(renderedHtml, useBlobUrl) {
+        if (useBlobUrl) {
+            buildBlobBootstrapHtml(renderedHtml)
+        } else {
+            renderedHtml
+        }
+    }
     val minHeightPx = with(density) { MIN_HTML_BLOCK_HEIGHT.dp.toPx().toInt() }
-    var contentHeightPx by remember(html, density.density) {
+    var contentHeightPx by remember(html, useBlobUrl, density.density) {
         mutableIntStateOf(with(density) { DEFAULT_HTML_BLOCK_HEIGHT.dp.toPx().toInt() })
     }
 
@@ -339,7 +464,7 @@ fun BrowserHtmlBlock(
     val contentHeight = with(density) { contentHeightPx.toDp() }
 
     val webViewState = rememberWebViewState(
-        data = renderedHtml,
+        data = webContent,
         baseUrl = "https://rikkahub.local",
         mimeType = "text/html",
         encoding = "UTF-8",
