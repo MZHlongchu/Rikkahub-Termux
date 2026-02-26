@@ -89,6 +89,18 @@ class BrowserHtmlBlockDocumentTest {
     }
 
     @Test
+    fun internalRenderSchemeAllowsBlobDataAndAbout() {
+        assertTrue(isInternalRenderScheme("blob"))
+        assertTrue(isInternalRenderScheme("data"))
+        assertTrue(isInternalRenderScheme("about"))
+        assertTrue(isInternalRenderScheme("BLOB"))
+        assertTrue(!isInternalRenderScheme("http"))
+        assertTrue(!isInternalRenderScheme("https"))
+        assertTrue(!isInternalRenderScheme("intent"))
+        assertTrue(!isInternalRenderScheme(null))
+    }
+
+    @Test
     fun trustedExternalSchemeAllowsOnlyHttpAndHttps() {
         assertTrue(isTrustedExternalScheme("http"))
         assertTrue(isTrustedExternalScheme("https"))

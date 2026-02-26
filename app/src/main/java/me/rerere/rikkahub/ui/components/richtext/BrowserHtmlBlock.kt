@@ -455,6 +455,14 @@ private fun handleExternalNavigation(
     }
 
     val uri = request.url ?: return true
+    if (isInternalRenderScheme(uri.scheme)) {
+        return false
+    }
+
+    if (uri.host.equals("rikkahub.local", ignoreCase = true)) {
+        return false
+    }
+
     if (!isTrustedExternalScheme(uri.scheme)) {
         return true
     }
@@ -462,10 +470,6 @@ private fun handleExternalNavigation(
     val hasUserGesture = runCatching { request.hasGesture() }.getOrDefault(false)
     if (!hasUserGesture) {
         return true
-    }
-
-    if (uri.host.equals("rikkahub.local", ignoreCase = true)) {
-        return false
     }
 
     runCatching {
@@ -476,6 +480,11 @@ private fun handleExternalNavigation(
         )
     }
     return true
+}
+
+internal fun isInternalRenderScheme(scheme: String?): Boolean {
+    val normalized = scheme?.lowercase(Locale.ROOT)
+    return normalized == "blob" || normalized == "data" || normalized == "about"
 }
 
 internal fun isTrustedExternalScheme(scheme: String?): Boolean {
