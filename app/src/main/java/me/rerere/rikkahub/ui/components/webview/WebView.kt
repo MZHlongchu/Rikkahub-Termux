@@ -86,8 +86,6 @@ fun WebView(
                         LayoutParams.MATCH_PARENT
                     )
 
-                    state.webView = this // Assign the WebView instance to the state
-
                     onCreated(this)
 
                     settings.javaScriptEnabled = true // Enable JavaScript
@@ -109,11 +107,15 @@ fun WebView(
                 state.interfaces.forEach { (name, _) ->
                     it.removeJavascriptInterface(name)
                 }
+                if (state.webView === it) {
+                    state.webView = null
+                }
                 state.lastLoadedData = null
                 Log.d(TAG, "AndroidView: Resetting WebView")
             },
             update = { webView ->
-                val isNewWebViewInstance = state.webView !== webView
+                val previousWebView = state.webView
+                val isNewWebViewInstance = previousWebView !== webView
                 state.webView = webView
                 state.interfaces.forEach { (name, obj) ->
                     webView.addJavascriptInterface(obj, name)
