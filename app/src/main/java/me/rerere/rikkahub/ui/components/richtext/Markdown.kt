@@ -103,7 +103,6 @@ private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MAT
 val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)
 private val CODE_BLOCK_REGEX = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
 private val BREAK_LINE_REGEX = Regex("(?i)<br\\s*/?>")
-private val SVG_TAG_REGEX = Regex("<\\s*svg\\b", RegexOption.IGNORE_CASE)
 
 // 预处理markdown内容
 private fun preProcess(content: String): String {
@@ -139,8 +138,67 @@ private fun preProcess(content: String): String {
     return result
 }
 
-private fun containsSvgMarkup(code: String): Boolean {
-    return SVG_TAG_REGEX.containsMatchIn(code)
+internal fun isStandaloneSvgDocument(code: String): Boolean {
+    var offset = skipWhitespace(code, 0)
+    if (offset >= code.length) {
+        return false
+    }
+
+    if (code.regionMatches(offset, "<?xml", 0, 5, ignoreCase = true)) {
+        val xmlDeclarationEnd = code.indexOf("?>", startIndex = offset + 5)
+        if (xmlDeclarationEnd == -1) {
+            return false
+        }
+        offset = skipWhitespace(code, xmlDeclarationEnd + 2)
+    }
+
+    if (offset < code.length && code.regionMatches(offset, "<!DOCTYPE", 0, 9, ignoreCase = true)) {
+        offset = consumeDoctypeDeclaration(code, offset) ?: return false
+        offset = skipWhitespace(code, offset)
+    }
+
+    return startsWithSvgRootTag(code, offset)
+}
+
+private fun skipWhitespace(text: String, start: Int): Int {
+    var index = start
+    while (index < text.length && text[index].isWhitespace()) {
+        index++
+    }
+    return index
+}
+
+private fun consumeDoctypeDeclaration(text: String, start: Int): Int? {
+    var index = start + 9
+    var inSingleQuote = false
+    var inDoubleQuote = false
+    var internalSubsetDepth = 0
+
+    while (index < text.length) {
+        when (text[index]) {
+            '\'' -> if (!inDoubleQuote) inSingleQuote = !inSingleQuote
+            '"' -> if (!inSingleQuote) inDoubleQuote = !inDoubleQuote
+            '[' -> if (!inSingleQuote && !inDoubleQuote) internalSubsetDepth++
+            ']' -> if (!inSingleQuote && !inDoubleQuote && internalSubsetDepth > 0) internalSubsetDepth--
+            '>' -> {
+                if (!inSingleQuote && !inDoubleQuote && internalSubsetDepth == 0) {
+                    return index + 1
+                }
+            }
+        }
+        index++
+    }
+
+    return null
+}
+
+private fun startsWithSvgRootTag(text: String, start: Int): Boolean {
+    if (start >= text.length || !text.regionMatches(start, "<svg", 0, 4, ignoreCase = true)) {
+        return false
+    }
+
+    val nextChar = text.getOrNull(start + 4) ?: return true
+    return nextChar.isWhitespace() || nextChar == '>' || nextChar == '/'
 }
 
 @Preview(showBackground = true)
@@ -551,7 +609,7 @@ private fun MarkdownNode(
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
             val enableHtmlCodeBlockRendering = LocalSettings.current.displaySetting.enableHtmlCodeBlockRendering
             val normalizedLanguage = language.trim().lowercase().substringBefore(' ').substringBefore('\t')
-            val isXmlSvgCodeBlock = normalizedLanguage == "xml" && containsSvgMarkup(code)
+            val isXmlSvgCodeBlock = normalizedLanguage == "xml" && isStandaloneSvgDocument(code)
             val shouldRenderSvgCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
                 (normalizedLanguage == "svg" || isXmlSvgCodeBlock)
