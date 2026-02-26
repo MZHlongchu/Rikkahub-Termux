@@ -25,20 +25,53 @@ private const val HTML_HEIGHT_MEASURE_JS = """
         var body = document.body;
         var doc = document.documentElement;
         if (!body || !doc) return 0;
-        return Math.max(
+        var maxHeight = Math.max(
           body.scrollHeight,
           body.offsetHeight,
+          body.clientHeight,
           doc.clientHeight,
           doc.scrollHeight,
           doc.offsetHeight
         );
+
+        // Handle pages that keep real content inside internal scroll containers
+        // (e.g. full-screen layouts with overflow:auto and absolute/fixed children).
+        var elements = body.querySelectorAll('*');
+        for (var i = 0; i < elements.length; i++) {
+          var el = elements[i];
+          var rect = el.getBoundingClientRect();
+          var pageTop = rect.top + (window.scrollY || window.pageYOffset || 0);
+          var elementBottom = pageTop + Math.max(
+            rect.height,
+            el.scrollHeight || 0,
+            el.offsetHeight || 0,
+            el.clientHeight || 0
+          );
+          maxHeight = Math.max(maxHeight, Math.ceil(elementBottom));
+        }
+
+        return maxHeight;
       }
+
+      var lastReportedHeight = 0;
+      var reportRaf = null;
 
       function reportHeight() {
         var height = Math.ceil(documentHeight());
+        if (!isFinite(height) || height <= 0) return;
+        if (height === lastReportedHeight) return;
+        lastReportedHeight = height;
         if (window.AndroidInterface && typeof window.AndroidInterface.updateHeight === 'function') {
           window.AndroidInterface.updateHeight(height);
         }
+      }
+
+      function scheduleReportHeight() {
+        if (reportRaf != null) return;
+        reportRaf = requestAnimationFrame(function() {
+          reportRaf = null;
+          reportHeight();
+        });
       }
 
       if (!window.__rikkahubObserverInstalled) {
@@ -53,7 +86,7 @@ private const val HTML_HEIGHT_MEASURE_JS = """
 
         if (typeof ResizeObserver !== 'undefined') {
           var resizeObserver = new ResizeObserver(function() {
-            reportHeight();
+            scheduleReportHeight();
           });
           resizeObserver.observe(document.documentElement);
           if (document.body) {
@@ -61,11 +94,11 @@ private const val HTML_HEIGHT_MEASURE_JS = """
           }
           window.__rikkahubResizeObserver = resizeObserver;
         } else {
-          window.addEventListener('resize', reportHeight);
+          window.addEventListener('resize', scheduleReportHeight);
         }
 
         var mutationObserver = new MutationObserver(function() {
-          reportHeight();
+          scheduleReportHeight();
         });
         mutationObserver.observe(document.documentElement || document, {
           childList: true,

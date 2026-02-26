@@ -109,9 +109,11 @@ fun WebView(
                 state.interfaces.forEach { (name, _) ->
                     it.removeJavascriptInterface(name)
                 }
+                state.lastLoadedData = null
                 Log.d(TAG, "AndroidView: Resetting WebView")
             },
             update = { webView ->
+                val isNewWebViewInstance = state.webView !== webView
                 state.webView = webView
                 state.interfaces.forEach { (name, obj) ->
                     webView.addJavascriptInterface(obj, name)
@@ -133,25 +135,27 @@ fun WebView(
                         if (url.isNotEmpty() && (currentWebViewUrl.isNullOrBlank() || url != currentWebViewUrl || state.forceReload)) {
                             webView.loadUrl(content.url, content.additionalHttpHeaders)
                             state.forceReload = false // Reset force reload flag
+                            state.lastLoadedData = null
                         }
                     }
 
                     is WebContent.Data -> {
-                        // Check if the data needs to be reloaded (e.g., if different from last loaded data)
-                        // For simplicity, we might just reload it every time the update block runs with Data content.
-                        // A more complex check could involve comparing `content.data` with a previously stored value.
-                        webView.loadDataWithBaseURL(
-                            content.baseUrl,
-                            content.data,
-                            content.mimeType,
-                            content.encoding,
-                            content.historyUrl
-                        )
-                        // Assuming data loading is fast, but let's reflect the state more accurately
-                        // state.isLoading = false // This might be too soon, let WebViewClient handle it
+                        val shouldLoadData = isNewWebViewInstance || state.forceReload || state.lastLoadedData != content
+                        if (shouldLoadData) {
+                            webView.loadDataWithBaseURL(
+                                content.baseUrl,
+                                content.data,
+                                content.mimeType,
+                                content.encoding,
+                                content.historyUrl
+                            )
+                            state.forceReload = false
+                            state.lastLoadedData = content
+                        }
                     }
 
                     WebContent.NavigatorOnly -> {
+                        state.lastLoadedData = null
                         // NO-OP: State changes related to navigation are handled by the methods in WebViewState
                     }
                 }
@@ -227,6 +231,9 @@ class WebViewState(
     // Hold the WebView instance internally to perform actions.
     // Be cautious with this reference, ensure it doesn't leak context.
     internal var webView: WebView? by mutableStateOf(null)
+
+    // Cache the last loaded data payload to avoid reload loops during recomposition.
+    internal var lastLoadedData: WebContent.Data? = null
 
     // --- Public Actions ---
 

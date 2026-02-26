@@ -103,6 +103,7 @@ private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MAT
 val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)
 private val CODE_BLOCK_REGEX = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
 private val BREAK_LINE_REGEX = Regex("(?i)<br\\s*/?>")
+private val SVG_TAG_REGEX = Regex("<\\s*svg\\b", RegexOption.IGNORE_CASE)
 
 // 预处理markdown内容
 private fun preProcess(content: String): String {
@@ -136,6 +137,10 @@ private fun preProcess(content: String): String {
     }
 
     return result
+}
+
+private fun containsSvgMarkup(code: String): Boolean {
+    return SVG_TAG_REGEX.containsMatchIn(code)
 }
 
 @Preview(showBackground = true)
@@ -546,9 +551,10 @@ private fun MarkdownNode(
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
             val enableHtmlCodeBlockRendering = LocalSettings.current.displaySetting.enableHtmlCodeBlockRendering
             val normalizedLanguage = language.trim().lowercase().substringBefore(' ').substringBefore('\t')
+            val isXmlSvgCodeBlock = normalizedLanguage == "xml" && containsSvgMarkup(code)
             val shouldRenderSvgCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
-                normalizedLanguage == "svg"
+                (normalizedLanguage == "svg" || isXmlSvgCodeBlock)
             val shouldRenderHtmlCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
                 (normalizedLanguage == "html" || normalizedLanguage == "htm" || normalizedLanguage == "xhtml")
