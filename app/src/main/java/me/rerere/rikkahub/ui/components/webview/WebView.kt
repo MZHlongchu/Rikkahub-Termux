@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.ViewGroup.LayoutParams
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -47,6 +48,13 @@ internal class MyWebChromeClient(private val state: WebViewState) : WebChromeCli
 }
 
 internal class MyWebViewClient(private val state: WebViewState) : WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+        val callback = state.shouldOverrideUrlLoading ?: return false
+        val webView = view ?: return false
+        val webRequest = request ?: return false
+        return callback(webView, webRequest)
+    }
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         state.isLoading = true
@@ -198,6 +206,7 @@ sealed class WebContent {
 class WebViewState(
     initialContent: WebContent = WebContent.NavigatorOnly,
     val interfaces: Map<String, Any> = emptyMap(),
+    val shouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     val settings: WebSettings.() -> Unit = {}
 ) {
     // --- Content State ---
@@ -303,11 +312,13 @@ fun rememberWebViewState(
     url: String = "about:blank",
     additionalHttpHeaders: Map<String, String> = emptyMap(),
     interfaces: Map<String, Any> = emptyMap(),
+    onShouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     settings: WebSettings.() -> Unit = {},
 ) = remember(url, additionalHttpHeaders) { // Use keys for better recomposition control
     WebViewState(
         initialContent = WebContent.Url(url, additionalHttpHeaders),
         interfaces = interfaces,
+        shouldOverrideUrlLoading = onShouldOverrideUrlLoading,
         settings = settings
     )
 }
@@ -320,11 +331,13 @@ fun rememberWebViewState(
     mimeType: String? = null,
     historyUrl: String? = null,
     interfaces: Map<String, Any> = emptyMap(),
+    onShouldOverrideUrlLoading: ((WebView, WebResourceRequest) -> Boolean)? = null,
     settings: WebSettings.() -> Unit = {},
 ) = remember(data, baseUrl, encoding, mimeType, historyUrl) { // Use keys
     WebViewState(
         initialContent = WebContent.Data(data, baseUrl, encoding, mimeType, historyUrl),
         interfaces = interfaces,
+        shouldOverrideUrlLoading = onShouldOverrideUrlLoading,
         settings = settings
     )
 }

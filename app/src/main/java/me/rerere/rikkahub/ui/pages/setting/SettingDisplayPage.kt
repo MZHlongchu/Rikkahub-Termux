@@ -587,6 +587,28 @@ fun SettingDisplayPage(vm: SettingVM = koinViewModel()) {
                 )
             }
 
+            if (displaySetting.enableHtmlCodeBlockRendering) {
+                item {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = {
+                            Text(stringResource(R.string.setting_display_page_enable_html_code_block_blob_url_rendering_title))
+                        },
+                        supportingContent = {
+                            Text(stringResource(R.string.setting_display_page_enable_html_code_block_blob_url_rendering_desc))
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.enableHtmlCodeBlockBlobUrlRendering,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(enableHtmlCodeBlockBlobUrlRendering = it))
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+
             stickyHeader {
                 Text(
                     text = stringResource(R.string.setting_page_interaction_notification_settings),

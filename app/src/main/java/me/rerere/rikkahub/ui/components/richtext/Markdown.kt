@@ -160,6 +160,14 @@ internal fun isStandaloneSvgDocument(code: String): Boolean {
     return startsWithSvgRootTag(code, offset)
 }
 
+internal fun isFrontendHtmlContent(code: String): Boolean {
+    val normalized = code.lowercase()
+    return normalized.contains("html>") ||
+        normalized.contains("<head") ||
+        normalized.contains("<body") ||
+        normalized.contains("<!doctype html")
+}
+
 private fun skipWhitespace(text: String, start: Int): Int {
     var index = start
     while (index < text.length && text[index].isWhitespace()) {
@@ -604,18 +612,28 @@ private fun MarkdownNode(
                 codeContentStartOffset, codeContentEndOffset
             ).trimIndent()
 
-            val language =
-                node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content) ?: "plaintext"
+            val languageToken = node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content).orEmpty()
+            val language = languageToken.ifBlank { "plaintext" }
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
-            val enableHtmlCodeBlockRendering = LocalSettings.current.displaySetting.enableHtmlCodeBlockRendering
-            val normalizedLanguage = language.trim().lowercase().substringBefore(' ').substringBefore('\t')
+            val displaySetting = LocalSettings.current.displaySetting
+            val enableHtmlCodeBlockRendering = displaySetting.enableHtmlCodeBlockRendering
+            val enableHtmlCodeBlockBlobUrlRendering = displaySetting.enableHtmlCodeBlockBlobUrlRendering
+            val normalizedLanguage = languageToken.trim().lowercase().substringBefore(' ').substringBefore('\t')
             val isXmlSvgCodeBlock = normalizedLanguage == "xml" && isStandaloneSvgDocument(code)
+            val isFrontendHtmlCodeBlock = isFrontendHtmlContent(code)
+            val isGenericCodeLanguage =
+                normalizedLanguage.isBlank() || normalizedLanguage == "plaintext" || normalizedLanguage == "text"
             val shouldRenderSvgCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
                 (normalizedLanguage == "svg" || isXmlSvgCodeBlock)
             val shouldRenderHtmlCodeBlock = hasEnd &&
                 enableHtmlCodeBlockRendering &&
-                (normalizedLanguage == "html" || normalizedLanguage == "htm" || normalizedLanguage == "xhtml")
+                (
+                    normalizedLanguage == "html" ||
+                        normalizedLanguage == "htm" ||
+                        normalizedLanguage == "xhtml" ||
+                        (isGenericCodeLanguage && isFrontendHtmlCodeBlock)
+                    )
 
             if (shouldRenderSvgCodeBlock) {
                 ZoomableAsyncImage(
@@ -628,6 +646,7 @@ private fun MarkdownNode(
             } else if (shouldRenderHtmlCodeBlock) {
                 BrowserHtmlBlock(
                     html = code,
+                    useBlobUrl = enableHtmlCodeBlockBlobUrlRendering,
                     modifier = Modifier
                         .padding(bottom = 4.dp)
                         .fillMaxWidth()
@@ -654,9 +673,19 @@ private fun MarkdownNode(
 
         MarkdownElementTypes.HTML_BLOCK -> {
             val text = node.getTextInNode(content)
-            SimpleHtmlBlock(
-                html = text, modifier = modifier
-            )
+            val displaySetting = LocalSettings.current.displaySetting
+            if (displaySetting.enableHtmlCodeBlockRendering) {
+                BrowserHtmlBlock(
+                    html = text,
+                    useBlobUrl = displaySetting.enableHtmlCodeBlockBlobUrlRendering,
+                    modifier = modifier.fillMaxWidth()
+                )
+            } else {
+                SimpleHtmlBlock(
+                    html = text,
+                    modifier = modifier
+                )
+            }
         }
 
         // 其他类型的节点，递归处理子节点
