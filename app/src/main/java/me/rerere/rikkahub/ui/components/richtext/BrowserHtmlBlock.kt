@@ -470,6 +470,7 @@ fun BrowserHtmlBlock(
 
     WebView(
         state = webViewState,
+        enableVerticalScrollHandoff = true,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .animateContentSize()

@@ -3,6 +3,9 @@ package me.rerere.rikkahub.ui.components.webview
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup.LayoutParams
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
@@ -22,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.abs
 
 private const val TAG = "WebView"
 
@@ -76,12 +80,14 @@ internal class MyWebViewClient(private val state: WebViewState) : WebViewClient(
 fun WebView(
     state: WebViewState,
     modifier: Modifier = Modifier,
+    enableVerticalScrollHandoff: Boolean = false,
     onCreated: (WebView) -> Unit = {},
     onUpdated: (WebView) -> Unit = {},
 ) {
     // Remember the clients based on the state
     val webChromeClient = remember { MyWebChromeClient(state) }
     val webViewClient = remember { MyWebViewClient(state) }
+    val scrollHandoffTouchListener = remember { VerticalScrollHandoffTouchListener() }
 
     Box(
         modifier = modifier
@@ -108,10 +114,14 @@ fun WebView(
                     state.interfaces.forEach { (name, obj) ->
                         addJavascriptInterface(obj, name)
                     }
+                    if (enableVerticalScrollHandoff) {
+                        setOnTouchListener(scrollHandoffTouchListener)
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth(), // Make WebView fill the width
             onReset = {
+                it.setOnTouchListener(null)
                 state.interfaces.forEach { (name, _) ->
                     it.removeJavascriptInterface(name)
                 }
@@ -127,6 +137,11 @@ fun WebView(
                 state.webView = webView
                 state.interfaces.forEach { (name, obj) ->
                     webView.addJavascriptInterface(obj, name)
+                }
+                if (enableVerticalScrollHandoff) {
+                    webView.setOnTouchListener(scrollHandoffTouchListener)
+                } else {
+                    webView.setOnTouchListener(null)
                 }
                 Log.d(TAG, "AndroidView: Updating WebView")
                 // Ensure clients are updated if state changes (though unlikely here)
@@ -180,6 +195,57 @@ fun WebView(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+private class VerticalScrollHandoffTouchListener : View.OnTouchListener {
+    private var touchSlop = -1
+    private var lastRawY = 0f
+    private var dragging = false
+
+    override fun onTouch(view: View?, event: MotionEvent?): Boolean {
+        val webView = view as? WebView ?: return false
+        val motionEvent = event ?: return false
+        if (touchSlop < 0) {
+            touchSlop = ViewConfiguration.get(webView.context).scaledTouchSlop
+        }
+
+        when (motionEvent.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastRawY = motionEvent.rawY
+                dragging = false
+                val canScroll =
+                    webView.canScrollVertically(-1) || webView.canScrollVertically(1)
+                webView.parent?.requestDisallowInterceptTouchEvent(canScroll)
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val deltaY = motionEvent.rawY - lastRawY
+                lastRawY = motionEvent.rawY
+
+                if (!dragging && abs(deltaY) >= touchSlop) {
+                    dragging = true
+                }
+                if (!dragging) {
+                    return false
+                }
+
+                val draggingDown = deltaY > 0
+                val canScrollInCurrentDirection = if (draggingDown) {
+                    webView.canScrollVertically(-1)
+                } else {
+                    webView.canScrollVertically(1)
+                }
+                webView.parent?.requestDisallowInterceptTouchEvent(canScrollInCurrentDirection)
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                dragging = false
+                webView.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+        }
+
+        return false
     }
 }
 
