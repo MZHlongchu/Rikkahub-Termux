@@ -1,79 +1,102 @@
-name: Android Release Build
+name: Release Build (De-Googled)
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "*zh*"
-      - "*plus*"
-      - "[0-9]*"
+    branches:
+      - master
+  workflow_dispatch:
 
 permissions:
-  contents: write     
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Detect flavor from tag
-        id: flavor
+      ##### 计算下一个版本标签 #####
+      - name: Compute next tag
+        id: tag
         run: |
           set -euo pipefail
-
-          TAG="${GITHUB_REF_NAME}"
-          TAG_LOWER="$(printf '%s' "$TAG" | tr '[:upper:]' '[:lower:]')"
-
-          has_zh=0
-          has_plus=0
-          if [[ "$TAG_LOWER" == *"zh"* ]]; then has_zh=1; fi
-          if [[ "$TAG_LOWER" == *"plus"* ]]; then has_plus=1; fi
-
-          if [[ $has_zh -eq 1 && $has_plus -eq 1 ]]; then
-            echo "Tag contains both 'zh' and 'plus': $TAG"
-            exit 1
+          git fetch --tags --force
+          latest="$(git tag -l 'v0.0.*' | grep -E '^v0[.]0[.][0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "${latest}" ]]; then
+            next="v0.0.1"
+          else
+            patch="${latest##*.}"
+            next="v0.0.$((10#$patch + 1))"
           fi
+          echo "next_tag=${next}" >> "$GITHUB_OUTPUT"
+          echo "Next tag: ${next}"
 
-          flavor="plus"
-          if [[ $has_zh -eq 1 ]]; then
-            flavor="zh"
-          elif [[ $has_plus -eq 1 ]]; then
-            flavor="plus"
-          fi
+      ##### 设置 JDK 17 #####
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-          echo "flavor=$flavor" >> "$GITHUB_OUTPUT"
-          echo "Detected flavor: $flavor (tag: $TAG)"
+      ##### Gradle 缓存 #####
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      ##### 禁用自动更新功能 #####
+      ##### 设置 Bun（构建 Web UI） #####
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      ##### 构建 Web UI #####
+      - name: Build Web UI
+        working-directory: web-ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      ##### 🚫 禁止自动更新功能（构建时注入） #####
       - name: Disable auto-update in UpdateChecker.kt
         run: |
           UPDATE_CHECKER_FILE="app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt"
           
-          # 备份原文件
-          cp "$UPDATE_CHECKER_FILE" "${UPDATE_CHECKER_FILE}.bak"
-          
-          # 修改 checkUpdate() 方法：直接返回空结果或禁用状态
-          # 使用 sed 在 flow { emit(UiState.Loading) } 后添加提前返回，跳过网络请求
-          sed -i 's/emit(UiState.Loading)/emit(UiState.Loading)\n        \/\/ 自动更新已禁用（构建时注入）\n        emit(UiState.Error(Exception("Update check disabled in this build")))\n        return@flow/' "$UPDATE_CHECKER_FILE"
-          
-          # 可选：完全禁用 downloadUpdate 方法（防止通过其他方式触发下载）
-          sed -i 's/fun downloadUpdate(context: Context, download: UpdateDownload) {/fun downloadUpdate(context: Context, download: UpdateDownload) {\n        \/\/ 自动更新已禁用（构建时注入）\n        Toast.makeText(context, "Update download disabled in this build", Toast.LENGTH_SHORT).show()\n        return/' "$UPDATE_CHECKER_FILE"
-          
-          echo "✅ Auto-update functionality disabled in UpdateChecker.kt"
+          if [ -f "$UPDATE_CHECKER_FILE" ]; then
+            # 备份原文件
+            cp "$UPDATE_CHECKER_FILE" "${UPDATE_CHECKER_FILE}.bak"
+            
+            echo "🔧 Injecting auto-update disable logic..."
+            
+            # 方法1: 在 checkUpdate() 的 flow { 块开头注入提前返回
+            # 查找 emit(UiState.Loading) 并在其后插入禁用逻辑
+            sed -i 's/emit(UiState.Loading)/emit(UiState.Loading)\n        \/\/ 🚫 AUTO-UPDATE DISABLED (injected at build time)\n        emit(UiState.Error(Exception("Update check disabled in de-googled build")))\n        return@flow/' "$UPDATE_CHECKER_FILE"
+            
+            # 方法2: 完全禁用 downloadUpdate 方法体（防止任何下载行为）
+            sed -i 's/fun downloadUpdate(context: Context, download: UpdateDownload) {/fun downloadUpdate(context: Context, download: UpdateDownload) {\n        \/\/ 🚫 AUTO-UPDATE DISABLED (injected at build time)\n        android.widget.Toast.makeText(context, "Updates disabled in this build", android.widget.Toast.LENGTH_SHORT).show()\n        return/' "$UPDATE_CHECKER_FILE"
+            
+            # 验证修改
+            echo "📄 Modified UpdateChecker.kt:"
+            grep -n "AUTO-UPDATE DISABLED\|return@flow\|Updates disabled" "$UPDATE_CHECKER_FILE" || echo "⚠️ Patterns not found, checking file content..." && cat "$UPDATE_CHECKER_FILE"
+            
+            echo "✅ Auto-update functionality disabled"
+          else
+            echo "⚠️ UpdateChecker.kt not found at $UPDATE_CHECKER_FILE, skipping..."
+            # 列出目录结构帮助调试
+            find app/src -name "*.kt" -path "*utils*" 2>/dev/null | head -10
+          fi
 
-      ##### 创建零依赖的 Firebase Stub 类（保留，用于编译兼容） #####
+      ##### 去跟踪库：创建 Firebase Stub 类（零依赖） #####
       - name: Create Firebase stub classes
         run: |
           mkdir -p "app/src/main/java/com/google/firebase/analytics"
@@ -81,7 +104,7 @@ jobs:
           mkdir -p "app/src/main/java/com/google/firebase/crashlytics"
           mkdir -p "app/src/main/java/com/google/firebase"
 
-          # 1. FirebaseAnalytics 类 + 扩展属性（仅用于兼容，无实际跟踪）
+          # FirebaseAnalytics 空实现
           cat > "app/src/main/java/com/google/firebase/analytics/FirebaseAnalytics.kt" << 'EOF'
           package com.google.firebase.analytics
           import android.content.Context
@@ -93,14 +116,14 @@ jobs:
                   fun getInstance(): FirebaseAnalytics = FirebaseAnalytics()
                   fun getInstance(context: Context): FirebaseAnalytics = FirebaseAnalytics()
               }
-              fun logEvent(key: String, bundle: Bundle?) {} // 空实现，无跟踪
+              fun logEvent(key: String, bundle: Bundle?) {}
           }
           
           val Firebase.analytics: FirebaseAnalytics
               get() = FirebaseAnalytics.getInstance()
           EOF
 
-          # 2. FirebaseRemoteConfig 类（无 Task 依赖，同步/空实现，无网络请求）
+          # FirebaseRemoteConfig 空实现
           cat > "app/src/main/java/com/google/firebase/remoteconfig/FirebaseRemoteConfig.kt" << 'EOF'
           package com.google.firebase.remoteconfig
           import com.google.firebase.Firebase
@@ -109,14 +132,14 @@ jobs:
               companion object {
                   fun getInstance(): FirebaseRemoteConfig = FirebaseRemoteConfig()
               }
-              fun getString(key: String): String = "" // 空实现，返回空字符串
+              fun getString(key: String): String = ""
               fun getLong(key: String): Long = 0L
               fun getBoolean(key: String): Boolean = false
               fun getDouble(key: String): Double = 0.0
-              fun setConfigSettingsAsync(settings: FirebaseRemoteConfigSettings) {} // 空实现
-              fun setDefaultsAsync(defaults: Map<String, Any>) {} // 空实现
-              fun setDefaultsAsync(resourceId: Int) {} // 空实现
-              fun fetchAndActivate(): Boolean = true // 空实现，返回true
+              fun setConfigSettingsAsync(settings: FirebaseRemoteConfigSettings) {}
+              fun setDefaultsAsync(defaults: Map<String, Any>) {}
+              fun setDefaultsAsync(resourceId: Int) {}
+              fun fetchAndActivate(): Boolean = true
               fun activate(): Boolean = true
               val all: Map<String, Any> = emptyMap()
           }
@@ -143,7 +166,7 @@ jobs:
               get() = FirebaseRemoteConfig.getInstance()
           EOF
 
-          # 3. FirebaseCrashlytics 类 + 扩展属性（空实现，无崩溃上报）
+          # FirebaseCrashlytics 空实现
           cat > "app/src/main/java/com/google/firebase/crashlytics/FirebaseCrashlytics.kt" << 'EOF'
           package com.google.firebase.crashlytics
           import com.google.firebase.Firebase
@@ -152,7 +175,7 @@ jobs:
               companion object {
                   fun getInstance(): FirebaseCrashlytics = FirebaseCrashlytics()
               }
-              fun logException(e: Throwable) {} // 空实现，无上报
+              fun logException(e: Throwable) {}
               fun log(msg: String) {}
               fun setUserId(id: String) {}
               fun setCustomKey(key: String, value: String) {}
@@ -166,7 +189,7 @@ jobs:
               get() = FirebaseCrashlytics.getInstance()
           EOF
 
-          # 4. FirebaseApp 和 Firebase 对象（兼容依赖注入）
+          # FirebaseApp 和 Firebase 对象
           cat > "app/src/main/java/com/google/firebase/FirebaseApp.kt" << 'EOF'
           package com.google.firebase
           import android.content.Context
@@ -185,127 +208,169 @@ jobs:
           }
           EOF
           
-          echo "✅ Created zero-dependency Firebase stub classes (for compile compatibility only)"
+          echo "✅ Created zero-dependency Firebase stub classes"
 
-      ##### 彻底移除所有 Firebase 和 Google 服务依赖 #####
+      ##### 去跟踪库：移除所有 Firebase 和 Google 服务依赖 #####
       - name: Remove all Firebase and Google Services dependencies
         run: |
           APP_BUILD_FILE="app/build.gradle.kts"
           ROOT_BUILD_FILE="build.gradle.kts"
           TOML_FILE="gradle/libs.versions.toml"
           
-          # 1. 移除 app/build.gradle.kts 中的 Firebase 库引用
-          sed -i '/platform(libs\.firebase\.bom)/d' "$APP_BUILD_FILE"
-          sed -i '/implementation(libs\.firebase\.[^)]*)/d' "$APP_BUILD_FILE"
+          # 移除 app/build.gradle.kts 中的 Firebase BOM 和库
+          if [ -f "$APP_BUILD_FILE" ]; then
+            sed -i '/platform(libs\.firebase\.bom)/d' "$APP_BUILD_FILE"
+            sed -i '/implementation(libs\.firebase\.[^)]*)/d' "$APP_BUILD_FILE"
+            sed -i '/alias(libs.plugins.google.services)/d' "$APP_BUILD_FILE"
+            sed -i '/alias(libs.plugins.firebase.crashlytics)/d' "$APP_BUILD_FILE"
+            echo "✅ Cleaned $APP_BUILD_FILE"
+          fi
           
-          # 2. 移除所有 Firebase/Google 插件引用
-          grep -v "alias(libs.plugins.google.services)" "$APP_BUILD_FILE" > "$APP_BUILD_FILE.tmp"
-          mv "$APP_BUILD_FILE.tmp" "$APP_BUILD_FILE"
-          grep -v "alias(libs.plugins.firebase.crashlytics)" "$APP_BUILD_FILE" > "$APP_BUILD_FILE.tmp"
-          mv "$APP_BUILD_FILE.tmp" "$APP_BUILD_FILE"
+          # 移除根目录 build.gradle.kts 中的插件
+          if [ -f "$ROOT_BUILD_FILE" ]; then
+            sed -i '/alias(libs.plugins.google.services)/d' "$ROOT_BUILD_FILE"
+            sed -i '/alias(libs.plugins.firebase.crashlytics)/d' "$ROOT_BUILD_FILE"
+            echo "✅ Cleaned $ROOT_BUILD_FILE"
+          fi
           
-          # 3. 处理根目录 build.gradle.kts
-          grep -v "alias(libs.plugins.google.services)" "$ROOT_BUILD_FILE" > "$ROOT_BUILD_FILE.tmp"
-          mv "$ROOT_BUILD_FILE.tmp" "$ROOT_BUILD_FILE"
-          grep -v "alias(libs.plugins.firebase.crashlytics)" "$ROOT_BUILD_FILE" > "$ROOT_BUILD_FILE.tmp"
-          mv "$ROOT_BUILD_FILE.tmp" "$ROOT_BUILD_FILE"
-          
-          # 4. 从 libs.versions.toml 中移除 Firebase 相关定义
-          grep -v 'firebase-bom = { group = "com.google.firebase"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v 'firebase-analytics = { group = "com.google.firebase"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v 'firebase-crashlytics = { group = "com.google.firebase"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v 'firebase-config = { group = "com.google.firebase"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v 'google-services = { id = "com.google.gms.google.services"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v 'firebase-crashlytics = { id = "com.google.firebase.crashlytics"' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v '^firebase-bom = "' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v '^firebase-crashlytics = "' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          grep -v '^google-services = "' "$TOML_FILE" > "$TOML_FILE.tmp"
-          mv "$TOML_FILE.tmp" "$TOML_FILE"
-          
-          echo "✅ All Firebase dependencies and plugins removed"
+          # 从 libs.versions.toml 移除 Firebase 定义
+          if [ -f "$TOML_FILE" ]; then
+            sed -i '/firebase-bom = { group = "com.google.firebase"/d' "$TOML_FILE"
+            sed -i '/firebase-analytics = { group = "com.google.firebase"/d' "$TOML_FILE"
+            sed -i '/firebase-crashlytics = { group = "com.google.firebase"/d' "$TOML_FILE"
+            sed -i '/firebase-config = { group = "com.google.firebase"/d' "$TOML_FILE"
+            sed -i '/google-services = { id = "com.google.gms.google.services"/d' "$TOML_FILE"
+            sed -i '/firebase-crashlytics = { id = "com.google.firebase.crashlytics"/d' "$TOML_FILE"
+            sed -i '/^firebase-bom = "/d' "$TOML_FILE"
+            sed -i '/^firebase-crashlytics = "/d' "$TOML_FILE"
+            sed -i '/^google-services = "/d' "$TOML_FILE"
+            echo "✅ Cleaned $TOML_FILE"
+          fi
 
-      ##### 清理 FirebaseAnalytics 跟踪相关引用（核心：移除跟踪功能） #####
+      ##### 去跟踪库：清理 FirebaseAnalytics 跟踪引用 #####
       - name: Remove FirebaseAnalytics tracking references
         run: |
-          # 1. 清理 ChatVM.kt 中的 analytics 注入和日志跟踪
+          # 清理 ChatVM.kt 中的 analytics 注入
           CHAT_VM_FILE="app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt"
-          # 移除构造函数中的 analytics 参数
-          sed -i 's/, private val analytics: FirebaseAnalytics,//' "$CHAT_VM_FILE"
-          # 移除所有 analytics.logEvent 跟踪调用
-          sed -i '/analytics\.logEvent/d' "$CHAT_VM_FILE"
+          if [ -f "$CHAT_VM_FILE" ]; then
+            sed -i 's/, private val analytics: FirebaseAnalytics,//' "$CHAT_VM_FILE"
+            sed -i '/analytics\.logEvent/d' "$CHAT_VM_FILE"
+            echo "✅ Cleaned ChatVM.kt"
+          fi
           
-          # 2. 清理 AppModule.kt 中的 FirebaseAnalytics 依赖注入（不再提供 Analytics 实例）
+          # 清理 AppModule.kt 中的 FirebaseAnalytics 依赖注入
           APP_MODULE_FILE="app/src/main/java/me/rerere/rikkahub/di/AppModule.kt"
-          sed -i '/single { Firebase.analytics }/d' "$APP_MODULE_FILE"
-          
-          echo "✅ Cleaned all FirebaseAnalytics tracking references"
+          if [ -f "$APP_MODULE_FILE" ]; then
+            sed -i '/single { Firebase.analytics }/d' "$APP_MODULE_FILE"
+            echo "✅ Cleaned AppModule.kt"
+          fi
 
-      ##### 添加 Guava 依赖 #####
+      ##### 去跟踪库：添加 Guava 依赖（Mermaid.kt 需要） #####
       - name: Add Guava dependency
         run: |
           BUILD_FILE="app/build.gradle.kts"
-          sed -i '/dependencies {/a \    implementation("com.google.guava:guava:33.3.1-android")' "$BUILD_FILE"
-          echo "✅ Added Guava dependency"
+          if [ -f "$BUILD_FILE" ]; then
+            # 检查是否已存在 guava，避免重复添加
+            if ! grep -q "com.google.guava:guava" "$BUILD_FILE"; then
+              sed -i '/dependencies {/a \    implementation("com.google.guava:guava:33.3.1-android")' "$BUILD_FILE"
+              echo "✅ Added Guava dependency"
+            else
+              echo "ℹ️ Guava already exists"
+            fi
+          fi
 
-      ##### 改包名：lastchat.rikkafork.cocolal -> lastchat.ll3 #####
-      - name: Change package to lastchat.ll3
+      ##### 准备构建文件（签名配置） #####
+      - name: Prepare build files
         run: |
-          sed -i 's/applicationId = "lastchat.rikkafork.cocolal"/applicationId = "lastchat.ll3"/' app/build.gradle.kts
-          echo "✅ Package: lastchat.ll3"
-
-      ##### 创建空的 google-services.json（兼容构建） #####
-      - name: Create placeholder google-services.json
-        run: |
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
-          mkdir -p "app/src/$FLAVOR"
-          cat > "app/src/$FLAVOR/google-services.json" << 'EOF'
-          {"project_info":{"project_number":"0","project_id":"dummy","storage_bucket":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"0","android_client_info":{"package_name":"dummy"}},"oauth_client":[],"api_key":[],"services":{}}],"configuration_version":"1"}
-          EOF
-          echo "✅ Created placeholder google-services.json for $FLAVOR"
-
-      - name: Prepare signing config
-        run: |
+          # 解码 base64 编码的 keystore 文件
           if [ -n "${{ secrets.KEY_BASE64 }}" ]; then
             echo "${{ secrets.KEY_BASE64 }}" | base64 -d > app/app.key
+            echo "✅ Keystore prepared"
           fi
-
+          
+          # 写入签名配置到 local.properties
           if [ -n "${{ secrets.SIGNING_CONFIG }}" ]; then
             echo "${{ secrets.SIGNING_CONFIG }}" > local.properties
+            echo "✅ Signing config prepared"
           fi
+          
+          # 创建空的 google-services.json（兼容构建，无实际跟踪）
+          mkdir -p app/src/main
+          cat > app/src/main/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "0",
+              "project_id": "degoogled-build",
+              "storage_bucket": "degoogled-build"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "0",
+                  "android_client_info": {
+                    "package_name": "me.rerere.rikkahub"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [],
+                "services": {}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+          echo "✅ Created dummy google-services.json"
 
-      - name: Gradle Build Release
+      ##### Gradle 构建 Release #####
+      - name: Gradle Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      ##### 上传构建产物 #####
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: artifacts
+          path: app/build/outputs/apk/release/*.apk
+
+      ##### 创建 GitHub Release #####
+      - name: Create GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          chmod +x gradlew
+          tag="${{ steps.tag.outputs.next_tag }}"
+          apk_dir="app/build/outputs/apk/release"
+          
+          echo "APK directory contents:"
+          ls -la "${apk_dir}"
+          
+          apk_count="$(ls -1 ${apk_dir}/*.apk 2>/dev/null | wc -l | tr -d ' ')"
+          echo "Found ${apk_count} APK(s)."
+          
+          if [ "$apk_count" -eq 0 ]; then
+            echo "❌ No APK files found!"
+            exit 1
+          fi
+          
+          gh release create "${tag}" ${apk_dir}/*.apk \
+            --title "${tag} (De-Googled)" \
+            --target "${GITHUB_SHA}" \
+            --notes "🔒 **De-Googled Build**
+          
+          This release has been built with all tracking services removed and auto-updates disabled:
+          
+          **Privacy Protections:**
+          - ❌ Firebase Analytics disabled
+          - ❌ Firebase Crashlytics disabled  
+          - ❌ Firebase Remote Config disabled
+          - 🚫 **Auto-update checker disabled** (build-time injection)
+          
+          **Build Info:**
+          - Version: ${tag}
+          - Commit: ${GITHUB_SHA::7}
+          - Built with: $(date -u +'%Y-%m-%d %H:%M UTC')"
 
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
-          FLAVOR_CAP="${FLAVOR^}"
-          TASK="assemble${FLAVOR_CAP}Release"
-
-          echo "Building release APK ($TASK)..."
-          ./gradlew ":app:$TASK" --no-daemon --stacktrace
-
-      - name: Upload build output (artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apk-${{ steps.flavor.outputs.flavor }}
-          path: app/build/outputs/apk/${{ steps.flavor.outputs.flavor }}/release/*.apk
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          generate_release_notes: true
-          files: |
-            app/build/outputs/apk/${{ steps.flavor.outputs.flavor }}/release/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
