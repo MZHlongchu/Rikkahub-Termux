@@ -279,6 +279,13 @@ jobs:
             fi
           fi
 
+
+      ##### 改包名：me.rerere.rikkahub.ywxk -> me.rerere.rikkahub.ywxk.none #####
+      - name: Change package to me.rerere.rikkahub.ywxk.none
+        run: |
+          sed -i 's/applicationId = "me.rerere.rikkahub.ywxk"/applicationId = "me.rerere.rikkahub.ywxk.none"/' app/build.gradle.kts
+          echo "✅ Package: me.rerere.rikkahub.ywxk.none"
+
       ##### 准备构建文件（签名配置） #####
       - name: Prepare build files
         run: |
