@@ -1038,4 +1038,30 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="webview_page_refresh">刷新</string>
   <string name="webview_page_forward">前进</string>
   <string name="webview_page_more_options">更多选项</string>
+  <string name="setting_page_web_server_localhost_only">仅本地主机</string>
+  <string name="setting_page_web_server_localhost_only_desc">仅监听 localhost (127.0.0.1)，禁用 LAN 和 mDNS 访问</string>
+  <string name="setting_android_integration">Android 集成</string>
+  <string name="setting_android_integration_desc">文本选择弹窗设置</string>
+  <string name="text_selection_menu_label">询问 RikkaHub</string>
+  <string name="text_selection_translate">翻译</string>
+  <string name="text_selection_explain">解释</string>
+  <string name="text_selection_summarize">总结</string>
+  <string name="text_selection_ask">提问</string>
+  <string name="text_selection_custom_placeholder">就此文本提问…</string>
+  <string name="text_selection_copy">复制</string>
+  <string name="text_selection_continue_chat">在应用中继续</string>
+  <string name="text_selection_generating">正在生成…</string>
+  <string name="text_selection_try_it">试一试</string>
+  <string name="text_selection_setup_instructions">在任意应用中选中文本，然后在文本工具栏中点击“Ask RikkaHub”。</string>
+  <string name="text_selection_demo_text">这是示例文本。长按并选中它以测试选择工具栏的集成。</string>
+  <string name="text_selection_use_default">使用默认助理</string>
+  <string name="text_selection_assistant">助手</string>
+  <string name="text_selection_translate_language">翻译成</string>
+  <string name="text_selection_actions">快速操作</string>
+  <string name="text_selection_edit_action">编辑操作</string>
+  <string name="text_selection_action_name">操作名称</string>
+  <string name="text_selection_action_prompt">提示模板</string>
+  <string name="text_selection_reset_actions_desc">恢复内置操作预设</string>
+  <string name="text_selection_no_actions_enabled">未启用任何快速操作。</string>
 </resources>
+

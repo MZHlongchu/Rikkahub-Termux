@@ -66,13 +66,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.core.net.toUri
-import com.composables.icons.lucide.Check
-import com.composables.icons.lucide.Lucide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.rikkahub.ui.components.table.DataTable
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
@@ -371,7 +371,7 @@ private fun MarkdownNode(
                 ) {
                     if (isChecked) {
                         Icon(
-                            imageVector = Lucide.Check,
+                            imageVector = HugeIcons.Tick01,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -745,7 +745,7 @@ private fun Paragraph(
     }
 
     val paragraphModifier = modifier.then(
-        if (node.nextSibling() != null) Modifier.padding(bottom = 16.dp)
+        if (node.nextSibling() != null) Modifier.padding(bottom = LocalTextStyle.current.fontSize.toDp())
         else Modifier
     )
 
@@ -768,9 +768,7 @@ private fun Paragraph(
 
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
-    FlowRow(
-        modifier = paragraphModifier
-    ) {
+    FlowRow(modifier = paragraphModifier) {
         val annotatedString = remember(content, enableLatexRendering) {
             buildAnnotatedString {
                 node.children.fastForEach { child ->

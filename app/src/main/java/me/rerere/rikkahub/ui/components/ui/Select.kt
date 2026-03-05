@@ -22,9 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
-import com.composables.icons.lucide.ChevronDown
-import com.composables.icons.lucide.ChevronUp
-import com.composables.icons.lucide.Lucide
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.ArrowUp01
 
 @Composable
 fun <T> Select(
@@ -65,7 +65,7 @@ fun <T> Select(
                 )
                 trailing()
                 Icon(
-                    imageVector = if (expanded) Lucide.ChevronUp else Lucide.ChevronDown,
+                    imageVector = if (expanded) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
                     contentDescription = "expand"
                 )
             }

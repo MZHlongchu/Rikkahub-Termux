@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -59,11 +58,6 @@ import androidx.compose.ui.util.fastForEachIndexed
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import com.composables.icons.lucide.File
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Music
-import com.composables.icons.lucide.Terminal
-import com.composables.icons.lucide.Video
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.serialization.json.jsonArray
@@ -75,13 +69,17 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyUIMessage
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.File02
+import me.rerere.hugeicons.stroke.MusicNote03
+import me.rerere.hugeicons.stroke.Video01
+import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.AssistantRegexApplyPhase
-import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
@@ -310,30 +308,44 @@ private fun MessagePartsBlock(
         when (block) {
             is MessagePartBlock.ThinkingBlock -> {
                 if (block.steps.isNotEmpty()) {
-                    ChainOfThought(
-                        modifier = Modifier.animateContentSize(),
-                        steps = block.steps,
-                    ) { step ->
-                        when (step) {
-                            is ThinkingStep.ReasoningStep -> {
-                                key(step.reasoning.createdAt) {
-                                    ChatMessageReasoningStep(
-                                        reasoning = step.reasoning,
-                                        model = model,
-                                        assistant = assistant,
-                                        messageDepthFromEnd = messageDepthFromEnd,
-                                    )
+                    val hasToolSteps = block.steps.any { it is ThinkingStep.ToolStep }
+                    if (hasToolSteps) {
+                        ChainOfThought(
+                            modifier = Modifier.animateContentSize(),
+                            steps = block.steps,
+                        ) { step ->
+                            when (step) {
+                                is ThinkingStep.ReasoningStep -> {
+                                    key(step.reasoning.createdAt) {
+                                        ChatMessageReasoningStep(
+                                            reasoning = step.reasoning,
+                                            model = model,
+                                            assistant = assistant,
+                                            messageDepthFromEnd = messageDepthFromEnd,
+                                        )
+                                    }
+                                }
+
+                                is ThinkingStep.ToolStep -> {
+                                    key(step.tool.toolCallId.ifBlank { step.hashCode().toString() }) {
+                                        ChatMessageToolStep(
+                                            tool = step.tool,
+                                            loading = loading && !step.tool.isExecuted,
+                                            onToolApproval = onToolApproval,
+                                        )
+                                    }
                                 }
                             }
-
-                            is ThinkingStep.ToolStep -> {
-                                key(step.tool.toolCallId.ifBlank { step.hashCode().toString() }) {
-                                    ChatMessageToolStep(
-                                        tool = step.tool,
-                                        loading = loading && !step.tool.isExecuted,
-                                        onToolApproval = onToolApproval,
-                                    )
-                                }
+                        }
+                    } else {
+                        block.steps.filterIsInstance<ThinkingStep.ReasoningStep>().fastForEach { step ->
+                            key(step.reasoning.createdAt) {
+                                SimpleReasoningStep(
+                                    reasoning = step.reasoning,
+                                    model = model,
+                                    assistant = assistant,
+                                    messageDepthFromEnd = messageDepthFromEnd,
+                                )
                             }
                         }
                     }
@@ -424,7 +436,7 @@ private fun MessagePartsBlock(
                         shape = RoundedCornerShape(8.dp),
                     ) {
                         Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                            Icon(Lucide.Video, null)
+                            Icon(HugeIcons.Video01, null)
                         }
                     }
                 }
@@ -454,7 +466,7 @@ private fun MessagePartsBlock(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    imageVector = Lucide.Music,
+                                    imageVector = HugeIcons.MusicNote03,
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -516,7 +528,7 @@ private fun MessagePartsBlock(
 
                                     else -> {
                                         Icon(
-                                            imageVector = Lucide.File,
+                                            imageVector = HugeIcons.File02,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -620,7 +632,7 @@ private fun UserShellCommandCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = Lucide.Terminal,
+                    imageVector = HugeIcons.Wrench01,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.secondary
