@@ -153,10 +153,12 @@
   <string name="backup_page_export_desc">앱 데이터를 파일로 내보내기</string>
   <string name="backup_page_exporting">내보내는 중...</string>
   <string name="backup_page_files">파일</string>
-  <string name="backup_page_import_chatbox_desc">ChatBox 데이터 가져오기</string>
+  <string name="backup_page_import_chatbox_desc">ChatBox 공급자 구성 가져오기</string>
+  <string name="backup_page_import_cherry_studio_desc">Cherry Studio 공급자 설정 가져오기</string>
   <string name="backup_page_import_desc">로컬 백업 파일 가져오기</string>
   <string name="backup_page_import_export">로컬</string>
   <string name="backup_page_import_from_chatbox">ChatBox에서 가져오기</string>
+  <string name="backup_page_import_from_cherry_studio">Cherry Studio에서 가져오기</string>
   <string name="backup_page_import_from_other_app">다른 앱에서 가져오기</string>
   <string name="backup_page_importing">가져오는 중...</string>
   <string name="backup_page_loading_failed">백업 파일 로드 실패: %s</string>
@@ -1044,7 +1046,7 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="text_selection_continue_chat">앱에서 계속</string>
   <string name="text_selection_generating">생성 중…</string>
   <string name="text_selection_try_it">사용해 보기</string>
-  <string name="text_selection_setup_instructions">어떤 앱에서든 텍스트를 선택한 뒤 텍스트 도구 모음에서 “Ask RikkaHub”를 탭하세요.</string>
+  <string name="text_selection_setup_instructions">어떤 앱에서든 텍스트를 선택한 뒤 텍스트 도구 모음에서 "Ask RikkaHub"를 탭하세요.</string>
   <string name="text_selection_demo_text">샘플 텍스트입니다. 길게 눌러 선택해 선택 도구 모음 연동을 테스트해 보세요.</string>
   <string name="text_selection_use_default">기본 어시스턴트 사용</string>
   <string name="text_selection_assistant">어시스턴트</string>
@@ -1053,7 +1055,11 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="text_selection_edit_action">동작 편집</string>
   <string name="text_selection_action_name">작업 이름</string>
   <string name="text_selection_action_prompt">프롬프트 템플릿</string>
+  <string name="text_selection_action_model">모델</string>
+  <string name="text_selection_action_model_desc">이 작업에 사용할 모델을 지정합니다. 설정하지 않으면 어시스턴트 또는 기본 채팅 모델을 사용합니다.</string>
   <string name="text_selection_reset_actions_desc">기본 제공 동작 프리셋을 복원합니다</string>
   <string name="text_selection_no_actions_enabled">사용할 수 있는 빠른 작업이 없습니다.</string>
+  <string name="setting_display_page_show_date_below_name_title">이름 아래 날짜 표시</string>
+  <string name="setting_display_page_show_date_below_name_desc">닉네임 또는 모델 이름 아래에 메시지 날짜를 표시할지 여부</string>
 </resources>
 

@@ -153,10 +153,12 @@
   <string name="backup_page_export_desc">导出APP数据为文件</string>
   <string name="backup_page_exporting">正在导出...</string>
   <string name="backup_page_files">文件</string>
-  <string name="backup_page_import_chatbox_desc">导入ChatBox数据</string>
+  <string name="backup_page_import_chatbox_desc">导入ChatBox提供商配置</string>
+  <string name="backup_page_import_cherry_studio_desc">导入Cherry Studio提供商配置</string>
   <string name="backup_page_import_desc">导入本地备份文件</string>
   <string name="backup_page_import_export">本地</string>
   <string name="backup_page_import_from_chatbox">从ChatBox导入</string>
+  <string name="backup_page_import_from_cherry_studio">从Cherry Studio导入</string>
   <string name="backup_page_import_from_other_app">从其他APP导入</string>
   <string name="backup_page_importing">正在恢复...</string>
   <string name="backup_page_loading_failed">加载备份文件失败: %s</string>
@@ -388,6 +390,8 @@
   <string name="setting_display_page_show_message_jumper_title">消息导航按钮</string>
   <string name="setting_display_page_show_model_name_desc">是否在聊天消息中显示模型名称</string>
   <string name="setting_display_page_show_model_name_title">显示模型名称</string>
+  <string name="setting_display_page_show_date_below_name_desc">是否在昵称或模型名称下方显示消息日期</string>
+  <string name="setting_display_page_show_date_below_name_title">显示昵称下方日期</string>
   <string name="setting_display_page_show_token_usage_desc">显示token用量和消息数量</string>
   <string name="setting_display_page_show_token_usage_title">显示Token和上下文统计</string>
   <string name="setting_display_page_show_updates_desc">是否显示应用更新通知</string>
@@ -1061,6 +1065,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="text_selection_edit_action">编辑操作</string>
   <string name="text_selection_action_name">操作名称</string>
   <string name="text_selection_action_prompt">提示模板</string>
+  <string name="text_selection_action_model">模型</string>
+  <string name="text_selection_action_model_desc">为该操作指定模型。未设置时使用助手或默认对话模型。</string>
   <string name="text_selection_reset_actions_desc">恢复内置操作预设</string>
   <string name="text_selection_no_actions_enabled">未启用任何快速操作。</string>
 </resources>

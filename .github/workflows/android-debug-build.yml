@@ -1,0 +1,75 @@
+name: Android Debug Build
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: Prepare Google Services config
+        env:
+          PLACEHOLDER_GOOGLE_SERVICES_JSON: |
+            {
+              "project_info": {
+                "project_number": "000000000000",
+                "project_id": "ci-placeholder-project",
+                "storage_bucket": "ci-placeholder-project.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                    "android_client_info": {
+                      "package_name": "me.rerere.rikkahub.ywxk"
+                    }
+                  },
+                  "api_key": [
+                    {
+                      "current_key": "placeholder"
+                    }
+                  ]
+                },
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:000000000000:android:1111111111111111111111",
+                    "android_client_info": {
+                      "package_name": "me.rerere.rikkahub.ywxk.debug"
+                    }
+                  },
+                  "api_key": [
+                    {
+                      "current_key": "placeholder"
+                    }
+                  ]
+                }
+              ],
+              "configuration_version": "1"
+            }
+        run: |
+          printf '%s' "${PLACEHOLDER_GOOGLE_SERVICES_JSON}" > app/google-services.json
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
