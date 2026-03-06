@@ -1069,5 +1069,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="text_selection_action_model_desc">为该操作指定模型。未设置时使用助手或默认对话模型。</string>
   <string name="text_selection_reset_actions_desc">恢复内置操作预设</string>
   <string name="text_selection_no_actions_enabled">未启用任何快速操作。</string>
+  <string name="assistant_page_local_tools_ask_user_title">询问用户</string>
+  <string name="assistant_page_local_tools_ask_user_desc">允许 AI 向你提问以获得更多信息</string>
+  <string name="chat_message_tool_ask_questions">询问 %d 个问题</string>
+  <string name="chat_message_tool_submit">提交</string>
+  <string name="chat_page_message_count">%d 条消息</string>
 </resources>
-
