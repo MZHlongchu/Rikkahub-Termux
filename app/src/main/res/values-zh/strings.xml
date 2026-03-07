@@ -114,6 +114,11 @@
   <string name="assistant_page_tab_memory">记忆</string>
   <string name="assistant_page_tab_prompt">提示词</string>
   <string name="assistant_page_tab_request">自定义请求</string>
+  <string name="assistant_page_openai_reasoning_effort">OpenAI 推理参数</string>
+  <string name="assistant_page_openai_reasoning_effort_desc">覆盖 Chat Completions 的 `reasoning_effort` 和 Responses 的 `reasoning.effort`。</string>
+  <string name="assistant_page_openai_reasoning_effort_hint">例如: high / low / auto</string>
+  <string name="assistant_page_openai_reasoning_effort_effective">留空时跟随思考预算。Chat Completions: %1$s，Responses: %2$s</string>
+  <string name="assistant_page_openai_reasoning_effort_not_sent">不发送</string>
   <string name="assistant_page_tags">标签</string>
   <string name="assistant_page_temperature">温度</string>
   <string name="assistant_page_template_preview">预览:</string>
@@ -1074,4 +1079,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="chat_message_tool_ask_questions">询问 %d 个问题</string>
   <string name="chat_message_tool_submit">提交</string>
   <string name="chat_page_message_count">%d 条消息</string>
+  <string name="update_card_check_failed">检查更新失败</string>
+  <string name="update_card_unknown_error">未知错误</string>
+  <string name="update_card_new_version_found">发现新版本 %s</string>
+  <string name="update_card_close">关闭</string>
+  <string name="update_card_downloading">正在下载，请在状态栏查看进度</string>
 </resources>

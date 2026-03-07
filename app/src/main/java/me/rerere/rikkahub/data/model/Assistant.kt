@@ -38,6 +38,7 @@ data class Assistant(
     val customBodies: List<CustomBody> = emptyList(),
     val mcpServers: Set<Uuid> = emptySet(),
     val localTools: List<LocalToolOption> = listOf(LocalToolOption.TimeInfo),
+    val localToolPrompts: Map<String, String> = emptyMap(),
     val termuxNeedsApproval: Boolean = true,
     val background: String? = null,
     val backgroundOpacity: Float = 1.0f,
@@ -45,6 +46,7 @@ data class Assistant(
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
     val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
+    val openAIReasoningEffort: String = "",
 )
 
 @Serializable
