@@ -3,7 +3,7 @@ name: Android Lint
 on:
   push:
     branches:
-      - "**"
+      - "*w*"
   workflow_dispatch:
 
 permissions:
