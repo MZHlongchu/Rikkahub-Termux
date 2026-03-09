@@ -1073,5 +1073,34 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="update_card_downloading">다운로드 중입니다. 진행 상황은 상태 표시줄을 확인하세요.</string>
   <string name="setting_display_page_use_app_icon_style_loading_indicator_title">앱 아이콘 스타일 로딩 표시기 사용</string>
   <string name="setting_display_page_use_app_icon_style_loading_indicator_desc">기본 원형 로딩 표시기 대신 앱 아이콘 애니메이션을 사용합니다</string>
+  <string name="setting_termux_page_pty_yield_time_title">초기 대기 시간 (ms)</string>
+  <string name="setting_termux_page_pty_max_output_chars_title">최대 출력 문자 수</string>
+  <string name="setting_termux_page_pty_desc">tty=true 및 write_stdin이 설정된 termux_exec에 적용됩니다.</string>
+  <string name="setting_termux_page_pty_title">대화형 세션 조정</string>
+  <string name="assistant_page_openai_reasoning_effort">OpenAI 추론 강도</string>
+  <string name="assistant_page_openai_reasoning_effort_desc">Chat Completions의 `reasoning_effort` 및 Responses의 `reasoning.effort` 값을 재정의합니다.</string>
+  <string name="assistant_page_openai_reasoning_effort_hint">high / low / auto</string>
+  <string name="assistant_page_openai_reasoning_effort_effective">비워 두면 thinking budget을 따릅니다. Chat Completions: %1$s, Responses: %2$s</string>
+  <string name="assistant_page_openai_reasoning_effort_not_sent">전송 안 함</string>
+  <string name="setting_termux_page_run_command_permission_title">명령 실행 권한</string>
+  <string name="setting_termux_page_run_command_permission_desc">Termux 도구가 직접 명령을 실행할 수 있도록 이 앱에 com.termux.permission.RUN_COMMAND 권한을 부여합니다.</string>
+  <string name="setting_termux_page_run_command_permission_usage">이 앱에서 com.termux.app.RunCommandService를 호출하려면 필요합니다.</string>
+  <string name="setting_termux_page_run_command_permission_granted">상태: 허용됨</string>
+  <string name="setting_termux_page_run_command_permission_not_granted">상태: 미허용</string>
+  <string name="setting_termux_page_run_command_permission_action">허용</string>
+  <string name="setting_termux_page_open_termux">Termux 열기</string>
+  <string name="setting_termux_page_open_termux_failed">Termux가 설치되어 있지 않습니다.</string>
+  <string name="error_title_send_message">메시지 전송에 실패했습니다</string>
+  <string name="error_title_regenerate_message">메시지 재생성에 실패했습니다</string>
+  <string name="error_title_tool_approval">도구 호출 처리에 실패했습니다</string>
+  <string name="error_title_tool_unavailable">도구를 사용할 수 없습니다</string>
+  <string name="error_title_generation">메시지 생성에 실패했습니다</string>
+  <string name="error_title_generate_title">자동 제목 생성에 실패했습니다</string>
+  <string name="error_title_translate_message">메시지 번역에 실패했습니다</string>
+  <string name="error_title_compress_conversation">대화 압축에 실패했습니다</string>
+  <string name="error_title_operation">작업에 실패했습니다</string>
+  <string name="save">저장</string>
+  <string name="reset">초기화</string>
+  <string name="enabled">사용</string>
 </resources>
 
