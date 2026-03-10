@@ -13,8 +13,6 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -43,11 +42,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -58,8 +57,9 @@ import androidx.compose.ui.window.DialogWindowProvider
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowExpandDiagonal01
 import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.rikkahub.ui.components.webview.WebContent
 import me.rerere.rikkahub.ui.components.webview.WebView
-import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
+import me.rerere.rikkahub.ui.components.webview.WebViewState
 import me.rerere.rikkahub.utils.toCssHex
 
 private const val MIN_PREVIEW_HEIGHT_DP = 10
@@ -67,7 +67,10 @@ private const val MIN_PREVIEW_HEIGHT_DP = 10
 private const val INITIAL_PREVIEW_HEIGHT_DP = 180
 
 private const val EXPANDED_PREVIEW_ANIMATION_MS = 280
-private const val EXPANDED_PREVIEW_BLUR_RADIUS = 72
+private const val EXPANDED_PREVIEW_BLUR_RADIUS = 96
+private const val RENDERED_CODE_BLOCK_BASE_URL = "https://rikkahub.local"
+private const val RENDERED_CODE_BLOCK_MIME_TYPE = "text/html"
+private const val RENDERED_CODE_BLOCK_ENCODING = "utf-8"
 
 private class CodeBlockRenderBridge(
     private val onHeightChanged: (Int) -> Unit,
@@ -90,39 +93,59 @@ private class CodeBlockRenderBridge(
 
 @Composable
 private fun rememberRenderedCodeBlockWebViewState(
-    html: String,
+    initialHtml: String,
     interfaces: Map<String, Any> = emptyMap(),
-) = rememberWebViewState(
-    data = html,
-    baseUrl = "https://rikkahub.local",
-    mimeType = "text/html",
-    encoding = "utf-8",
-    interfaces = interfaces,
-    settings = {
-        builtInZoomControls = true
-        displayZoomControls = false
-        loadWithOverviewMode = true
-        useWideViewPort = true
-        javaScriptCanOpenWindowsAutomatically = true
-        mediaPlaybackRequiresUserGesture = false
+): WebViewState = remember(interfaces) {
+    WebViewState(
+        initialContent = WebContent.Data(
+            data = initialHtml,
+            baseUrl = RENDERED_CODE_BLOCK_BASE_URL,
+            mimeType = RENDERED_CODE_BLOCK_MIME_TYPE,
+            encoding = RENDERED_CODE_BLOCK_ENCODING,
+        ),
+        interfaces = interfaces,
+        settings = {
+            builtInZoomControls = true
+            displayZoomControls = false
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            javaScriptCanOpenWindowsAutomatically = true
+            mediaPlaybackRequiresUserGesture = false
+        }
+    )
+}
+
+private fun WebViewState.loadRenderedCodeBlockHtml(html: String) {
+    val currentContent = content as? WebContent.Data
+    if (
+        currentContent?.data == html &&
+        currentContent.baseUrl == RENDERED_CODE_BLOCK_BASE_URL &&
+        currentContent.mimeType == RENDERED_CODE_BLOCK_MIME_TYPE &&
+        currentContent.encoding == RENDERED_CODE_BLOCK_ENCODING
+    ) {
+        return
     }
-)
+
+    loadData(
+        data = html,
+        baseUrl = RENDERED_CODE_BLOCK_BASE_URL,
+        mimeType = RENDERED_CODE_BLOCK_MIME_TYPE,
+        encoding = RENDERED_CODE_BLOCK_ENCODING,
+    )
+}
 
 @Composable
 private fun ExpandedRenderedCodeBlockDialog(
-    html: String,
+    state: WebViewState,
     target: CodeBlockRenderTarget,
     onDismissed: () -> Unit,
 ) {
     var visible by remember { mutableStateOf(false) }
     var dismissing by remember { mutableStateOf(false) }
     val density = LocalDensity.current
-    val scrimInteractionSource = remember { MutableInteractionSource() }
-    val cardInteractionSource = remember { MutableInteractionSource() }
-    val expandedState = rememberRenderedCodeBlockWebViewState(html = html)
 
     val scrimAlpha by animateFloatAsState(
-        targetValue = if (visible) 0.28f else 0f,
+        targetValue = if (visible) 0.14f else 0f,
         animationSpec = tween(durationMillis = EXPANDED_PREVIEW_ANIMATION_MS),
         label = "expandedPreviewScrimAlpha",
     )
@@ -165,9 +188,10 @@ private fun ExpandedRenderedCodeBlockDialog(
     }
 
     Dialog(
-        onDismissRequest = ::requestDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(
             dismissOnClickOutside = false,
+            dismissOnBackPress = false,
             usePlatformDefaultWidth = false,
         )
     ) {
@@ -176,17 +200,12 @@ private fun ExpandedRenderedCodeBlockDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrimAlpha))
-                .clickable(
-                    interactionSource = scrimInteractionSource,
-                    indication = null,
-                    onClick = ::requestDismiss,
-                ),
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = scrimAlpha)),
             contentAlignment = Alignment.Center,
         ) {
-            Surface(
+            Box(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 32.dp)
+                    .padding(horizontal = 24.dp, vertical = 36.dp)
                     .fillMaxWidth()
                     .widthIn(max = 920.dp)
                     .fillMaxHeight(0.82f)
@@ -196,63 +215,79 @@ private fun ExpandedRenderedCodeBlockDialog(
                         scaleX = cardScale
                         scaleY = cardScale
                         translationY = with(density) { cardOffsetY.toPx() }
-                    }
-                    .clickable(
-                        interactionSource = cardInteractionSource,
-                        indication = null,
-                        onClick = {},
-                    ),
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                tonalElevation = 0.dp,
-                shadowElevation = 28.dp,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                ),
+                    },
             ) {
-                Column(
+                Surface(
                     modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 10.dp,
+                    border = BorderStroke(
+                        width = 0.8.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f),
+                    ),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f))
-                            .padding(start = 18.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
                     ) {
-                        Text(
-                            text = target.normalizedLanguage.uppercase(),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Box(modifier = Modifier.weight(1f))
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            IconButton(
-                                onClick = ::requestDismiss,
-                                modifier = Modifier.size(36.dp),
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                                border = BorderStroke(
+                                    width = 0.8.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f),
+                                ),
                             ) {
-                                Icon(HugeIcons.Cancel01, contentDescription = "Close preview")
+                                Text(
+                                    text = target.normalizedLanguage.uppercase(),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
-                    }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp),
-                    ) {
-                        WebView(
-                            state = expandedState,
-                            allowFocus = true,
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(RoundedCornerShape(20.dp)),
-                        )
+                                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 2.dp),
+                        ) {
+                            WebView(
+                                state = state,
+                                allowFocus = true,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(18.dp)),
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 12.dp, y = (-12).dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(
+                        width = 0.8.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f),
+                    ),
+                ) {
+                    IconButton(
+                        onClick = ::requestDismiss,
+                        modifier = Modifier.size(38.dp),
+                    ) {
+                        Icon(HugeIcons.Cancel01, contentDescription = "Close preview")
                     }
                 }
             }
@@ -301,20 +336,43 @@ internal fun WebRenderedCodeBlock(
     }
     val backgroundColor = MaterialTheme.colorScheme.surface.toCssHex()
     val textColor = MaterialTheme.colorScheme.onSurface.toCssHex()
-    val html = remember(target, code, backgroundColor, textColor) {
+    val inlineHtml = remember(target, code, backgroundColor, textColor) {
         CodeBlockRenderResolver.buildHtmlForWebView(
             target, code,
             backgroundColor = backgroundColor,
             textColor = textColor,
+            scrollMode = CodeBlockRenderScrollMode.AUTO_HEIGHT,
         )
     }
+    var expandedHtmlCache by remember(target, code, backgroundColor, textColor) { mutableStateOf<String?>(null) }
     var contentHeightDp by remember(renderSignature) { mutableIntStateOf(INITIAL_PREVIEW_HEIGHT_DP) }
+    var showExpandedPreview by remember(renderSignature) { mutableStateOf(false) }
+    val expandedPreviewVisible = rememberUpdatedState(showExpandedPreview)
     val renderBridge = remember(renderSignature) {
         CodeBlockRenderBridge { nextHeight ->
-            if (nextHeight != contentHeightDp) {
+            if (!expandedPreviewVisible.value && nextHeight != contentHeightDp) {
                 contentHeightDp = nextHeight
             }
         }
+    }
+    val webViewInterfaces = remember(renderBridge) {
+        mapOf(CODE_BLOCK_HEIGHT_BRIDGE_NAME to renderBridge)
+    }
+    val webViewState = rememberRenderedCodeBlockWebViewState(
+        initialHtml = inlineHtml,
+        interfaces = webViewInterfaces,
+    )
+
+    fun resolveExpandedHtml(): String {
+        val cachedHtml = expandedHtmlCache
+        if (cachedHtml != null) return cachedHtml
+        return CodeBlockRenderResolver.buildHtmlForWebView(
+            target = target,
+            code = code,
+            backgroundColor = backgroundColor,
+            textColor = textColor,
+            scrollMode = CodeBlockRenderScrollMode.SCROLLABLE,
+        ).also { expandedHtmlCache = it }
     }
 
     val animatedHeight by animateDpAsState(
@@ -322,55 +380,57 @@ internal fun WebRenderedCodeBlock(
         animationSpec = tween(durationMillis = 300),
         label = "codeBlockHeight",
     )
-    var showExpandedPreview by remember(renderSignature) { mutableStateOf(false) }
+    val activeHtml = if (showExpandedPreview) resolveExpandedHtml() else inlineHtml
 
-    val webViewState = rememberRenderedCodeBlockWebViewState(
-        html = html,
-        interfaces = mapOf(CODE_BLOCK_HEIGHT_BRIDGE_NAME to renderBridge),
-    )
+    LaunchedEffect(activeHtml) {
+        webViewState.loadRenderedCodeBlockHtml(activeHtml)
+    }
 
     key(renderSignature) {
         Box(
-            modifier = modifier
+            modifier = Modifier
+                .then(modifier)
                 .clip(RoundedCornerShape(12.dp))
                 .fillMaxWidth()
                 .height(animatedHeight),
         ) {
-            WebView(
-                state = webViewState,
-                allowFocus = false,
-                modifier = Modifier.fillMaxSize(),
-                onCreated = { webView ->
-                    webView.setOnTouchListener { view, event ->
-                        when (event?.actionMasked) {
-                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                                view.parent?.requestDisallowInterceptTouchEvent(true)
-                            }
+            if (!showExpandedPreview) {
+                WebView(
+                    state = webViewState,
+                    allowFocus = false,
+                    modifier = Modifier.fillMaxSize(),
+                    onCreated = { webView ->
+                        webView.setOnTouchListener { view, event ->
+                            when (event?.actionMasked) {
+                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                                }
 
-                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                view.parent?.requestDisallowInterceptTouchEvent(false)
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
                             }
+                            false
                         }
-                        false
                     }
-                }
-            )
+                )
 
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(10.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
-                shadowElevation = 10.dp,
-            ) {
-                IconButton(
-                    onClick = {
-                        showExpandedPreview = true
-                    },
-                    modifier = Modifier.size(36.dp),
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                    shadowElevation = 10.dp,
                 ) {
-                    Icon(HugeIcons.ArrowExpandDiagonal01, contentDescription = "Expand preview")
+                    IconButton(
+                        onClick = {
+                            showExpandedPreview = true
+                        },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(HugeIcons.ArrowExpandDiagonal01, contentDescription = "Expand preview")
+                    }
                 }
             }
         }
@@ -378,7 +438,7 @@ internal fun WebRenderedCodeBlock(
 
     if (showExpandedPreview) {
         ExpandedRenderedCodeBlockDialog(
-            html = html,
+            state = webViewState,
             target = target,
             onDismissed = {
                 showExpandedPreview = false

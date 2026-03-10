@@ -72,6 +72,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.rikkahub.data.datastore.shouldRenderCodeBlock
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.rikkahub.ui.components.table.DataTable
 import me.rerere.rikkahub.ui.context.LocalSettings
@@ -99,8 +100,12 @@ private val parser by lazy {
 
 private val INLINE_LATEX_REGEX = Regex("\\\\\\((.+?)\\\\\\)")
 private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MATCHES_ALL)
+private val PROTECTED_MARKDOWN_NODE_TYPES = setOf(
+    MarkdownElementTypes.CODE_BLOCK,
+    MarkdownElementTypes.CODE_FENCE,
+    MarkdownElementTypes.CODE_SPAN,
+)
 val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)
-private val CODE_BLOCK_REGEX = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
 private val BREAK_LINE_REGEX = Regex("(?i)<br\\s*/?>")
 private val PARAGRAPH_MARKDOWN_INLINE_TYPES = setOf(
     MarkdownElementTypes.INLINE_LINK,
@@ -113,38 +118,106 @@ private val PARAGRAPH_MARKDOWN_INLINE_TYPES = setOf(
     GFMElementTypes.INLINE_MATH,
 )
 
-// 预处理markdown内容
-private fun preProcess(content: String): String {
-    // 先找出所有代码块的位置
-    val codeBlocks = mutableListOf<IntRange>()
-    CODE_BLOCK_REGEX.findAll(content).forEach { match ->
-        codeBlocks.add(match.range)
+private data class MarkdownReplacement(
+    val range: IntRange,
+    val replacement: String,
+)
+
+// 预处理 markdown 内容，将 \( ... \) / \[ ... \] 转为 markdown math，
+// 同时基于 AST 保护 code span / fenced code / indented code block 中的原文。
+internal fun preProcessMarkdownContent(content: String): String {
+    if (!content.contains("\\(") && !content.contains("\\[")) {
+        return content
     }
 
-    // 检查位置是否在代码块内
-    fun isInCodeBlock(position: Int): Boolean {
-        return codeBlocks.any { range -> position in range }
-    }
+    val protectedRanges = collectProtectedMarkdownRanges(content)
+    val replacements = mutableListOf<MarkdownReplacement>()
 
-    // 替换行内公式 \( ... \) 到 $ ... $，但跳过代码块内的内容
-    var result = INLINE_LATEX_REGEX.replace(content) { matchResult ->
-        if (isInCodeBlock(matchResult.range.first)) {
-            matchResult.value // 保持原样
-        } else {
-            "$" + matchResult.groupValues[1] + "$"
+    INLINE_LATEX_REGEX.findAll(content).forEach { match ->
+        if (!protectedRanges.overlaps(match.range)) {
+            replacements += MarkdownReplacement(
+                range = match.range,
+                replacement = "$" + match.groupValues[1] + "$"
+            )
         }
     }
 
-    // 替换块级公式 \[ ... \] 到 $$ ... $$，但跳过代码块内的内容
-    result = BLOCK_LATEX_REGEX.replace(result) { matchResult ->
-        if (isInCodeBlock(matchResult.range.first)) {
-            matchResult.value // 保持原样
-        } else {
-            "$$" + matchResult.groupValues[1] + "$$"
+    BLOCK_LATEX_REGEX.findAll(content).forEach { match ->
+        if (!protectedRanges.overlaps(match.range)) {
+            replacements += MarkdownReplacement(
+                range = match.range,
+                replacement = "$$" + match.groupValues[1] + "$$"
+            )
         }
     }
 
-    return result
+    if (replacements.isEmpty()) {
+        return content
+    }
+
+    val sortedReplacements = replacements.sortedBy { it.range.first }
+    val result = StringBuilder(content.length)
+    var cursor = 0
+    sortedReplacements.forEach { replacement ->
+        if (replacement.range.first < cursor) {
+            return@forEach
+        }
+        result.append(content, cursor, replacement.range.first)
+        result.append(replacement.replacement)
+        cursor = replacement.range.last + 1
+    }
+    result.append(content, cursor, content.length)
+    return result.toString()
+}
+
+private fun collectProtectedMarkdownRanges(content: String): List<IntRange> {
+    val astTree = parser.buildMarkdownTreeFromString(content)
+    val ranges = mutableListOf<IntRange>()
+    collectProtectedMarkdownRanges(astTree, ranges)
+    return ranges.sortedBy { it.first }
+}
+
+private fun collectProtectedMarkdownRanges(
+    node: ASTNode,
+    ranges: MutableList<IntRange>,
+) {
+    if (node.type in PROTECTED_MARKDOWN_NODE_TYPES) {
+        ranges += node.startOffset until node.endOffset
+        return
+    }
+    node.children.fastForEach { child ->
+        collectProtectedMarkdownRanges(child, ranges)
+    }
+}
+
+private fun List<IntRange>.overlaps(range: IntRange): Boolean {
+    return any { protectedRange ->
+        range.first <= protectedRange.last && range.last >= protectedRange.first
+    }
+}
+
+internal fun extractCodeFenceContent(
+    node: ASTNode,
+    content: String,
+): String? {
+    val openingFenceLineEnd = node.children.firstOrNull { it.type == MarkdownTokenTypes.EOL } ?: return null
+    val contentStartOffset = openingFenceLineEnd.endOffset
+    val closingFence = node.children.findLast { it.type == MarkdownTokenTypes.CODE_FENCE_END }
+    var contentEndOffset = closingFence?.startOffset ?: node.endOffset
+
+    if (closingFence != null) {
+        val lineStartOffset = content.lastIndexOf('\n', startIndex = closingFence.startOffset - 1)
+            .let { if (it == -1) 0 else it + 1 }
+        val closingFenceIndent = content.substring(lineStartOffset, closingFence.startOffset)
+        if (closingFenceIndent.all { it == ' ' || it == '\t' }) {
+            contentEndOffset = lineStartOffset
+        }
+    }
+
+    if (contentEndOffset < contentStartOffset) {
+        return ""
+    }
+    return content.substring(contentStartOffset, contentEndOffset)
 }
 
 @Preview(showBackground = true)
@@ -199,10 +272,11 @@ fun MarkdownBlock(
     content: String,
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
+    messageDepthFromEnd: Int? = null,
     onClickCitation: (String) -> Unit = {}
 ) {
     var (data, setData) = remember {
-        val preprocessed = preProcess(content)
+        val preprocessed = preProcessMarkdownContent(content)
         val astTree = parser.buildMarkdownTreeFromString(preprocessed)
         mutableStateOf(
             value = preprocessed to astTree,
@@ -215,7 +289,7 @@ fun MarkdownBlock(
     val updatedContent by rememberUpdatedState(content)
     LaunchedEffect(Unit) {
         snapshotFlow { updatedContent }.distinctUntilChanged().mapLatest {
-            val preprocessed = preProcess(it)
+            val preprocessed = preProcessMarkdownContent(it)
             val astTree = parser.buildMarkdownTreeFromString(preprocessed)
             preprocessed to astTree
         }.catch { exception -> exception.printStackTrace() }.flowOn(Dispatchers.Default) // 在后台线程解析AST树
@@ -231,7 +305,10 @@ fun MarkdownBlock(
         ) {
             astTree.children.fastForEach { child ->
                 MarkdownNode(
-                    node = child, content = preprocessed, onClickCitation = onClickCitation
+                    node = child,
+                    content = preprocessed,
+                    onClickCitation = onClickCitation,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
             }
         }
@@ -278,14 +355,19 @@ private fun MarkdownNode(
     content: String,
     modifier: Modifier = Modifier,
     onClickCitation: (String) -> Unit = {},
-    listLevel: Int = 0
+    listLevel: Int = 0,
+    messageDepthFromEnd: Int? = null,
 ) {
     when (node.type) {
         // 文件根节点
         MarkdownElementTypes.MARKDOWN_FILE -> {
             node.children.fastForEach { child ->
                 MarkdownNode(
-                    node = child, content = content, modifier = modifier, onClickCitation = onClickCitation
+                    node = child,
+                    content = content,
+                    modifier = modifier,
+                    onClickCitation = onClickCitation,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
             }
         }
@@ -293,7 +375,11 @@ private fun MarkdownNode(
         // 段落
         MarkdownElementTypes.PARAGRAPH -> {
             Paragraph(
-                node = node, content = content, modifier = modifier, onClickCitation = onClickCitation
+                node = node,
+                content = content,
+                modifier = modifier,
+                onClickCitation = onClickCitation,
+                messageDepthFromEnd = messageDepthFromEnd,
             )
         }
 
@@ -327,6 +413,7 @@ private fun MarkdownNode(
                                 onClickCitation = onClickCitation,
                                 modifier = modifier.padding(vertical = headingPadding),
                                 trim = true,
+                                messageDepthFromEnd = messageDepthFromEnd,
                             )
                         }
                     }
@@ -341,7 +428,8 @@ private fun MarkdownNode(
                 content = content,
                 modifier = modifier.padding(vertical = 4.dp),
                 onClickCitation = onClickCitation,
-                level = listLevel
+                level = listLevel,
+                messageDepthFromEnd = messageDepthFromEnd,
             )
         }
 
@@ -351,7 +439,8 @@ private fun MarkdownNode(
                 content = content,
                 modifier = modifier.padding(vertical = 4.dp),
                 onClickCitation = onClickCitation,
-                level = listLevel
+                level = listLevel,
+                messageDepthFromEnd = messageDepthFromEnd,
             )
         }
 
@@ -399,7 +488,10 @@ private fun MarkdownNode(
                         .padding(8.dp)) {
                     node.children.fastForEach { child ->
                         MarkdownNode(
-                            node = child, content = content, onClickCitation = onClickCitation
+                            node = child,
+                            content = content,
+                            onClickCitation = onClickCitation,
+                            messageDepthFromEnd = messageDepthFromEnd,
                         )
                     }
                 }
@@ -429,7 +521,11 @@ private fun MarkdownNode(
             ProvideTextStyle(TextStyle(fontStyle = FontStyle.Italic)) {
                 node.children.fastForEach { child ->
                     MarkdownNode(
-                        node = child, content = content, modifier = modifier, onClickCitation = onClickCitation
+                        node = child,
+                        content = content,
+                        modifier = modifier,
+                        onClickCitation = onClickCitation,
+                        messageDepthFromEnd = messageDepthFromEnd,
                     )
                 }
             }
@@ -439,7 +535,11 @@ private fun MarkdownNode(
             ProvideTextStyle(TextStyle(fontWeight = FontWeight.SemiBold)) {
                 node.children.fastForEach { child ->
                     MarkdownNode(
-                        node = child, content = content, modifier = modifier, onClickCitation = onClickCitation
+                        node = child,
+                        content = content,
+                        modifier = modifier,
+                        onClickCitation = onClickCitation,
+                        messageDepthFromEnd = messageDepthFromEnd,
                     )
                 }
             }
@@ -537,25 +637,21 @@ private fun MarkdownNode(
 
         // 代码块
         MarkdownElementTypes.CODE_FENCE -> {
-            // 这里不能直接取CODE_FENCE_CONTENT的内容，因为首行indent没有包含在内
-            // 因此，需要往上找到最后一个EOL元素，用它来作为代码块的起始offset
-            val contentStartIndex = node.children.indexOfFirst { it.type == MarkdownTokenTypes.CODE_FENCE_CONTENT }
-            if (contentStartIndex == -1) return
-            val eolElement =
-                node.children.subList(0, contentStartIndex).findLast { it.type == MarkdownTokenTypes.EOL } ?: return
-            val codeContentStartOffset = eolElement.endOffset
-            val codeContentEndOffset =
-                node.children.findLast { it.type == MarkdownTokenTypes.CODE_FENCE_CONTENT }?.endOffset ?: return
-            val code = content.substring(
-                codeContentStartOffset, codeContentEndOffset
-            ).trimIndent()
+            val code = extractCodeFenceContent(node, content) ?: return
 
             val language =
                 node.findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)?.getTextInNode(content) ?: "plaintext"
             val hasEnd = node.findChildOfTypeRecursive(MarkdownTokenTypes.CODE_FENCE_END) != null
             val displaySetting = LocalSettings.current.displaySetting
-            val renderTarget = remember(language, code, hasEnd, displaySetting.enableCodeBlockRichRender) {
-                if (hasEnd && displaySetting.enableCodeBlockRichRender) {
+            val shouldRenderCodeBlock = displaySetting.shouldRenderCodeBlock(messageDepthFromEnd)
+            val renderTarget = remember(
+                language,
+                code,
+                hasEnd,
+                shouldRenderCodeBlock,
+                displaySetting.enableCodeBlockRichRender,
+            ) {
+                if (hasEnd && shouldRenderCodeBlock && displaySetting.enableCodeBlockRichRender) {
                     CodeBlockRenderResolver.resolve(language = language, code = code)
                 } else {
                     null
@@ -590,7 +686,7 @@ private fun MarkdownNode(
                     modifier = Modifier
                         .padding(bottom = 4.dp)
                         .fillMaxWidth(),
-                    completeCodeBlock = hasEnd
+                    completeCodeBlock = hasEnd,
                 )
             }
         }
@@ -615,7 +711,11 @@ private fun MarkdownNode(
             // 递归处理其他节点的子节点
             node.children.fastForEach { child ->
                 MarkdownNode(
-                    node = child, content = content, modifier = modifier, onClickCitation = onClickCitation
+                    node = child,
+                    content = content,
+                    modifier = modifier,
+                    onClickCitation = onClickCitation,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
             }
         }
@@ -628,7 +728,8 @@ private fun UnorderedListNode(
     content: String,
     modifier: Modifier = Modifier,
     onClickCitation: (String) -> Unit = {},
-    level: Int = 0
+    level: Int = 0,
+    messageDepthFromEnd: Int? = null,
 ) {
     val bulletStyle = when (level % 3) {
         0 -> "• "
@@ -646,7 +747,8 @@ private fun UnorderedListNode(
                     content = content,
                     bulletText = bulletStyle,
                     onClickCitation = onClickCitation,
-                    level = level
+                    level = level,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
             }
         }
@@ -659,7 +761,8 @@ private fun OrderedListNode(
     content: String,
     modifier: Modifier = Modifier,
     onClickCitation: (String) -> Unit = {},
-    level: Int = 0
+    level: Int = 0,
+    messageDepthFromEnd: Int? = null,
 ) {
     Column(modifier.padding(start = (level * 8).dp)) {
         var index = 1
@@ -672,7 +775,8 @@ private fun OrderedListNode(
                     content = content,
                     bulletText = numberText,
                     onClickCitation = onClickCitation,
-                    level = level
+                    level = level,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
                 index++
             }
@@ -682,7 +786,12 @@ private fun OrderedListNode(
 
 @Composable
 private fun ListItemNode(
-    node: ASTNode, content: String, bulletText: String, onClickCitation: (String) -> Unit = {}, level: Int
+    node: ASTNode,
+    content: String,
+    bulletText: String,
+    onClickCitation: (String) -> Unit = {},
+    level: Int,
+    messageDepthFromEnd: Int? = null,
 ) {
     Column {
         // 分离列表项的直接内容和嵌套列表
@@ -705,6 +814,7 @@ private fun ListItemNode(
                             content = content,
                             onClickCitation = onClickCitation,
                             listLevel = level,
+                            messageDepthFromEnd = messageDepthFromEnd,
                         )
                     }
                 }
@@ -713,7 +823,11 @@ private fun ListItemNode(
         // nestedLists 渲染处理
         nestedLists.fastForEach { nestedList ->
             MarkdownNode(
-                node = nestedList, content = content, onClickCitation = onClickCitation, listLevel = level + 1 // 增加层级
+                node = nestedList,
+                content = content,
+                onClickCitation = onClickCitation,
+                listLevel = level + 1,
+                messageDepthFromEnd = messageDepthFromEnd,
             )
         }
     }
@@ -744,13 +858,17 @@ private fun Paragraph(
     trim: Boolean = false,
     onClickCitation: (String) -> Unit = {},
     modifier: Modifier,
+    messageDepthFromEnd: Int? = null,
 ) {
     // dumpAst(node, content)
     if (node.findChildOfTypeRecursive(MarkdownElementTypes.IMAGE, GFMElementTypes.BLOCK_MATH) != null) {
         FlowRow(modifier = modifier) {
             node.children.fastForEach { child ->
                 MarkdownNode(
-                    node = child, content = content, onClickCitation = onClickCitation
+                    node = child,
+                    content = content,
+                    onClickCitation = onClickCitation,
+                    messageDepthFromEnd = messageDepthFromEnd,
                 )
             }
         }

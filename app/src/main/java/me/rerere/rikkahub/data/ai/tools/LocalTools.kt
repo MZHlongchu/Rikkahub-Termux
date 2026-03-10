@@ -20,7 +20,6 @@ import me.rerere.ai.core.InputSchema
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
-import me.rerere.rikkahub.data.ai.tools.termux.TermuxOutputFormatter
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxPtySessionManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxRunCommandRequest
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxPtyToolResponse
@@ -328,7 +327,7 @@ class LocalTools(
             description = buildToolDescription(
                 baseDescription = """
                     Run a shell command in local Termux. Current workspace path: $workdir.
-                    Use default mode for one-shot commands.
+                    Use default mode for one-shot commands. Non-tty responses are JSON with output and status fields.
                     Set tty=true only for interactive or long-running commands.
                     If the response includes session_id, continue with write_stdin.
                 """.trimIndent().replace("\n", " "),
@@ -374,7 +373,7 @@ class LocalTools(
                                         append(e.message ?: e.javaClass.name)
                                         append("\n")
                                         append(
-                                            "Ensure Termux is installed; set allow-external-apps=true in " +
+                                            "Setup checklist if this still fails: install Termux; set allow-external-apps=true in " +
                                                 "~/.termux/termux.properties; grant com.termux.permission.RUN_COMMAND to this app; " +
                                                 "install python in Termux (pkg install python)."
                                         )
@@ -402,7 +401,7 @@ class LocalTools(
                         append(e.message ?: e.javaClass.name)
                         append("\n")
                         append(
-                            "Ensure Termux is installed; set allow-external-apps=true in " +
+                            "Setup checklist if this still fails: install Termux; set allow-external-apps=true in " +
                                 "~/.termux/termux.properties; grant com.termux.permission.RUN_COMMAND to this app " +
                                 "in system settings."
                         )
@@ -410,12 +409,7 @@ class LocalTools(
                     return@execute listOf(UIMessagePart.Text(message))
                 }
 
-                val output = TermuxOutputFormatter.merge(
-                    stdout = result.stdout,
-                    stderr = result.stderr,
-                    errMsg = result.errMsg,
-                )
-                listOf(UIMessagePart.Text(output))
+                listOf(UIMessagePart.Text(result.toToolResponse().encode(json)))
             }
         )
     }
@@ -489,7 +483,7 @@ class LocalTools(
         return Tool(
             name = "termux_python",
             description = buildToolDescription(
-                baseDescription = "Run Python code in local Termux and return output text.",
+                baseDescription = "Run Python code in local Termux and return JSON with output and execution status.",
                 assistant = assistant,
                 toolName = "termux_python",
             ),
@@ -526,18 +520,12 @@ class LocalTools(
                     val message = buildString {
                         append(e.message ?: e.javaClass.name)
                         append("\n")
-                        append("Ensure Termux is installed and Python is installed in Termux (pkg install python).")
+                        append("Setup checklist if this still fails: install Termux and install python in Termux (pkg install python).")
                     }
                     return@execute listOf(UIMessagePart.Text(message))
                 }
 
-                val output = TermuxOutputFormatter.merge(
-                    stdout = termuxResult.stdout,
-                    stderr = termuxResult.stderr,
-                    errMsg = termuxResult.errMsg,
-                )
-
-                listOf(UIMessagePart.Text(output))
+                listOf(UIMessagePart.Text(termuxResult.toToolResponse().encode(json)))
             }
         )
     }
