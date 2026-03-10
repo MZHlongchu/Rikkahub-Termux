@@ -10,12 +10,16 @@ private const val TERMUX_PYTHON_TOOL_NAME = "termux_python"
 private const val WRITE_STDIN_TOOL_NAME = "write_stdin"
 
 object TermuxApprovalBlacklistMatcher {
+    private const val FALLBACK_FORCE_APPROVAL_CANDIDATE = "__fallback_force_approval__"
     private val ruleSeparatorRegex = Regex("[,，\\r\\n]+")
     private val whitespaceRegex = Regex("\\s+")
     private const val commandBoundaryRegexPart = "[\\s;&|()'\"`{}\\[\\],]"
 
-    fun shouldForceApproval(tool: UIMessagePart.Tool, blacklistRules: List<String>): Boolean {
-        if (blacklistRules.isEmpty()) return false
+    internal fun shouldForceApproval(
+        tool: UIMessagePart.Tool,
+        blacklistRules: List<String>,
+        previewCursor: TermuxPtyInputBufferRegistry.PreviewCursor? = null,
+    ): Boolean {
         if (
             tool.toolName != TERMUX_EXEC_TOOL_NAME &&
             tool.toolName != TERMUX_PYTHON_TOOL_NAME &&
@@ -24,8 +28,13 @@ object TermuxApprovalBlacklistMatcher {
             return false
         }
 
-        val commandCandidates = extractCommandCandidates(tool)
+        val commandCandidates = extractCommandCandidates(
+            tool = tool,
+            previewCursor = previewCursor,
+        )
         if (commandCandidates.isEmpty()) return false
+        if (commandCandidates.contains(FALLBACK_FORCE_APPROVAL_CANDIDATE)) return true
+        if (blacklistRules.isEmpty()) return false
 
         return blacklistRules.any { rule ->
             commandCandidates.any { command -> matchesRule(command, rule) }
@@ -39,11 +48,28 @@ object TermuxApprovalBlacklistMatcher {
             .distinct()
     }
 
-    private fun extractCommandCandidates(tool: UIMessagePart.Tool): List<String> {
+    internal fun advanceApprovalPreview(
+        tool: UIMessagePart.Tool,
+        previewCursor: TermuxPtyInputBufferRegistry.PreviewCursor,
+    ) {
+        if (tool.toolName != WRITE_STDIN_TOOL_NAME) return
+        val input = extractWriteStdinInput(tool) ?: return
+        TermuxPtyInputBufferRegistry.commitPreview(
+            sessionId = input.sessionId,
+            chars = input.chars,
+            cursor = previewCursor,
+            keepSession = true,
+        )
+    }
+
+    private fun extractCommandCandidates(
+        tool: UIMessagePart.Tool,
+        previewCursor: TermuxPtyInputBufferRegistry.PreviewCursor?,
+    ): List<String> {
         return when (tool.toolName) {
             TERMUX_EXEC_TOOL_NAME -> extractTermuxExecCandidates(tool)
             TERMUX_PYTHON_TOOL_NAME -> extractTermuxPythonCandidates(tool)
-            WRITE_STDIN_TOOL_NAME -> extractWriteStdinCandidates(tool)
+            WRITE_STDIN_TOOL_NAME -> extractWriteStdinCandidates(tool, previewCursor)
             else -> emptyList()
         }
     }
@@ -62,17 +88,31 @@ object TermuxApprovalBlacklistMatcher {
         return buildMatchCandidates(code)
     }
 
-    private fun extractWriteStdinCandidates(tool: UIMessagePart.Tool): List<String> {
+    private fun extractWriteStdinCandidates(
+        tool: UIMessagePart.Tool,
+        previewCursor: TermuxPtyInputBufferRegistry.PreviewCursor?,
+    ): List<String> {
+        val input = extractWriteStdinInput(tool) ?: return emptyList()
+        val preview = TermuxPtyInputBufferRegistry.previewInputState(
+            sessionId = input.sessionId,
+            chars = input.chars,
+            cursor = previewCursor,
+        )
+        if (preview.requiresFallbackApproval) {
+            return listOf(FALLBACK_FORCE_APPROVAL_CANDIDATE)
+        }
+        if (preview.text.isBlank()) return emptyList()
+        return buildMatchCandidates(preview.text)
+    }
+
+    private fun extractWriteStdinInput(tool: UIMessagePart.Tool): WriteStdinInput? {
         val params = tool.inputAsJson().jsonObject
         val sessionId = params["session_id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-            ?: return emptyList()
-        val chars = params["chars"]?.jsonPrimitive?.contentOrNull.orEmpty()
-        val bufferedInput = TermuxPtyInputBufferRegistry.previewInput(
+            ?: return null
+        return WriteStdinInput(
             sessionId = sessionId,
-            chars = chars,
+            chars = params["chars"]?.jsonPrimitive?.contentOrNull.orEmpty(),
         )
-        if (bufferedInput.isBlank()) return emptyList()
-        return buildMatchCandidates(bufferedInput)
     }
 
     private fun buildMatchCandidates(rawCommand: String): List<String> {
@@ -108,4 +148,9 @@ object TermuxApprovalBlacklistMatcher {
     private fun normalizeWhitespace(value: String): String {
         return value.trim().replace(whitespaceRegex, " ")
     }
+
+    private data class WriteStdinInput(
+        val sessionId: String,
+        val chars: String,
+    )
 }

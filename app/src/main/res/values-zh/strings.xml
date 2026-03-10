@@ -883,7 +883,7 @@
   <string name="setting_termux_page_open_termux">打开 Termux</string>
   <string name="setting_termux_page_open_termux_failed">未检测到 Termux，请先安装。</string>
   <string name="setting_termux_page_setup_step_3">3）点击上方“授权”按钮，授予 com.termux.permission.RUN_COMMAND</string>
-  <string name="setting_termux_page_setup_step_4">4）若使用 termux_python：在 Termux 中安装 Python（pkg install python）</string>
+  <string name="setting_termux_page_setup_step_4">4）若使用 termux_python 或交互式 tty=true 会话：在 Termux 中安装 Python（pkg install python）。PTY 使用的是 Python 标准库，不需要额外 pip 安装。</string>
   <string name="setting_termux_page_open_app_settings">打开应用设置</string>
   <string name="favorite_page_title">收藏</string>
   <string name="favorite_page_no_favorites">暂无收藏</string>
@@ -1089,7 +1089,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="update_card_new_version_found">发现新版本 %s</string>
   <string name="update_card_close">关闭</string>
   <string name="update_card_downloading">正在下载，请在状态栏查看进度</string>
-  <string name="setting_termux_page_pty_desc">适用于 tty=true 且启用 write_stdin 的 termux_exec。</string>
+  <string name="setting_termux_page_pty_desc">适用于 tty=true 且启用 write_stdin 的 termux_exec。PTY 使用的是 Python 标准库，不需要额外 pip 安装。</string>
   <string name="setting_termux_page_pty_yield_time_title">初始等待时间 (ms)</string>
   <string name="setting_termux_page_pty_max_output_chars_title">最大输出字符数</string>
   <string name="setting_termux_page_pty_title">交互会话优化</string>
@@ -1105,4 +1105,25 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="save">保存</string>
   <string name="reset">重置</string>
   <string name="enabled">已启用</string>
+  <string name="setting_termux_page_current_address">当前地址：%1$s</string>
+  <string name="setting_termux_page_pty_server_port_title">PTY 端口</string>
+  <string name="setting_termux_page_pty_refresh_sessions">刷新会话</string>
+  <string name="setting_termux_page_pty_close_all_sessions">全部关闭</string>
+  <string name="setting_termux_page_pty_loading_sessions">正在加载 PTY 会话...</string>
+  <string name="setting_termux_page_pty_refresh_hint">点击“刷新会话”后再查询 Termux。打开此页面时不再自动拉起 Termux。</string>
+  <string name="setting_termux_page_pty_no_sessions">没有活动的 PTY 会话。</string>
+  <string name="setting_termux_page_pty_server_not_running">未检测到活动中的 PTY 服务。首次使用 tty=true 时会自动启动。</string>
+  <string name="setting_termux_page_pty_session_id">ID：%1$s</string>
+  <string name="setting_termux_page_pty_session_workdir">目录：%1$s</string>
+  <string name="setting_termux_page_pty_session_status_running">运行中</string>
+  <string name="setting_termux_page_pty_session_status_finished">已结束</string>
+  <string name="setting_termux_page_pty_session_pid">PID：%1$d</string>
+  <string name="setting_termux_page_pty_session_exit_code">退出代码：%1$d</string>
+  <string name="setting_termux_page_pty_session_buffered_output">缓冲输出：%1$d</string>
+  <string name="setting_termux_page_pty_session_last_active">上次活动：%1$s</string>
+  <string name="setting_termux_page_pty_close_session">关闭会话</string>
+  <string name="chat_page_termux_command_mode_attachments_disabled">在命令模式下已禁用附件</string>
+  <string name="chat_page_termux_command_mode_content_desc">Termux 命令模式</string>
+  <string name="chat_page_termux_command_mode_title">命令模式</string>
+  <string name="chat_page_termux_command_mode_supporting">/termux</string>
 </resources>

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -47,6 +49,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxPtySessionInfo
+import me.rerere.rikkahub.data.ai.tools.termux.TermuxPtySessionManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxProtocol
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxWorkdirServerManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
@@ -65,6 +69,7 @@ private const val TERMUX_ALLOW_EXTERNAL_APPS_COMMAND =
 @Composable
 fun SettingTermuxPage() {
     val termuxWorkdirServerManager: TermuxWorkdirServerManager = koinInject()
+    val termuxPtySessionManager: TermuxPtySessionManager = koinInject()
     val settingsStore: SettingsStore = koinInject()
     val settings by settingsStore.settingsFlow.collectAsStateWithLifecycle()
     val termuxWorkdirServerState by termuxWorkdirServerManager.state.collectAsStateWithLifecycle()
@@ -80,6 +85,9 @@ fun SettingTermuxPage() {
     var timeoutText by remember(settings.termuxTimeoutMs) {
         mutableStateOf(settings.termuxTimeoutMs.toString())
     }
+    var ptyServerPortText by remember(settings.termuxPtyServerPort) {
+        mutableStateOf(settings.termuxPtyServerPort.toString())
+    }
     var ptyYieldTimeText by remember(settings.termuxPtyYieldTimeMs) {
         mutableStateOf(settings.termuxPtyYieldTimeMs.toString())
     }
@@ -89,12 +97,18 @@ fun SettingTermuxPage() {
     var approvalBlacklistText by remember(settings.termuxApprovalBlacklist) {
         mutableStateOf(settings.termuxApprovalBlacklist)
     }
+    var ptySessions by remember { mutableStateOf<List<TermuxPtySessionInfo>>(emptyList()) }
+    var ptySessionsLoading by remember { mutableStateOf(false) }
+    var ptySessionError by remember { mutableStateOf<String?>(null) }
+    var ptyServerRunning by remember { mutableStateOf(false) }
+    var ptySessionsChecked by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val toaster = LocalToaster.current
     val copiedText = stringResource(R.string.copied)
     val openTermuxFailedText = stringResource(R.string.setting_termux_page_open_termux_failed)
+    val ptyRefreshHintText = stringResource(R.string.setting_termux_page_pty_refresh_hint)
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val termuxRunCommandPermissionState = rememberPermissionState(
@@ -114,6 +128,30 @@ fun SettingTermuxPage() {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    fun refreshPtySessions() {
+        scope.launch {
+            ptySessionsLoading = true
+            val state = termuxPtySessionManager.listSessions()
+            ptySessions = state.sessions
+            ptyServerRunning = state.running
+            ptySessionError = state.error
+            ptySessionsChecked = true
+            ptySessionsLoading = false
+        }
+    }
+
+    fun clearPtySessionSnapshot() {
+        ptySessions = emptyList()
+        ptySessionError = null
+        ptyServerRunning = false
+        ptySessionsChecked = false
+    }
+
+    DisposableEffect(settings.termuxPtyServerPort) {
+        clearPtySessionSnapshot()
+        onDispose { }
     }
 
     Scaffold(
@@ -170,7 +208,12 @@ fun SettingTermuxPage() {
                         description = {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(stringResource(R.string.setting_termux_page_workdir_server_desc))
-                                Text("http://127.0.0.1:${settings.termuxWorkdirServerPort}/")
+                                Text(
+                                    stringResource(
+                                        R.string.setting_termux_page_current_address,
+                                        "http://127.0.0.1:${settings.termuxWorkdirServerPort}/"
+                                    )
+                                )
                                 if (!termuxWorkdirServerState.error.isNullOrBlank()) {
                                     Text(
                                         text = termuxWorkdirServerState.error!!,
@@ -416,6 +459,31 @@ fun SettingTermuxPage() {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OutlinedTextField(
                                     modifier = Modifier.fillMaxWidth(),
+                                    value = ptyServerPortText,
+                                    onValueChange = { value ->
+                                        ptyServerPortText = value.filter { it.isDigit() }
+                                        val ptyServerPort = ptyServerPortText.toIntOrNull()
+                                        if (
+                                            ptyServerPort != null &&
+                                            ptyServerPort in 1024..65535 &&
+                                            ptyServerPort != settings.termuxPtyServerPort
+                                        ) {
+                                            scope.launch {
+                                                termuxPtySessionManager.stopServer()
+                                                settingsStore.update {
+                                                    it.copy(termuxPtyServerPort = ptyServerPort)
+                                                }
+                                                clearPtySessionSnapshot()
+                                            }
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    isError = ptyServerPortText.toIntOrNull()?.let { it !in 1024..65535 } ?: true,
+                                    label = { Text(stringResource(R.string.setting_termux_page_pty_server_port_title)) },
+                                )
+                                OutlinedTextField(
+                                    modifier = Modifier.fillMaxWidth(),
                                     value = ptyYieldTimeText,
                                     onValueChange = { value ->
                                         ptyYieldTimeText = value.filter { it.isDigit() }
@@ -452,6 +520,158 @@ fun SettingTermuxPage() {
                                         Text(stringResource(R.string.setting_termux_page_pty_max_output_chars_title))
                                     },
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            refreshPtySessions()
+                                        },
+                                        enabled = !ptySessionsLoading,
+                                    ) {
+                                        Text(stringResource(R.string.setting_termux_page_pty_refresh_sessions))
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                ptySessionsLoading = true
+                                                val result = termuxPtySessionManager.closeAllSessions()
+                                                ptySessionError = result.error
+                                                val state = termuxPtySessionManager.listSessions()
+                                                ptySessions = state.sessions
+                                                ptyServerRunning = state.running
+                                                ptySessionError = state.error ?: ptySessionError
+                                                ptySessionsLoading = false
+                                            }
+                                        },
+                                        enabled = !ptySessionsLoading && ptySessions.isNotEmpty(),
+                                    ) {
+                                        Text(stringResource(R.string.setting_termux_page_pty_close_all_sessions))
+                                    }
+                                }
+                                if (ptySessionsLoading) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        CircularProgressIndicator(modifier = Modifier.padding(top = 4.dp))
+                                        Text(stringResource(R.string.setting_termux_page_pty_loading_sessions))
+                                    }
+                                }
+                                Text(
+                                    stringResource(
+                                        R.string.setting_termux_page_current_address,
+                                        "http://127.0.0.1:${settings.termuxPtyServerPort}/"
+                                    )
+                                )
+                                if (!ptySessionError.isNullOrBlank()) {
+                                    Text(
+                                        text = ptySessionError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                if (!ptySessionsChecked) {
+                                    Text(ptyRefreshHintText)
+                                } else if (ptySessions.isEmpty()) {
+                                    Text(
+                                        if (ptyServerRunning) {
+                                            stringResource(R.string.setting_termux_page_pty_no_sessions)
+                                        } else {
+                                            stringResource(R.string.setting_termux_page_pty_server_not_running)
+                                        }
+                                    )
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        ptySessions.forEach { sessionInfo ->
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                                ),
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                                ) {
+                                                    Text(
+                                                        text = sessionInfo.command,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                    )
+                                                    Text(
+                                                        text = stringResource(
+                                                            R.string.setting_termux_page_pty_session_id,
+                                                            sessionInfo.id
+                                                        ),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                    Text(
+                                                        text = stringResource(
+                                                            R.string.setting_termux_page_pty_session_workdir,
+                                                            sessionInfo.workdir
+                                                        ),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                    Text(
+                                                        text = if (sessionInfo.running) {
+                                                            stringResource(R.string.setting_termux_page_pty_session_status_running)
+                                                        } else {
+                                                            stringResource(R.string.setting_termux_page_pty_session_status_finished)
+                                                        },
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                    sessionInfo.pid?.let { pid ->
+                                                        Text(
+                                                            text = stringResource(
+                                                                R.string.setting_termux_page_pty_session_pid,
+                                                                pid
+                                                            ),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                        )
+                                                    }
+                                                    sessionInfo.exitCode?.let { exitCode ->
+                                                        Text(
+                                                            text = stringResource(
+                                                                R.string.setting_termux_page_pty_session_exit_code,
+                                                                exitCode
+                                                            ),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                        )
+                                                    }
+                                                    if (sessionInfo.pendingOutputChars > 0) {
+                                                        Text(
+                                                            text = stringResource(
+                                                                R.string.setting_termux_page_pty_session_buffered_output,
+                                                                sessionInfo.pendingOutputChars
+                                                            ),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = stringResource(
+                                                            R.string.setting_termux_page_pty_session_last_active,
+                                                            formatRelativeTime(sessionInfo.lastAccessMs)
+                                                        ),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                    TextButton(
+                                                        onClick = {
+                                                            scope.launch {
+                                                                ptySessionsLoading = true
+                                                                val result = termuxPtySessionManager.closeSession(sessionInfo.id)
+                                                                ptySessionError = result.error
+                                                                val state = termuxPtySessionManager.listSessions()
+                                                                ptySessions = state.sessions
+                                                                ptyServerRunning = state.running
+                                                                ptySessionError = state.error ?: ptySessionError
+                                                                ptySessionsLoading = false
+                                                            }
+                                                        },
+                                                        enabled = !ptySessionsLoading,
+                                                    ) {
+                                                        Text(stringResource(R.string.setting_termux_page_pty_close_session))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         },
                     )
@@ -526,4 +746,13 @@ private fun openTermuxApp(context: Context): Boolean {
         ?: return false
     context.startActivity(launchIntent)
     return true
+}
+
+private fun formatRelativeTime(timestampMs: Long): String {
+    if (timestampMs <= 0L) return "-"
+    return DateUtils.getRelativeTimeSpanString(
+        timestampMs,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+    ).toString()
 }
