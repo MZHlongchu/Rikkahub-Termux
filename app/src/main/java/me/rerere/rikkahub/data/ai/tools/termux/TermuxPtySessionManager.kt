@@ -227,12 +227,14 @@ class TermuxPtySessionManager(
     private suspend fun resolveServerToken(port: Int): String? {
         val existingToken = serverToken
         if (existingToken != null && serverPort == port && ping(port = port, token = existingToken)) {
+            runCatching { syncPersistedServerState(port = port, token = existingToken) }
             return existingToken
         }
 
         val recoveredToken = recoverPersistedToken(port)?.takeIf { ping(port = port, token = it) } ?: return null
         serverToken = recoveredToken
         serverPort = port
+        runCatching { syncPersistedServerState(port = port, token = recoveredToken) }
         return recoveredToken
     }
 
@@ -249,6 +251,18 @@ class TermuxPtySessionManager(
         return result.stdout.lineSequence()
             .map { it.trim() }
             .firstOrNull { it.isNotBlank() }
+    }
+
+    private suspend fun syncPersistedServerState(
+        port: Int,
+        token: String,
+    ) {
+        runMaintenanceCommand(
+            script = buildSyncServerStateScript(port = port, token = token),
+            timeoutMs = 5_000L,
+            label = "RikkaHub sync PTY session server state",
+            description = "Sync interactive shell session server PID/token files",
+        )
     }
 
     private suspend fun isServerProcessRunning(port: Int): Boolean {
@@ -720,6 +734,94 @@ class TermuxPtySessionManager(
         """.trimIndent()
     }
 
+    private fun buildSyncServerStateScript(
+        port: Int,
+        token: String,
+    ): String {
+        val safeToken = token.replace("'", "'\"'\"'")
+        return buildString {
+            appendLine("set -eu")
+            appendLine()
+            appendLine("STATE_DIR=\"${'$'}HOME/.rikkahub\"")
+            appendLine("SCRIPT_PATH=\"${'$'}STATE_DIR/pty_session_server.py\"")
+            appendLine("PID_FILE=\"${'$'}STATE_DIR/pty_session_server.pid\"")
+            appendLine("TOKEN_FILE=\"${'$'}STATE_DIR/pty_session_server.token\"")
+            appendLine("PORT=\"$port\"")
+            appendLine("TOKEN='$safeToken'")
+            appendLine()
+            appendLine("is_pty_server_cmdline() {")
+            appendLine("  _cmdline=\"${'$'}1\"")
+            appendLine("  _script=\"${'$'}2\"")
+            appendLine("  _port=\"${'$'}3\"")
+            appendLine("  _token=\"${'$'}4\"")
+            appendLine("  _padded=\" ${'$'}{_cmdline} \"")
+            appendLine("  case \"${'$'}_padded\" in")
+            appendLine("    *\" python3 -u ${'$'}_script --port ${'$'}_port --token ${'$'}_token \"*|*\" python3 -u ${'$'}_script --port ${'$'}_port \"*\" --token ${'$'}_token \"*)")
+            appendLine("      return 0")
+            appendLine("      ;;")
+            appendLine("    *)")
+            appendLine("      return 1")
+            appendLine("      ;;")
+            appendLine("  esac")
+            appendLine("}")
+            appendLine()
+            appendLine("is_pty_server_pid() {")
+            appendLine("  _pid=\"${'$'}1\"")
+            appendLine("  [ -n \"${'$'}_pid\" ] || return 1")
+            appendLine("  [ -r \"/proc/${'$'}_pid/cmdline\" ] || return 1")
+            appendLine("  _cmdline=\"${'$'}(cat \"/proc/${'$'}_pid/cmdline\" 2>/dev/null | tr '\\0' ' ')\"")
+            appendLine("  [ -n \"${'$'}_cmdline\" ] || return 1")
+            appendLine("  is_pty_server_cmdline \"${'$'}_cmdline\" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"")
+            appendLine("}")
+            appendLine()
+            appendLine("find_running_pty_server_pid_by_proc() {")
+            appendLine("  for _p in /proc/[0-9]*; do")
+            appendLine("    _pid=\"${'$'}{_p#/proc/}\"")
+            appendLine("    [ -r \"${'$'}_p/cmdline\" ] || continue")
+            appendLine("    _cmdline=\"${'$'}(cat \"${'$'}_p/cmdline\" 2>/dev/null | tr '\\0' ' ')\"")
+            appendLine("    [ -n \"${'$'}_cmdline\" ] || continue")
+            appendLine("    if is_pty_server_cmdline \"${'$'}_cmdline\" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"; then")
+            appendLine("      echo \"${'$'}_pid\"")
+            appendLine("      return 0")
+            appendLine("    fi")
+            appendLine("  done")
+            appendLine("  return 1")
+            appendLine("}")
+            appendLine()
+            appendLine("find_running_pty_server_pid_by_ps() {")
+            appendLine("  while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do")
+            appendLine("    [ \"${'$'}_pid\" = \"PID\" ] && continue")
+            appendLine("    [ -n \"${'$'}_cmdline\" ] || continue")
+            appendLine("    if is_pty_server_cmdline \" ${'$'}{_cmdline} \" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"; then")
+            appendLine("      echo \"${'$'}_pid\"")
+            appendLine("      return 0")
+            appendLine("    fi")
+            appendLine("  done < <(ps -ef 2>/dev/null)")
+            appendLine("  return 1")
+            appendLine("}")
+            appendLine()
+            appendLine("mkdir -p \"${'$'}STATE_DIR\"")
+            appendLine("PID=\"$(cat \"${'$'}PID_FILE\" 2>/dev/null || true)\"")
+            appendLine("if [ -n \"${'$'}PID\" ] && kill -0 \"${'$'}PID\" 2>/dev/null && is_pty_server_pid \"${'$'}PID\"; then")
+            appendLine("  printf '%s\\n' \"${'$'}PID\" > \"${'$'}PID_FILE\"")
+            appendLine("  printf '%s\\n' \"${'$'}TOKEN\" > \"${'$'}TOKEN_FILE\"")
+            appendLine("  exit 0")
+            appendLine("fi")
+            appendLine()
+            appendLine("PID=\"${'$'}(find_running_pty_server_pid_by_proc 2>/dev/null || true)\"")
+            appendLine("if [ -z \"${'$'}PID\" ]; then")
+            appendLine("  PID=\"${'$'}(find_running_pty_server_pid_by_ps 2>/dev/null || true)\"")
+            appendLine("fi")
+            appendLine()
+            appendLine("if [ -n \"${'$'}PID\" ]; then")
+            appendLine("  printf '%s\\n' \"${'$'}PID\" > \"${'$'}PID_FILE\"")
+            appendLine("  printf '%s\\n' \"${'$'}TOKEN\" > \"${'$'}TOKEN_FILE\"")
+            appendLine("else")
+            appendLine("  rm -f \"${'$'}PID_FILE\" \"${'$'}TOKEN_FILE\"")
+            appendLine("fi")
+        }
+    }
+
     private fun buildProbeServerScript(port: Int): String {
         return """
             set -eu
@@ -994,6 +1096,9 @@ class TermuxPtySessionManager(
                         "exit_code": exit_code,
                         "truncated": truncated,
                         "keep_session": running or has_more,
+                        # Keep finished sessions in the registry until TTL/manual close so the
+                        # settings page can inspect fast-exiting interactive commands.
+                        "retain_session": True,
                     }
 
                 def is_idle(self, now):
@@ -1171,8 +1276,9 @@ class TermuxPtySessionManager(
                     session = registry.create(command=command, workdir=workdir, cols=cols, rows=rows)
                     response = session.read(yield_time_ms=yield_time_ms, max_output_chars=max_output_chars)
                     keep_session = response.pop("keep_session")
+                    retain_session = response.pop("retain_session", keep_session)
                     response["session_id"] = session.id if keep_session else None
-                    registry.maybe_remove(session.id, keep_session)
+                    registry.maybe_remove(session.id, retain_session)
                     self._respond(200, response)
 
                 def _handle_write(self, session_id, payload):
@@ -1200,8 +1306,9 @@ class TermuxPtySessionManager(
 
                     response = session.read(yield_time_ms=yield_time_ms, max_output_chars=max_output_chars)
                     keep_session = response.pop("keep_session")
+                    retain_session = response.pop("retain_session", keep_session)
                     response["session_id"] = session.id if keep_session else None
-                    registry.maybe_remove(session.id, keep_session)
+                    registry.maybe_remove(session.id, retain_session)
                     self._respond(200, response)
 
                 def _respond(self, status_code, payload):
