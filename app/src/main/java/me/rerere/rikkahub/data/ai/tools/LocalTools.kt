@@ -357,9 +357,9 @@ class LocalTools(
                 val settings = settingsStore.settingsFlow.value
                 val tty = params["tty"]?.jsonPrimitive?.booleanOrNull == true
 
-                if (tty) {
-                    val response = runCatching {
-                        termuxPtySessionManager.startSession(
+	                if (tty) {
+	                    val response = runCatching {
+	                        termuxPtySessionManager.startSession(
                             command = command,
                             workdir = settings.termuxWorkdir,
                             yieldTimeMs = settings.termuxPtyYieldTimeMs,
@@ -398,16 +398,16 @@ class LocalTools(
                         )
                     )
                 }.getOrElse { e ->
-                    val message = buildString {
-                        append(e.message ?: e.javaClass.name)
-                        append("\n")
-                        append(
-                            "Setup checklist if this still fails: install Termux; set allow-external-apps=true in " +
-                                "~/.termux/termux.properties; grant com.termux.permission.RUN_COMMAND to this app " +
-                                "in system settings."
+                    return@execute listOf(
+                        UIMessagePart.Text(
+                            e.toToolResponse(
+                                setupChecklist =
+                                    "Setup checklist if this still fails: install Termux; set allow-external-apps=true in " +
+                                        "~/.termux/termux.properties; grant com.termux.permission.RUN_COMMAND to this app " +
+                                        "in system settings."
+                            ).encode(json)
                         )
-                    }
-                    return@execute listOf(UIMessagePart.Text(message))
+                    )
                 }
 
                 listOf(UIMessagePart.Text(result.toToolResponse().encode(json)))
@@ -518,12 +518,14 @@ class LocalTools(
                         )
                     )
                 }.getOrElse { e ->
-                    val message = buildString {
-                        append(e.message ?: e.javaClass.name)
-                        append("\n")
-                        append("Setup checklist if this still fails: install Termux and install python in Termux (pkg install python).")
-                    }
-                    return@execute listOf(UIMessagePart.Text(message))
+                    return@execute listOf(
+                        UIMessagePart.Text(
+                            e.toToolResponse(
+                                setupChecklist =
+                                    "Setup checklist if this still fails: install Termux and install python in Termux (pkg install python)."
+                            ).encode(json)
+                        )
+                    )
                 }
 
                 listOf(UIMessagePart.Text(termuxResult.toToolResponse().encode(json)))

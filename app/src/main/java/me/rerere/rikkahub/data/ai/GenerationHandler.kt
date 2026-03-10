@@ -29,7 +29,6 @@ import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
-import me.rerere.rikkahub.data.ai.tools.termux.TermuxPtyInputBufferRegistry
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
@@ -52,6 +51,7 @@ private const val TAG = "GenerationHandler"
 
 internal data class ToolApprovalPassResult(
     val tools: List<UIMessagePart.Tool>,
+    val toolsToProcess: List<UIMessagePart.Tool>,
     val hasPendingApproval: Boolean,
 )
 
@@ -85,13 +85,16 @@ class GenerationHandler(
         val providerImpl = providerManager.getProviderByType(provider)
 
         var messages: List<UIMessage> = messages
+        val blacklistRules = TermuxApprovalBlacklistMatcher.parseBlacklistRules(
+            settings.termuxApprovalBlacklist
+        )
 
         for (stepIndex in 0 until maxSteps) {
             Log.i(TAG, "streamText: start step #$stepIndex (${model.id})")
 
             val toolsInternal = buildList {
                 Log.i(TAG, "generateInternal: build tools($assistant)")
-                if (assistant?.enableMemory == true) {
+                if (assistant.enableMemory) {
                     val memoryAssistantId = if (assistant.useGlobalMemory) {
                         MemoryRepository.GLOBAL_MEMORY_ID
                     } else {
@@ -113,90 +116,19 @@ class GenerationHandler(
                 addAll(tools)
             }
 
-            // Check if we have approved tool calls to execute (resuming after approval)
-            val pendingTools = messages.lastOrNull()?.getTools()?.filter {
-                !it.isExecuted && (it.approvalState is ToolApprovalState.Approved || it.approvalState is ToolApprovalState.Denied || it.approvalState is ToolApprovalState.Answered)
-            } ?: emptyList()
-
-            val toolsToProcess: List<UIMessagePart.Tool>
-
-            // Skip generation if we have approved/denied tool calls to handle
-            if (pendingTools.isEmpty()) {
-                generateInternal(
-                    assistant = assistant,
-                    settings = settings,
-                    messages = messages,
-                    onUpdateMessages = {
-                        messages = it.transforms(
-                            transformers = outputTransformers,
-                            context = context,
-                            model = model,
-                            assistant = assistant,
-                            settings = settings
-                        )
-                        emit(
-                            GenerationChunk.Messages(
-                                messages.visualTransforms(
-                                    transformers = outputTransformers,
-                                    context = context,
-                                    model = model,
-                                    assistant = assistant,
-                                    settings = settings
-                                )
-                            )
-                        )
-                    },
-                    transformers = inputTransformers,
-                    model = model,
-                    providerImpl = providerImpl,
-                    provider = provider,
-                    tools = toolsInternal,
-                    memories = memories ?: emptyList(),
-                    stream = assistant.streamOutput
-                )
-                messages = messages.visualTransforms(
-                    transformers = outputTransformers,
-                    context = context,
-                    model = model,
-                    assistant = assistant,
-                    settings = settings
-                )
-                messages = messages.onGenerationFinish(
-                    transformers = outputTransformers,
-                    context = context,
-                    model = model,
-                    assistant = assistant,
-                    settings = settings
-                )
-                messages = messages.slice(0 until messages.lastIndex) + messages.last().copy(
-                    finishedAt = Clock.System.now()
-                        .toLocalDateTime(TimeZone.currentSystemDefault())
-                )
-                emit(GenerationChunk.Messages(messages))
-
-                val tools = messages.last().getTools().filter { !it.isExecuted }
-                if (tools.isEmpty()) {
-                    // no tool calls, break
-                    break
-                }
-
-                // Check for tools that need approval
-                val blacklistRules = TermuxApprovalBlacklistMatcher.parseBlacklistRules(
-                    settings.termuxApprovalBlacklist
-                )
+            val unexecutedTools = messages.lastOrNull()?.getTools()?.filter { !it.isExecuted }.orEmpty()
+            if (unexecutedTools.isNotEmpty()) {
                 val approvalPass = evaluatePendingToolApprovals(
-                    tools = tools,
+                    tools = unexecutedTools,
                     toolsInternal = toolsInternal,
                     blacklistRules = blacklistRules,
                 )
-                val updatedTools = approvalPass.tools
 
-                // If any tools were updated to Pending, update the message and break
-                if (updatedTools != tools) {
+                if (approvalPass.tools != unexecutedTools) {
                     val lastMessage = messages.last()
                     val updatedParts = lastMessage.parts.map { part ->
                         if (part is UIMessagePart.Tool) {
-                            updatedTools.find { it.toolCallId == part.toolCallId } ?: part
+                            approvalPass.tools.find { it.toolCallId == part.toolCallId } ?: part
                         } else {
                             part
                         }
@@ -205,69 +137,11 @@ class GenerationHandler(
                     emit(GenerationChunk.Messages(messages))
                 }
 
-                // If there are pending approvals, break and wait for user
-                if (approvalPass.hasPendingApproval) {
-                    Log.i(TAG, "generateText: waiting for tool approval")
-                    break
-                }
-
-                toolsToProcess = updatedTools
-            } else {
-                // Resuming after approval - use the pending tools directly
-                Log.i(TAG, "generateText: resuming with ${pendingTools.size} approved/denied tools")
-                toolsToProcess = messages.last().getTools().filter {
-                    !it.isExecuted && (it.approvalState is ToolApprovalState.Approved || it.approvalState is ToolApprovalState.Denied || it.approvalState is ToolApprovalState.Answered)
-                }
-            }
-
-            // Handle tools (execute approved tools, handle denied tools)
-            val executedTools = arrayListOf<UIMessagePart.Tool>()
-            toolsToProcess.forEach { tool ->
-                when (tool.approvalState) {
-                    is ToolApprovalState.Denied -> {
-                        // Tool was denied by user
-                        val reason = (tool.approvalState as ToolApprovalState.Denied).reason
-                        executedTools += tool.copy(
-                            output = listOf(
-                                UIMessagePart.Text(
-                                    json.encodeToString(
-                                        buildJsonObject {
-                                            put(
-                                                "error",
-                                                JsonPrimitive("Tool execution denied by user. Reason: ${reason.ifBlank { "No reason provided" }}")
-                                            )
-                                        }
-                                    )
-                                )
-                            )
-                        )
-                    }
-
-                    is ToolApprovalState.Answered -> {
-                        // Tool was answered by user (e.g., ask_user tool)
-                        val answer = (tool.approvalState as ToolApprovalState.Answered).answer
-                        executedTools += tool.copy(
-                            output = listOf(
-                                UIMessagePart.Text(answer)
-                            )
-                        )
-                    }
-
-                    is ToolApprovalState.Pending -> {
-                        // Should not reach here, but just in case
-                    }
-
-                    else -> {
-                        // Auto or Approved - execute the tool
-                        runCatching {
-                            val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
-                                ?: error("Tool ${tool.toolName} not found")
-                            val args = json.parseToJsonElement(tool.input.ifBlank { "{}" })
-                            Log.i(TAG, "generateText: executing tool ${toolDef.name} with args: $args")
-                            val result = toolDef.execute(args)
-                            executedTools += tool.copy(output = result)
-                        }.onFailure {
-                            it.printStackTrace()
+                val executedTools = arrayListOf<UIMessagePart.Tool>()
+                approvalPass.toolsToProcess.forEach { tool ->
+                    when (tool.approvalState) {
+                        is ToolApprovalState.Denied -> {
+                            val reason = (tool.approvalState as ToolApprovalState.Denied).reason
                             executedTools += tool.copy(
                                 output = listOf(
                                     UIMessagePart.Text(
@@ -275,10 +149,7 @@ class GenerationHandler(
                                             buildJsonObject {
                                                 put(
                                                     "error",
-                                                    JsonPrimitive(buildString {
-                                                        append("[${it.javaClass.name}] ${it.message}")
-                                                        append("\n${it.stackTraceToString()}")
-                                                    })
+                                                    JsonPrimitive("Tool execution denied by user. Reason: ${reason.ifBlank { "No reason provided" }}")
                                                 )
                                             }
                                         )
@@ -286,34 +157,140 @@ class GenerationHandler(
                                 )
                             )
                         }
+
+                        is ToolApprovalState.Answered -> {
+                            val answer = (tool.approvalState as ToolApprovalState.Answered).answer
+                            executedTools += tool.copy(
+                                output = listOf(
+                                    UIMessagePart.Text(answer)
+                                )
+                            )
+                        }
+
+                        is ToolApprovalState.Pending -> Unit
+
+                        else -> {
+                            runCatching {
+                                val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
+                                    ?: error("Tool ${tool.toolName} not found")
+                                val args = json.parseToJsonElement(tool.input.ifBlank { "{}" })
+                                Log.i(TAG, "generateText: executing tool ${toolDef.name} with args: $args")
+                                val result = toolDef.execute(args)
+                                executedTools += tool.copy(output = result)
+                            }.onFailure {
+                                it.printStackTrace()
+                                executedTools += tool.copy(
+                                    output = listOf(
+                                        UIMessagePart.Text(
+                                            json.encodeToString(
+                                                buildJsonObject {
+                                                    put(
+                                                        "error",
+                                                        JsonPrimitive(buildString {
+                                                            append("[${it.javaClass.name}] ${it.message}")
+                                                            append("\n${it.stackTraceToString()}")
+                                                        })
+                                                    )
+                                                }
+                                            )
+                                        )
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
+
+                if (executedTools.isNotEmpty()) {
+                    val lastMessage = messages.last()
+                    val updatedParts = lastMessage.parts.map { part ->
+                        if (part is UIMessagePart.Tool) {
+                            executedTools.find { it.toolCallId == part.toolCallId } ?: part
+                        } else {
+                            part
+                        }
+                    }
+                    messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
+                    emit(
+                        GenerationChunk.Messages(
+                            messages.transforms(
+                                transformers = outputTransformers,
+                                context = context,
+                                model = model,
+                                assistant = assistant,
+                                settings = settings
+                            )
+                        )
+                    )
+                }
+
+                if (approvalPass.hasPendingApproval) {
+                    Log.i(TAG, "generateText: waiting for tool approval")
+                    break
+                }
+
+                if (executedTools.isEmpty()) {
+                    break
+                }
+
+                continue
             }
 
-            if (executedTools.isEmpty()) {
-                // No results to add (all tools were pending)
-                break
-            }
-
-            // Update last message with executed tools (NOT create TOOL message)
-            val lastMessage = messages.last()
-            val updatedParts = lastMessage.parts.map { part ->
-                if (part is UIMessagePart.Tool) {
-                    executedTools.find { it.toolCallId == part.toolCallId } ?: part
-                } else part
-            }
-            messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
-            emit(
-                GenerationChunk.Messages(
-                    messages.transforms(
+            generateInternal(
+                assistant = assistant,
+                settings = settings,
+                messages = messages,
+                onUpdateMessages = {
+                    messages = it.transforms(
                         transformers = outputTransformers,
                         context = context,
                         model = model,
                         assistant = assistant,
                         settings = settings
                     )
-                )
+                    emit(
+                        GenerationChunk.Messages(
+                            messages.visualTransforms(
+                                transformers = outputTransformers,
+                                context = context,
+                                model = model,
+                                assistant = assistant,
+                                settings = settings
+                            )
+                        )
+                    )
+                },
+                transformers = inputTransformers,
+                model = model,
+                providerImpl = providerImpl,
+                provider = provider,
+                tools = toolsInternal,
+                memories = memories ?: emptyList(),
+                stream = assistant.streamOutput
             )
+            messages = messages.visualTransforms(
+                transformers = outputTransformers,
+                context = context,
+                model = model,
+                assistant = assistant,
+                settings = settings
+            )
+            messages = messages.onGenerationFinish(
+                transformers = outputTransformers,
+                context = context,
+                model = model,
+                assistant = assistant,
+                settings = settings
+            )
+            messages = messages.slice(0 until messages.lastIndex) + messages.last().copy(
+                finishedAt = Clock.System.now()
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
+            )
+            emit(GenerationChunk.Messages(messages))
+
+            if (messages.last().getTools().none { !it.isExecuted }) {
+                break
+            }
         }
 
     }.flowOn(Dispatchers.IO)
@@ -518,7 +495,7 @@ internal fun evaluatePendingToolApprovals(
 ): ToolApprovalPassResult {
     var hasPendingApproval = false
     var approvalGateLocked = false
-    val previewCursor = TermuxPtyInputBufferRegistry.createPreviewCursor()
+    val toolsToProcess = mutableListOf<UIMessagePart.Tool>()
 
     val updatedTools = tools.map { tool ->
         if (approvalGateLocked) {
@@ -529,7 +506,6 @@ internal fun evaluatePendingToolApprovals(
         val forceApproval = TermuxApprovalBlacklistMatcher.shouldForceApproval(
             tool = tool,
             blacklistRules = blacklistRules,
-            previewCursor = previewCursor,
         )
 
         when {
@@ -546,20 +522,13 @@ internal fun evaluatePendingToolApprovals(
                 tool
             }
 
-            else -> {
-                if (tool.approvalState is ToolApprovalState.Auto) {
-                    TermuxApprovalBlacklistMatcher.advanceApprovalPreview(
-                        tool = tool,
-                        previewCursor = previewCursor,
-                    )
-                }
-                tool
-            }
+            else -> tool.also { toolsToProcess += it }
         }
     }
 
     return ToolApprovalPassResult(
         tools = updatedTools,
+        toolsToProcess = toolsToProcess,
         hasPendingApproval = hasPendingApproval,
     )
 }

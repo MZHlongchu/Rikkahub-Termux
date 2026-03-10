@@ -48,7 +48,6 @@ class TermuxPtySessionManager(
                 rows = rows.coerceAtLeast(5),
             )
         )
-        response.sessionId?.let(TermuxPtyInputBufferRegistry::registerSession)
         return response
     }
 
@@ -67,12 +66,6 @@ class TermuxPtySessionManager(
                 yieldTimeMs = yieldTimeMs.coerceAtLeast(0L),
                 maxOutputChars = maxOutputChars.coerceAtLeast(256),
             )
-        )
-        val keepSession = response.sessionId != null || response.running
-        TermuxPtyInputBufferRegistry.commitInput(
-            sessionId = sessionId,
-            chars = chars,
-            keepSession = keepSession,
         )
         return response
     }
@@ -126,9 +119,6 @@ class TermuxPtySessionManager(
                 error = e.message ?: e.javaClass.name,
             )
         }
-        if (response.success) {
-            TermuxPtyInputBufferRegistry.removeSession(sessionId)
-        }
         return response
     }
 
@@ -158,25 +148,17 @@ class TermuxPtySessionManager(
                 error = e.message ?: e.javaClass.name,
             )
         }
-        if (response.success) {
-            TermuxPtyInputBufferRegistry.clearAllSessions()
-        }
         return response
     }
 
     suspend fun stopServer() {
+        val port = currentPort()
         runCatching {
-            termuxCommandManager.run(
-                TermuxRunCommandRequest(
-                    commandPath = TERMUX_BASH_PATH,
-                    arguments = listOf("-lc", buildStopServerScript()),
-                    workdir = TERMUX_HOME_PATH,
-                    background = false,
-                    timeoutMs = 10_000L,
-                    label = "RikkaHub stop PTY session server",
-                    description = "Stop interactive shell session server",
-                    trackLifecycle = false,
-                )
+            runMaintenanceCommand(
+                script = buildStopServerScript(port),
+                timeoutMs = 10_000L,
+                label = "RikkaHub stop PTY session server",
+                description = "Stop interactive shell session server",
             )
         }
         serverToken = null
@@ -246,28 +228,24 @@ class TermuxPtySessionManager(
     private suspend fun resolveServerToken(port: Int): String? {
         val existingToken = serverToken
         if (existingToken != null && serverPort == port && ping(port = port, token = existingToken)) {
+            runCatching { syncPersistedServerState(port = port, token = existingToken) }
             return existingToken
         }
 
-        val recoveredToken = recoverPersistedToken()?.takeIf { ping(port = port, token = it) } ?: return null
+        val recoveredToken = recoverPersistedToken(port)?.takeIf { ping(port = port, token = it) } ?: return null
         serverToken = recoveredToken
         serverPort = port
+        runCatching { syncPersistedServerState(port = port, token = recoveredToken) }
         return recoveredToken
     }
 
-    private suspend fun recoverPersistedToken(): String? {
+    private suspend fun recoverPersistedToken(port: Int): String? {
         val result = runCatching {
-            termuxCommandManager.run(
-                TermuxRunCommandRequest(
-                    commandPath = TERMUX_BASH_PATH,
-                    arguments = listOf("-lc", buildRecoverTokenScript()),
-                    workdir = TERMUX_HOME_PATH,
-                    background = false,
-                    timeoutMs = 5_000L,
-                    label = "RikkaHub inspect PTY session server",
-                    description = "Read interactive shell session server token",
-                    trackLifecycle = false,
-                )
+            runMaintenanceCommand(
+                script = buildRecoverTokenScript(port),
+                timeoutMs = 5_000L,
+                label = "RikkaHub inspect PTY session server",
+                description = "Read interactive shell session server token",
             )
         }.getOrNull() ?: return null
         if (!result.isSuccessful()) return null
@@ -276,25 +254,52 @@ class TermuxPtySessionManager(
             .firstOrNull { it.isNotBlank() }
     }
 
+    private suspend fun syncPersistedServerState(
+        port: Int,
+        token: String,
+    ) {
+        runMaintenanceCommand(
+            script = buildSyncServerStateScript(port = port, token = token),
+            timeoutMs = 5_000L,
+            label = "RikkaHub sync PTY session server state",
+            description = "Sync interactive shell session server PID/token files",
+        )
+    }
+
     private suspend fun isServerProcessRunning(port: Int): Boolean {
         val result = runCatching {
-            termuxCommandManager.run(
-                TermuxRunCommandRequest(
-                    commandPath = TERMUX_BASH_PATH,
-                    arguments = listOf("-lc", buildProbeServerScript(port)),
-                    workdir = TERMUX_HOME_PATH,
-                    background = false,
-                    timeoutMs = 5_000L,
-                    label = "RikkaHub inspect PTY session server process",
-                    description = "Check interactive shell session server process",
-                    trackLifecycle = false,
-                )
+            runMaintenanceCommand(
+                script = buildProbeServerScript(port),
+                timeoutMs = 5_000L,
+                label = "RikkaHub inspect PTY session server process",
+                description = "Check interactive shell session server process",
             )
         }.getOrNull() ?: return false
         if (!result.isSuccessful()) return false
         return result.stdout.lineSequence()
             .map { it.trim() }
             .firstOrNull { it.isNotBlank() } == "running"
+    }
+
+    private suspend fun runMaintenanceCommand(
+        script: String,
+        timeoutMs: Long,
+        label: String,
+        description: String,
+    ): TermuxResult {
+        return termuxCommandManager.run(
+            TermuxRunCommandRequest(
+                commandPath = TERMUX_BASH_PATH,
+                arguments = listOf("-lc", script),
+                workdir = TERMUX_HOME_PATH,
+                // Internal PTY management should stay silent and never yank Termux to the foreground.
+                background = true,
+                timeoutMs = timeoutMs,
+                label = label,
+                description = description,
+                trackLifecycle = false,
+            )
+        )
     }
 
     private suspend fun ping(
@@ -387,7 +392,7 @@ class TermuxPtySessionManager(
         response: okhttp3.Response,
         path: String,
     ): T {
-        val body = response.body?.string().orEmpty()
+        val body = response.body.string()
         if (!response.isSuccessful) {
             val parsed = body.takeIf { it.isNotBlank() }?.let {
                 runCatching { json.decodeFromString<TermuxPtyServerResponse>(it) }.getOrNull()
@@ -609,32 +614,174 @@ class TermuxPtySessionManager(
         }
     }
 
-    private fun buildRecoverTokenScript(): String {
+    private fun buildRecoverTokenScript(port: Int): String {
         return """
             set -eu
 
             STATE_DIR="${'$'}HOME/.rikkahub"
+            SCRIPT_PATH="${'$'}STATE_DIR/pty_session_server.py"
             PID_FILE="${'$'}STATE_DIR/pty_session_server.pid"
             TOKEN_FILE="${'$'}STATE_DIR/pty_session_server.token"
+            PORT="$port"
 
-            [ -r "${'$'}PID_FILE" ] || exit 0
-            [ -r "${'$'}TOKEN_FILE" ] || exit 0
+            print_token_from_pid() {
+              _pid="${'$'}1"
+              [ -n "${'$'}_pid" ] || return 1
+              [ -r "/proc/${'$'}_pid/environ" ] || return 1
+              tr '\0' '\n' < "/proc/${'$'}_pid/environ" 2>/dev/null | \
+                sed -n 's/^RIKKAHUB_PTY_SERVER_TOKEN=//p' | \
+                head -n 1
+            }
+
+            is_pty_server_cmdline() {
+              _cmdline="${'$'}1"
+              _script="${'$'}2"
+              _port="${'$'}3"
+              _padded=" ${'$'}{_cmdline} "
+              case "${'$'}_padded" in
+                *" python3 -u ${'$'}_script --port ${'$'}_port --token "*|*" python3 -u ${'$'}_script --port ${'$'}_port "*" --token "*)
+                  return 0
+                  ;;
+                *)
+                  return 1
+                  ;;
+              esac
+            }
+
+            is_pty_server_pid() {
+              _pid="${'$'}1"
+              [ -n "${'$'}_pid" ] || return 1
+              [ -r "/proc/${'$'}_pid/cmdline" ] || return 1
+              _cmdline="${'$'}(cat "/proc/${'$'}_pid/cmdline" 2>/dev/null | tr '\0' ' ')"
+              [ -n "${'$'}_cmdline" ] || return 1
+              is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT"
+            }
+
+            find_running_pty_server_pid_by_proc() {
+              for _p in /proc/[0-9]*; do
+                _pid="${'$'}{_p#/proc/}"
+                [ -r "${'$'}_p/cmdline" ] || continue
+                _cmdline="${'$'}(cat "${'$'}_p/cmdline" 2>/dev/null | tr '\0' ' ')"
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done
+              return 1
+            }
+
+            find_running_pty_server_pid_by_ps() {
+              while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do
+                [ "${'$'}_pid" = "PID" ] && continue
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline " ${'$'}{_cmdline} " "${'$'}SCRIPT_PATH" "${'$'}PORT"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done < <(ps -ef 2>/dev/null)
+              return 1
+            }
+
+            TOKEN="$(cat "${'$'}TOKEN_FILE" 2>/dev/null || true)"
+            if [ -n "${'$'}TOKEN" ]; then
+              echo "${'$'}TOKEN"
+              exit 0
+            fi
 
             PID="$(cat "${'$'}PID_FILE" 2>/dev/null || true)"
-            [ -n "${'$'}PID" ] || exit 0
-            kill -0 "${'$'}PID" 2>/dev/null || exit 0
+            if [ -n "${'$'}PID" ] && kill -0 "${'$'}PID" 2>/dev/null && is_pty_server_pid "${'$'}PID"; then
+              print_token_from_pid "${'$'}PID" || true
+              exit 0
+            fi
 
-            cat "${'$'}TOKEN_FILE" 2>/dev/null || true
+            PID="${'$'}(find_running_pty_server_pid_by_proc 2>/dev/null || true)"
+            if [ -z "${'$'}PID" ]; then
+              PID="${'$'}(find_running_pty_server_pid_by_ps 2>/dev/null || true)"
+            fi
+            [ -n "${'$'}PID" ] || exit 0
+
+            print_token_from_pid "${'$'}PID" || true
         """.trimIndent()
     }
 
-    private fun buildStopServerScript(): String {
+    private fun buildStopServerScript(port: Int): String {
         return """
             set -eu
 
             STATE_DIR="${'$'}HOME/.rikkahub"
+            SCRIPT_PATH="${'$'}STATE_DIR/pty_session_server.py"
             PID_FILE="${'$'}STATE_DIR/pty_session_server.pid"
             TOKEN_FILE="${'$'}STATE_DIR/pty_session_server.token"
+            PORT="$port"
+
+            is_pty_server_cmdline() {
+              _cmdline="${'$'}1"
+              _script="${'$'}2"
+              _port="${'$'}3"
+              _token="${'$'}4"
+              _padded=" ${'$'}{_cmdline} "
+              case "${'$'}_padded" in
+                *" python3 -u ${'$'}_script "*)
+                  ;;
+                *)
+                  return 1
+                  ;;
+              esac
+              if [ -n "${'$'}_token" ]; then
+                case "${'$'}_padded" in
+                  *" --token ${'$'}_token "*)
+                    return 0
+                    ;;
+                esac
+              fi
+              if [ -n "${'$'}_port" ]; then
+                case "${'$'}_padded" in
+                  *" --port ${'$'}_port "*)
+                    return 0
+                    ;;
+                esac
+              fi
+              return 1
+            }
+
+            is_pty_server_pid() {
+              _pid="${'$'}1"
+              _token="${'$'}2"
+              [ -n "${'$'}_pid" ] || return 1
+              [ -r "/proc/${'$'}_pid/cmdline" ] || return 1
+              _cmdline="${'$'}(cat "/proc/${'$'}_pid/cmdline" 2>/dev/null | tr '\0' ' ')"
+              [ -n "${'$'}_cmdline" ] || return 1
+              is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"
+            }
+
+            find_running_pty_server_pid_by_proc() {
+              _token="${'$'}1"
+              for _p in /proc/[0-9]*; do
+                _pid="${'$'}{_p#/proc/}"
+                [ -r "${'$'}_p/cmdline" ] || continue
+                _cmdline="${'$'}(cat "${'$'}_p/cmdline" 2>/dev/null | tr '\0' ' ')"
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done
+              return 1
+            }
+
+            find_running_pty_server_pid_by_ps() {
+              _token="${'$'}1"
+              while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do
+                [ "${'$'}_pid" = "PID" ] && continue
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline " ${'$'}{_cmdline} " "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done < <(ps -ef 2>/dev/null)
+              return 1
+            }
 
             kill_pid() {
               _pid="${'$'}1"
@@ -648,14 +795,133 @@ class TermuxPtySessionManager(
                 kill -9 "${'$'}_pid" 2>/dev/null || true
                 sleep 0.2
               fi
+              if kill -0 "${'$'}_pid" 2>/dev/null; then
+                return 1
+              fi
               return 0
             }
 
+            TOKEN="$(cat "${'$'}TOKEN_FILE" 2>/dev/null || true)"
             PID="$(cat "${'$'}PID_FILE" 2>/dev/null || true)"
-            kill_pid "${'$'}PID"
+            STOPPED_PID=""
+
+            if [ -n "${'$'}PID" ] && kill -0 "${'$'}PID" 2>/dev/null && is_pty_server_pid "${'$'}PID" "${'$'}TOKEN"; then
+              if ! kill_pid "${'$'}PID"; then
+                echo "FAILED_TO_STOP_PTY_SERVER ${'$'}PID" >&2
+                exit 1
+              fi
+              STOPPED_PID="${'$'}PID"
+            fi
+
+            if [ -z "${'$'}STOPPED_PID" ]; then
+              MATCHING_PID="${'$'}(find_running_pty_server_pid_by_proc "${'$'}TOKEN" 2>/dev/null || true)"
+              if [ -z "${'$'}MATCHING_PID" ]; then
+                MATCHING_PID="${'$'}(find_running_pty_server_pid_by_ps "${'$'}TOKEN" 2>/dev/null || true)"
+              fi
+              if [ -n "${'$'}MATCHING_PID" ]; then
+                if ! kill_pid "${'$'}MATCHING_PID"; then
+                  echo "FAILED_TO_STOP_PTY_SERVER ${'$'}MATCHING_PID" >&2
+                  exit 1
+                fi
+                STOPPED_PID="${'$'}MATCHING_PID"
+              fi
+            fi
+
             rm -f "${'$'}PID_FILE" "${'$'}TOKEN_FILE"
-            echo "PTY session server stopped."
+            if [ -n "${'$'}STOPPED_PID" ]; then
+              echo "PTY session server stopped (${'$'}STOPPED_PID)."
+            else
+              echo "PTY session server was not running."
+            fi
         """.trimIndent()
+    }
+
+    private fun buildSyncServerStateScript(
+        port: Int,
+        token: String,
+    ): String {
+        val safeToken = token.replace("'", "'\"'\"'")
+        return buildString {
+            appendLine("set -eu")
+            appendLine()
+            appendLine("STATE_DIR=\"${'$'}HOME/.rikkahub\"")
+            appendLine("SCRIPT_PATH=\"${'$'}STATE_DIR/pty_session_server.py\"")
+            appendLine("PID_FILE=\"${'$'}STATE_DIR/pty_session_server.pid\"")
+            appendLine("TOKEN_FILE=\"${'$'}STATE_DIR/pty_session_server.token\"")
+            appendLine("PORT=\"$port\"")
+            appendLine("TOKEN='$safeToken'")
+            appendLine()
+            appendLine("is_pty_server_cmdline() {")
+            appendLine("  _cmdline=\"${'$'}1\"")
+            appendLine("  _script=\"${'$'}2\"")
+            appendLine("  _port=\"${'$'}3\"")
+            appendLine("  _token=\"${'$'}4\"")
+            appendLine("  _padded=\" ${'$'}{_cmdline} \"")
+            appendLine("  case \"${'$'}_padded\" in")
+            appendLine("    *\" python3 -u ${'$'}_script --port ${'$'}_port --token ${'$'}_token \"*|*\" python3 -u ${'$'}_script --port ${'$'}_port \"*\" --token ${'$'}_token \"*)")
+            appendLine("      return 0")
+            appendLine("      ;;")
+            appendLine("    *)")
+            appendLine("      return 1")
+            appendLine("      ;;")
+            appendLine("  esac")
+            appendLine("}")
+            appendLine()
+            appendLine("is_pty_server_pid() {")
+            appendLine("  _pid=\"${'$'}1\"")
+            appendLine("  [ -n \"${'$'}_pid\" ] || return 1")
+            appendLine("  [ -r \"/proc/${'$'}_pid/cmdline\" ] || return 1")
+            appendLine("  _cmdline=\"${'$'}(cat \"/proc/${'$'}_pid/cmdline\" 2>/dev/null | tr '\\0' ' ')\"")
+            appendLine("  [ -n \"${'$'}_cmdline\" ] || return 1")
+            appendLine("  is_pty_server_cmdline \"${'$'}_cmdline\" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"")
+            appendLine("}")
+            appendLine()
+            appendLine("find_running_pty_server_pid_by_proc() {")
+            appendLine("  for _p in /proc/[0-9]*; do")
+            appendLine("    _pid=\"${'$'}{_p#/proc/}\"")
+            appendLine("    [ -r \"${'$'}_p/cmdline\" ] || continue")
+            appendLine("    _cmdline=\"${'$'}(cat \"${'$'}_p/cmdline\" 2>/dev/null | tr '\\0' ' ')\"")
+            appendLine("    [ -n \"${'$'}_cmdline\" ] || continue")
+            appendLine("    if is_pty_server_cmdline \"${'$'}_cmdline\" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"; then")
+            appendLine("      echo \"${'$'}_pid\"")
+            appendLine("      return 0")
+            appendLine("    fi")
+            appendLine("  done")
+            appendLine("  return 1")
+            appendLine("}")
+            appendLine()
+            appendLine("find_running_pty_server_pid_by_ps() {")
+            appendLine("  while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do")
+            appendLine("    [ \"${'$'}_pid\" = \"PID\" ] && continue")
+            appendLine("    [ -n \"${'$'}_cmdline\" ] || continue")
+            appendLine("    if is_pty_server_cmdline \" ${'$'}{_cmdline} \" \"${'$'}SCRIPT_PATH\" \"${'$'}PORT\" \"${'$'}TOKEN\"; then")
+            appendLine("      echo \"${'$'}_pid\"")
+            appendLine("      return 0")
+            appendLine("    fi")
+            appendLine("  done < <(ps -ef 2>/dev/null)")
+            appendLine("  return 1")
+            appendLine("}")
+            appendLine()
+            appendLine("mkdir -p \"${'$'}STATE_DIR\"")
+            appendLine("PID=\"$(cat \"${'$'}PID_FILE\" 2>/dev/null || true)\"")
+            appendLine("if [ -n \"${'$'}PID\" ] && kill -0 \"${'$'}PID\" 2>/dev/null && is_pty_server_pid \"${'$'}PID\"; then")
+            appendLine("  printf '%s\\n' \"${'$'}PID\" > \"${'$'}PID_FILE\"")
+            appendLine("  printf '%s\\n' \"${'$'}TOKEN\" > \"${'$'}TOKEN_FILE\"")
+            appendLine("  exit 0")
+            appendLine("fi")
+            appendLine()
+            appendLine("PID=\"${'$'}(find_running_pty_server_pid_by_proc 2>/dev/null || true)\"")
+            appendLine("if [ -z \"${'$'}PID\" ]; then")
+            appendLine("  PID=\"${'$'}(find_running_pty_server_pid_by_ps 2>/dev/null || true)\"")
+            appendLine("fi")
+            appendLine()
+            appendLine("if [ -n \"${'$'}PID\" ]; then")
+            appendLine("  printf '%s\\n' \"${'$'}PID\" > \"${'$'}PID_FILE\"")
+            appendLine("  printf '%s\\n' \"${'$'}TOKEN\" > \"${'$'}TOKEN_FILE\"")
+            appendLine("else")
+            appendLine("  rm -f \"${'$'}PID_FILE\" \"${'$'}TOKEN_FILE\"")
+            appendLine("fi")
+        }
     }
 
     private fun buildProbeServerScript(port: Int): String {
@@ -759,6 +1025,7 @@ class TermuxPtySessionManager(
             DEFAULT_TERM = "xterm-256color"
             SESSION_TTL_SECONDS = 1800
             SESSION_SWEEP_INTERVAL_SECONDS = 60
+            MAX_PENDING_OUTPUT_CHARS = 120000
 
             def decode_exit_code(status):
                 if hasattr(os, "waitstatus_to_exitcode"):
@@ -789,6 +1056,7 @@ class TermuxPtySessionManager(
                     self.running = True
                     self.exit_code = None
                     self.pending_output = ""
+                    self.output_overflowed = False
                     now = time.time()
                     self.created_at = now
                     self.last_access = now
@@ -823,6 +1091,14 @@ class TermuxPtySessionManager(
                     threading.Thread(target=self._reader_loop, daemon=True).start()
                     threading.Thread(target=self._waiter_loop, daemon=True).start()
 
+                def _append_output(self, text):
+                    if not text:
+                        return
+                    self.pending_output += text
+                    if len(self.pending_output) > MAX_PENDING_OUTPUT_CHARS:
+                        self.pending_output = self.pending_output[-MAX_PENDING_OUTPUT_CHARS:]
+                        self.output_overflowed = True
+
                 def _reader_loop(self):
                     while True:
                         try:
@@ -839,20 +1115,20 @@ class TermuxPtySessionManager(
                                 break
                             text = self.decoder.decode(data)
                             with self.condition:
-                                self.pending_output += text
+                                self._append_output(text)
                                 self.last_access = time.time()
                                 self.condition.notify_all()
                         except OSError as exc:
                             if exc.errno in (errno.EIO, errno.EBADF):
                                 break
                             with self.condition:
-                                self.pending_output += "\n[PTY read error] {}\n".format(exc)
+                                self._append_output("\n[PTY read error] {}\n".format(exc))
                                 self.condition.notify_all()
                             break
                     tail = self.decoder.decode(b"", final=True)
                     if tail:
                         with self.condition:
-                            self.pending_output += tail
+                            self._append_output(tail)
                             self.condition.notify_all()
                     with self.condition:
                         self.condition.notify_all()
@@ -909,7 +1185,9 @@ class TermuxPtySessionManager(
                             self.condition.wait(remaining)
                         output = self.pending_output[:max_output_chars]
                         self.pending_output = self.pending_output[max_output_chars:]
-                        truncated = bool(self.pending_output)
+                        overflowed = self.output_overflowed
+                        self.output_overflowed = False
+                        truncated = bool(self.pending_output) or overflowed
                         has_more = bool(self.pending_output)
                         running = self.running
                         exit_code = self.exit_code
@@ -920,6 +1198,9 @@ class TermuxPtySessionManager(
                         "exit_code": exit_code,
                         "truncated": truncated,
                         "keep_session": running or has_more,
+                        # Keep finished sessions in the registry until TTL/manual close so the
+                        # settings page can inspect fast-exiting interactive commands.
+                        "retain_session": True,
                     }
 
                 def is_idle(self, now):
@@ -1097,8 +1378,9 @@ class TermuxPtySessionManager(
                     session = registry.create(command=command, workdir=workdir, cols=cols, rows=rows)
                     response = session.read(yield_time_ms=yield_time_ms, max_output_chars=max_output_chars)
                     keep_session = response.pop("keep_session")
+                    retain_session = response.pop("retain_session", keep_session)
                     response["session_id"] = session.id if keep_session else None
-                    registry.maybe_remove(session.id, keep_session)
+                    registry.maybe_remove(session.id, retain_session)
                     self._respond(200, response)
 
                 def _handle_write(self, session_id, payload):
@@ -1126,8 +1408,9 @@ class TermuxPtySessionManager(
 
                     response = session.read(yield_time_ms=yield_time_ms, max_output_chars=max_output_chars)
                     keep_session = response.pop("keep_session")
+                    retain_session = response.pop("retain_session", keep_session)
                     response["session_id"] = session.id if keep_session else None
-                    registry.maybe_remove(session.id, keep_session)
+                    registry.maybe_remove(session.id, retain_session)
                     self._respond(200, response)
 
                 def _respond(self, status_code, payload):

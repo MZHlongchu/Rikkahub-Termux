@@ -921,7 +921,7 @@
   <string name="setting_termux_page_timeout_title">Timeout (ms)</string>
   <string name="setting_termux_page_timeout_desc">Timeout for termux_exec and termux_python. Minimum 1000ms. Default 120000ms (2 minutes).</string>
   <string name="setting_termux_page_pty_title">Interactive Session Tuning</string>
-  <string name="setting_termux_page_pty_desc">Applies to termux_exec with tty=true and write_stdin. PTY uses the Python standard library, so no pip package is required.</string>
+  <string name="setting_termux_page_pty_desc">Applies only to RikkaHub PTY sessions created by termux_exec with tty=true and write_stdin. Regular Termux app tabs do not appear here. PTY uses the Python standard library, so no pip package is required.</string>
   <string name="setting_termux_page_pty_yield_time_title">Initial wait (ms)</string>
   <string name="setting_termux_page_pty_max_output_chars_title">Max output chars</string>
   <string name="setting_termux_page_setup_title">Setup checklist</string>
@@ -1108,7 +1108,7 @@
   <string name="setting_termux_page_pty_refresh_sessions">Refresh Sessions</string>
   <string name="setting_termux_page_pty_close_all_sessions">Close All</string>
   <string name="setting_termux_page_pty_loading_sessions">Loading PTY sessions...</string>
-  <string name="setting_termux_page_pty_refresh_hint">Tap Refresh Sessions to query Termux. Opening this page no longer auto-launches Termux.</string>
+  <string name="setting_termux_page_pty_refresh_hint">Tap Refresh Sessions to query RikkaHub PTY sessions in the background. Opening this page no longer auto-launches Termux.</string>
   <string name="setting_termux_page_pty_no_sessions">No active PTY sessions.</string>
   <string name="setting_termux_page_pty_server_not_running">No active PTY server detected. It starts on demand when tty=true is used.</string>
   <string name="setting_termux_page_pty_session_id">ID: %1$s</string>
