@@ -1089,7 +1089,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="update_card_new_version_found">发现新版本 %s</string>
   <string name="update_card_close">关闭</string>
   <string name="update_card_downloading">正在下载，请在状态栏查看进度</string>
-  <string name="setting_termux_page_pty_desc">适用于 tty=true 且启用 write_stdin 的 termux_exec。PTY 使用的是 Python 标准库，不需要额外 pip 安装。</string>
+  <string name="setting_termux_page_pty_desc">这里只显示 RikkaHub 通过 termux_exec 且 tty=true 创建的 PTY 会话，不会显示 Termux App 里手动打开的终端标签。PTY 使用的是 Python 标准库，不需要额外 pip 安装。</string>
   <string name="setting_termux_page_pty_yield_time_title">初始等待时间 (ms)</string>
   <string name="setting_termux_page_pty_max_output_chars_title">最大输出字符数</string>
   <string name="setting_termux_page_pty_title">交互会话优化</string>
@@ -1110,7 +1110,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_termux_page_pty_refresh_sessions">刷新会话</string>
   <string name="setting_termux_page_pty_close_all_sessions">全部关闭</string>
   <string name="setting_termux_page_pty_loading_sessions">正在加载 PTY 会话...</string>
-  <string name="setting_termux_page_pty_refresh_hint">点击“刷新会话”后再查询 Termux。打开此页面时不再自动拉起 Termux。</string>
+  <string name="setting_termux_page_pty_refresh_hint">点击“刷新会话”会在后台查询 RikkaHub 的 PTY 会话，打开此页面时不再自动拉起 Termux。</string>
   <string name="setting_termux_page_pty_no_sessions">没有活动的 PTY 会话。</string>
   <string name="setting_termux_page_pty_server_not_running">未检测到活动中的 PTY 服务。首次使用 tty=true 时会自动启动。</string>
   <string name="setting_termux_page_pty_session_id">ID：%1$s</string>

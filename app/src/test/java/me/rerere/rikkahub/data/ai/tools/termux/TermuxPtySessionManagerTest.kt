@@ -149,6 +149,61 @@ class TermuxPtySessionManagerTest {
         }
     }
 
+    @Test
+    fun `recover token script should read token from running orphan server env`() {
+        assumeTrue(canRunCommand("bash"))
+        assumeTrue(canRunCommand("python3"))
+
+        val tempHome = Files.createTempDirectory("termux-pty-recover-token").toFile()
+        val stateDir = File(tempHome, ".rikkahub").apply { mkdirs() }
+        val pidFile = File(stateDir, "pty_session_server.pid")
+        val tokenFile = File(stateDir, "pty_session_server.token")
+        val scriptFile = File(stateDir, "pty_session_server.py")
+        val token = "recover-token"
+        val port = reservePort()
+        var serverPid: Long? = null
+
+        try {
+            val sessionManager = allocateSessionManager()
+            scriptFile.writeText(sessionManager.termuxPtyServerScriptForTest())
+
+            serverPid = startDetachedPythonServer(
+                homeDir = tempHome,
+                scriptFile = scriptFile,
+                port = port,
+                token = token,
+                exportEnvToken = true,
+            )
+
+            assertTrue(waitForHealth(port = port, token = token))
+            assertFalse(pidFile.exists())
+            assertFalse(tokenFile.exists())
+
+            val recover = ProcessBuilder("bash", "-s")
+                .directory(tempHome)
+                .apply {
+                    environment()["HOME"] = tempHome.absolutePath
+                }
+                .start()
+            recover.outputStream.bufferedWriter().use { writer ->
+                writer.write(sessionManager.buildRecoverTokenScriptForTest(port = port))
+            }
+
+            assertTrue("recover token script timed out", recover.waitFor(10, TimeUnit.SECONDS))
+            val stdout = recover.inputStream.bufferedReader().readText().trim()
+            val stderr = recover.errorStream.bufferedReader().readText()
+            assertEquals(
+                "recover token script failed\nstdout:\n$stdout\nstderr:\n$stderr",
+                0,
+                recover.exitValue(),
+            )
+            assertEquals(token, stdout)
+        } finally {
+            serverPid?.let(::killPid)
+            tempHome.deleteRecursively()
+        }
+    }
+
     private fun allocateSessionManager(): TermuxPtySessionManager {
         val field = Unsafe::class.java.getDeclaredField("theUnsafe")
         field.isAccessible = true
@@ -164,6 +219,15 @@ class TermuxPtySessionManagerTest {
         )
         method.isAccessible = true
         return method.invoke(this, port, token) as String
+    }
+
+    private fun TermuxPtySessionManager.buildRecoverTokenScriptForTest(port: Int): String {
+        val method = javaClass.getDeclaredMethod(
+            "buildRecoverTokenScript",
+            Int::class.javaPrimitiveType,
+        )
+        method.isAccessible = true
+        return method.invoke(this, port) as String
     }
 
     private fun TermuxPtySessionManager.termuxPtyServerScriptForTest(): String {
@@ -183,11 +247,17 @@ class TermuxPtySessionManagerTest {
         scriptFile: File,
         port: Int,
         token: String,
+        exportEnvToken: Boolean = false,
     ): Long {
+        val envPrefix = if (exportEnvToken) {
+            "RIKKAHUB_PTY_SERVER_TOKEN='$token' "
+        } else {
+            ""
+        }
         val process = ProcessBuilder(
             "bash",
             "-lc",
-            "python3 -u '${scriptFile.absolutePath}' --port '$port' --token '$token' >/dev/null 2>&1 < /dev/null & echo \$!",
+            "${envPrefix}python3 -u '${scriptFile.absolutePath}' --port '$port' --token '$token' >/dev/null 2>&1 < /dev/null & echo \$!",
         )
             .directory(homeDir)
             .redirectErrorStream(true)
