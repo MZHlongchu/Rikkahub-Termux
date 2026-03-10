@@ -268,6 +268,54 @@ class TermuxPtySessionManagerTest {
     }
 
     @Test
+    fun `stop server script should ignore unrelated pid file`() {
+        assumeTrue(canRunCommand("bash"))
+
+        val tempHome = Files.createTempDirectory("termux-pty-stop-script").toFile()
+        val stateDir = File(tempHome, ".rikkahub").apply { mkdirs() }
+        val pidFile = File(stateDir, "pty_session_server.pid")
+        val tokenFile = File(stateDir, "pty_session_server.token")
+        val port = reservePort()
+        var unrelatedPid: Long? = null
+
+        try {
+            val sessionManager = allocateSessionManager()
+            unrelatedPid = startDetachedProcess(
+                homeDir = tempHome,
+                command = "sleep 30",
+            )
+            pidFile.writeText("$unrelatedPid\n")
+            tokenFile.writeText("stale-token\n")
+
+            val stop = ProcessBuilder("bash", "-s")
+                .directory(tempHome)
+                .apply {
+                    environment()["HOME"] = tempHome.absolutePath
+                }
+                .start()
+            stop.outputStream.bufferedWriter().use { writer ->
+                writer.write(sessionManager.buildStopServerScriptForTest(port))
+            }
+
+            assertTrue("stop server script timed out", stop.waitFor(10, TimeUnit.SECONDS))
+            val stdout = stop.inputStream.bufferedReader().readText()
+            val stderr = stop.errorStream.bufferedReader().readText()
+            assertEquals(
+                "stop server script failed\nstdout:\n$stdout\nstderr:\n$stderr",
+                0,
+                stop.exitValue(),
+            )
+
+            assertTrue("unrelated pid should still be alive", isPidAlive(requireNotNull(unrelatedPid)))
+            assertFalse(pidFile.exists())
+            assertFalse(tokenFile.exists())
+        } finally {
+            unrelatedPid?.let(::killPid)
+            tempHome.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `finished session should remain visible in session list until cleanup`() {
         assumeTrue(canRunCommand("bash"))
         assumeTrue(canRunCommand("python3"))
@@ -333,6 +381,15 @@ class TermuxPtySessionManagerTest {
         field.isAccessible = true
         val unsafe = field.get(null) as Unsafe
         return unsafe.allocateInstance(TermuxPtySessionManager::class.java) as TermuxPtySessionManager
+    }
+
+    private fun TermuxPtySessionManager.buildStopServerScriptForTest(port: Int): String {
+        val method = javaClass.getDeclaredMethod(
+            "buildStopServerScript",
+            Int::class.javaPrimitiveType,
+        )
+        method.isAccessible = true
+        return method.invoke(this, port) as String
     }
 
     private fun TermuxPtySessionManager.buildBootstrapScriptForTest(port: Int, token: String): String {
@@ -407,6 +464,25 @@ class TermuxPtySessionManagerTest {
             }
             .start()
         assertTrue("failed to start legacy server shell", process.waitFor(5, TimeUnit.SECONDS))
+        return process.inputStream.bufferedReader().readText().trim().toLong()
+    }
+
+    private fun startDetachedProcess(
+        homeDir: File,
+        command: String,
+    ): Long {
+        val process = ProcessBuilder(
+            "bash",
+            "-lc",
+            "nohup $command >/dev/null 2>&1 < /dev/null & echo \$!",
+        )
+            .directory(homeDir)
+            .redirectErrorStream(true)
+            .apply {
+                environment()["HOME"] = homeDir.absolutePath
+            }
+            .start()
+        assertTrue("failed to start detached process shell", process.waitFor(5, TimeUnit.SECONDS))
         return process.inputStream.bufferedReader().readText().trim().toLong()
     }
 

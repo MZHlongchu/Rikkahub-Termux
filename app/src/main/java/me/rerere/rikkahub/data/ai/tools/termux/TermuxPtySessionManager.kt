@@ -152,9 +152,10 @@ class TermuxPtySessionManager(
     }
 
     suspend fun stopServer() {
+        val port = currentPort()
         runCatching {
             runMaintenanceCommand(
-                script = buildStopServerScript(),
+                script = buildStopServerScript(port),
                 timeoutMs = 10_000L,
                 label = "RikkaHub stop PTY session server",
                 description = "Stop interactive shell session server",
@@ -704,13 +705,83 @@ class TermuxPtySessionManager(
         """.trimIndent()
     }
 
-    private fun buildStopServerScript(): String {
+    private fun buildStopServerScript(port: Int): String {
         return """
             set -eu
 
             STATE_DIR="${'$'}HOME/.rikkahub"
+            SCRIPT_PATH="${'$'}STATE_DIR/pty_session_server.py"
             PID_FILE="${'$'}STATE_DIR/pty_session_server.pid"
             TOKEN_FILE="${'$'}STATE_DIR/pty_session_server.token"
+            PORT="$port"
+
+            is_pty_server_cmdline() {
+              _cmdline="${'$'}1"
+              _script="${'$'}2"
+              _port="${'$'}3"
+              _token="${'$'}4"
+              _padded=" ${'$'}{_cmdline} "
+              case "${'$'}_padded" in
+                *" python3 -u ${'$'}_script "*)
+                  ;;
+                *)
+                  return 1
+                  ;;
+              esac
+              if [ -n "${'$'}_token" ]; then
+                case "${'$'}_padded" in
+                  *" --token ${'$'}_token "*)
+                    return 0
+                    ;;
+                esac
+              fi
+              if [ -n "${'$'}_port" ]; then
+                case "${'$'}_padded" in
+                  *" --port ${'$'}_port "*)
+                    return 0
+                    ;;
+                esac
+              fi
+              return 1
+            }
+
+            is_pty_server_pid() {
+              _pid="${'$'}1"
+              _token="${'$'}2"
+              [ -n "${'$'}_pid" ] || return 1
+              [ -r "/proc/${'$'}_pid/cmdline" ] || return 1
+              _cmdline="${'$'}(cat "/proc/${'$'}_pid/cmdline" 2>/dev/null | tr '\0' ' ')"
+              [ -n "${'$'}_cmdline" ] || return 1
+              is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"
+            }
+
+            find_running_pty_server_pid_by_proc() {
+              _token="${'$'}1"
+              for _p in /proc/[0-9]*; do
+                _pid="${'$'}{_p#/proc/}"
+                [ -r "${'$'}_p/cmdline" ] || continue
+                _cmdline="${'$'}(cat "${'$'}_p/cmdline" 2>/dev/null | tr '\0' ' ')"
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline "${'$'}_cmdline" "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done
+              return 1
+            }
+
+            find_running_pty_server_pid_by_ps() {
+              _token="${'$'}1"
+              while read -r _user _pid _ppid _c _stime _tty _time _cmdline; do
+                [ "${'$'}_pid" = "PID" ] && continue
+                [ -n "${'$'}_cmdline" ] || continue
+                if is_pty_server_cmdline " ${'$'}{_cmdline} " "${'$'}SCRIPT_PATH" "${'$'}PORT" "${'$'}_token"; then
+                  echo "${'$'}_pid"
+                  return 0
+                fi
+              done < <(ps -ef 2>/dev/null)
+              return 1
+            }
 
             kill_pid() {
               _pid="${'$'}1"
@@ -724,13 +795,44 @@ class TermuxPtySessionManager(
                 kill -9 "${'$'}_pid" 2>/dev/null || true
                 sleep 0.2
               fi
+              if kill -0 "${'$'}_pid" 2>/dev/null; then
+                return 1
+              fi
               return 0
             }
 
+            TOKEN="$(cat "${'$'}TOKEN_FILE" 2>/dev/null || true)"
             PID="$(cat "${'$'}PID_FILE" 2>/dev/null || true)"
-            kill_pid "${'$'}PID"
+            STOPPED_PID=""
+
+            if [ -n "${'$'}PID" ] && kill -0 "${'$'}PID" 2>/dev/null && is_pty_server_pid "${'$'}PID" "${'$'}TOKEN"; then
+              if ! kill_pid "${'$'}PID"; then
+                echo "FAILED_TO_STOP_PTY_SERVER ${'$'}PID" >&2
+                exit 1
+              fi
+              STOPPED_PID="${'$'}PID"
+            fi
+
+            if [ -z "${'$'}STOPPED_PID" ]; then
+              MATCHING_PID="${'$'}(find_running_pty_server_pid_by_proc "${'$'}TOKEN" 2>/dev/null || true)"
+              if [ -z "${'$'}MATCHING_PID" ]; then
+                MATCHING_PID="${'$'}(find_running_pty_server_pid_by_ps "${'$'}TOKEN" 2>/dev/null || true)"
+              fi
+              if [ -n "${'$'}MATCHING_PID" ]; then
+                if ! kill_pid "${'$'}MATCHING_PID"; then
+                  echo "FAILED_TO_STOP_PTY_SERVER ${'$'}MATCHING_PID" >&2
+                  exit 1
+                fi
+                STOPPED_PID="${'$'}MATCHING_PID"
+              fi
+            fi
+
             rm -f "${'$'}PID_FILE" "${'$'}TOKEN_FILE"
-            echo "PTY session server stopped."
+            if [ -n "${'$'}STOPPED_PID" ]; then
+              echo "PTY session server stopped (${'$'}STOPPED_PID)."
+            else
+              echo "PTY session server was not running."
+            fi
         """.trimIndent()
     }
 
