@@ -33,6 +33,9 @@
   <string name="assistant_page_background_opacity">背景透明度</string>
   <string name="assistant_page_background_opacity_desc">调整聊天背景图显示透明度</string>
   <string name="assistant_page_background_opacity_value">透明度：%1$d%%</string>
+  <string name="assistant_page_background_blur">背景模糊度</string>
+  <string name="assistant_page_background_blur_desc">调整聊天背景的高斯模糊强度。Android 12 及以上生效。</string>
+  <string name="assistant_page_background_blur_value">模糊度：%1$d</string>
   <string name="assistant_page_background_set">已设置背景图片</string>
   <string name="assistant_page_balanced">平衡</string>
   <string name="assistant_page_body_key">Body Key</string>
@@ -1116,6 +1119,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_termux_page_pty_close_all_sessions">全部关闭</string>
   <string name="setting_termux_page_pty_loading_sessions">正在加载 PTY 会话...</string>
   <string name="setting_termux_page_pty_refresh_hint">点击“刷新会话”后再查询 Termux。打开此页面时不再自动拉起 Termux。</string>
+  <string name="setting_termux_page_pty_disabled_hint">关闭后，termux_exec 只会暴露 command 和 timeout_ms，PTY 相关工具不会发送给模型。</string>
   <string name="setting_termux_page_pty_no_sessions">没有活动的 PTY 会话。</string>
   <string name="setting_termux_page_pty_server_not_running">未检测到活动中的 PTY 服务。首次使用 tty=true 时会自动启动。</string>
   <string name="setting_termux_page_pty_session_id">ID：%1$s</string>
