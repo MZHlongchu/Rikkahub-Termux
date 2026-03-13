@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,8 +59,10 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Alert01
 import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.FileImport
-import me.rerere.hugeicons.stroke.Package01
+import me.rerere.hugeicons.stroke.PencilEdit01
+import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import me.rerere.rikkahub.data.model.Assistant
@@ -91,7 +94,7 @@ fun SkillsPickerButton(
     }
 
     LaunchedEffect(showPicker) {
-        if (showPicker) {
+        if (showPicker && !skillsState.isLoading && (skillsState.refreshedAt == 0L || skillsState.error != null)) {
             skillsRepository.requestRefresh()
         }
     }
@@ -125,7 +128,7 @@ fun SkillsPickerButton(
                         }
                     ) {
                         Icon(
-                            imageVector = HugeIcons.Package01,
+                            imageVector = HugeIcons.Puzzle,
                             contentDescription = stringResource(R.string.assistant_page_tab_skills),
                         )
                     }
@@ -155,7 +158,7 @@ fun SkillsPickerButton(
                     assistant = assistant,
                     skillsState = skillsState,
                     modelSupportsTools = modelSupportsTools,
-                    onRefresh = skillsRepository::requestRefresh,
+                    onRefresh = { skillsRepository.requestRefresh() },
                     onUpdateAssistant = onUpdateAssistant,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,6 +179,7 @@ fun SkillsPicker(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val skillsRepository = koinInject<SkillsRepository>()
@@ -207,10 +211,12 @@ fun SkillsPicker(
     var editDocument by remember { mutableStateOf<SkillEditorDocument?>(null) }
     var isLoadingEditor by remember { mutableStateOf(false) }
     var isSavingEditor by remember { mutableStateOf(false) }
+    var deleteEntry by remember { mutableStateOf<SkillCatalogEntry?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
     var showInvalidEntries by remember(skillsState.invalidEntries) {
         mutableStateOf(skillsState.invalidEntries.isNotEmpty())
     }
-    val actionInProgress = isCreating || isImporting || isLoadingEditor || isSavingEditor
+    val actionInProgress = isCreating || isImporting || isLoadingEditor || isSavingEditor || isDeleting
 
     fun resetCreateDialog() {
         createName = ""
@@ -233,15 +239,15 @@ fun SkillsPicker(
                                 inputStream = inputStream,
                                 archiveName = queryDisplayName(context, selectedUri),
                             )
-                        } ?: error(context.getString(R.string.assistant_page_skills_import_failed))
+                        } ?: error(resources.getString(R.string.assistant_page_skills_import_failed))
                     }
                     val message = if (imported.directories.size == 1) {
-                        context.getString(
+                        resources.getString(
                             R.string.assistant_page_skills_import_success_single,
                             imported.directories.single(),
                         )
                     } else {
-                        context.getString(
+                        resources.getString(
                             R.string.assistant_page_skills_import_success_multiple,
                             imported.directories.size,
                         )
@@ -249,7 +255,7 @@ fun SkillsPicker(
                     toaster.show(message, type = ToastType.Success)
                 } catch (error: Throwable) {
                     toaster.show(
-                        error.message ?: context.getString(R.string.assistant_page_skills_import_failed),
+                        error.message ?: resources.getString(R.string.assistant_page_skills_import_failed),
                         type = ToastType.Error,
                     )
                 } finally {
@@ -464,12 +470,19 @@ fun SkillsPicker(
                                 editDocument = skillsRepository.loadSkillDocument(entry)
                             } catch (error: Throwable) {
                                 toaster.show(
-                                    error.message ?: context.getString(R.string.assistant_page_skills_edit_load_failed),
+                                    error.message ?: resources.getString(R.string.assistant_page_skills_edit_load_failed),
                                     type = ToastType.Error,
                                 )
                             } finally {
                                 isLoadingEditor = false
                             }
+                        }
+                    },
+                    onDelete = if (entry.isBundled) {
+                        null
+                    } else {
+                        {
+                            deleteEntry = entry
                         }
                     },
                     onCheckedChange = { checked ->
@@ -604,7 +617,7 @@ fun SkillsPicker(
                             body = createBody,
                         )
                         toaster.show(
-                            context.getString(
+                            resources.getString(
                                 R.string.assistant_page_skills_create_success,
                                 created.directoryName,
                             ),
@@ -614,12 +627,86 @@ fun SkillsPicker(
                         resetCreateDialog()
                     } catch (error: Throwable) {
                         toaster.show(
-                            error.message ?: context.getString(R.string.assistant_page_skills_create_failed),
+                            error.message ?: resources.getString(R.string.assistant_page_skills_create_failed),
                             type = ToastType.Error,
                         )
                     } finally {
                         isCreating = false
                     }
+                }
+            },
+        )
+    }
+
+    deleteEntry?.let { currentEntry ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    deleteEntry = null
+                }
+            },
+            title = { Text(stringResource(R.string.confirm_delete)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.assistant_page_skills_delete_body,
+                        currentEntry.directoryName,
+                        skillsState.rootPath.ifBlank {
+                            stringResource(R.string.assistant_page_skills_root_fallback)
+                        },
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        scope.launch {
+                            val latestEntry = deleteEntry ?: return@launch
+                            isDeleting = true
+                            try {
+                                skillsRepository.deleteSkill(latestEntry.directoryName)
+                                if (latestEntry.directoryName in assistant.selectedSkills) {
+                                    onUpdateAssistant(
+                                        assistant.copy(
+                                            selectedSkills = assistant.selectedSkills - latestEntry.directoryName
+                                        )
+                                    )
+                                }
+                                toaster.show(
+                                    resources.getString(
+                                        R.string.assistant_page_skills_delete_success,
+                                        latestEntry.directoryName,
+                                    ),
+                                    type = ToastType.Success,
+                                )
+                                deleteEntry = null
+                            } catch (error: Throwable) {
+                                toaster.show(
+                                    error.message ?: resources.getString(R.string.assistant_page_skills_delete_failed),
+                                    type = ToastType.Error,
+                                )
+                            } finally {
+                                isDeleting = false
+                            }
+                        }
+                    },
+                ) {
+                    Text(
+                        text = if (isDeleting) {
+                            stringResource(R.string.assistant_page_skills_delete_in_progress)
+                        } else {
+                            stringResource(R.string.delete)
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = { deleteEntry = null },
+                ) {
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )
@@ -674,7 +761,7 @@ fun SkillsPicker(
                             onUpdateAssistant(assistant.copy(selectedSkills = nextSelection))
                         }
                         toaster.show(
-                            context.getString(
+                            resources.getString(
                                 R.string.assistant_page_skills_edit_success,
                                 saved.directoryName,
                             ),
@@ -683,7 +770,7 @@ fun SkillsPicker(
                         editDocument = null
                     } catch (error: Throwable) {
                         toaster.show(
-                            error.message ?: context.getString(R.string.assistant_page_skills_edit_failed),
+                            error.message ?: resources.getString(R.string.assistant_page_skills_edit_failed),
                             type = ToastType.Error,
                         )
                     } finally {
@@ -789,6 +876,7 @@ private fun SkillEntryCard(
     checked: Boolean,
     enabled: Boolean,
     onEdit: () -> Unit,
+    onDelete: (() -> Unit)?,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Card(
@@ -802,7 +890,7 @@ private fun SkillEntryCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(HugeIcons.Package01, contentDescription = null)
+            Icon(HugeIcons.Puzzle, contentDescription = null)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -830,11 +918,36 @@ private fun SkillEntryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
-                checked = checked,
-                enabled = enabled,
-                onCheckedChange = onCheckedChange,
-            )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                IconButton(
+                    enabled = enabled,
+                    onClick = onEdit,
+                ) {
+                    Icon(
+                        imageVector = HugeIcons.PencilEdit01,
+                        contentDescription = stringResource(R.string.assistant_page_skills_edit_title),
+                    )
+                }
+                onDelete?.let { deleteSkill ->
+                    IconButton(
+                        enabled = enabled,
+                        onClick = deleteSkill,
+                    ) {
+                        Icon(
+                            imageVector = HugeIcons.Delete01,
+                            contentDescription = stringResource(R.string.delete),
+                        )
+                    }
+                }
+                Switch(
+                    checked = checked,
+                    enabled = enabled,
+                    onCheckedChange = onCheckedChange,
+                )
+            }
         }
     }
 }
