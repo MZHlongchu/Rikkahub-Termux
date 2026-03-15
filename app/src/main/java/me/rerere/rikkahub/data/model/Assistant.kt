@@ -29,7 +29,7 @@ data class Assistant(
     val enableRecentChatsReference: Boolean = false,
     val messageTemplate: String = "{{ message }}",
     val presetMessages: List<UIMessage> = emptyList(),
-    val quickMessages: List<QuickMessage> = emptyList(),
+    val quickMessageIds: Set<Uuid> = emptySet(),
     val scheduledPromptTasks: List<ScheduledPromptTask> = emptyList(),
     val regexes: List<AssistantRegex> = emptyList(),
     val thinkingBudget: Int? = 1024,
@@ -93,6 +93,7 @@ enum class TaskRunStatus {
 
 @Serializable
 data class QuickMessage(
+    val id: Uuid = Uuid.random(),
     val title: String = "",
     val content: String = "",
 )

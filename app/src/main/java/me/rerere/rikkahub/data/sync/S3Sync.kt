@@ -6,6 +6,7 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
@@ -140,19 +141,20 @@ class S3Sync(
                 }
             }
 
-            // Backup chat files
+            // Backup app files
             if (config.items.contains(S3Config.BackupItem.FILES)) {
-                val uploadFolder = File(context.filesDir, "upload")
+                val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
                 if (uploadFolder.exists() && uploadFolder.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
                     uploadFolder.listFiles()?.forEach { file ->
                         if (file.isFile) {
-                            addFileToZip(zipOut, file, "upload/${file.name}")
+                            addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
                         }
                     }
                 } else {
                     Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
                 }
+
             }
         }
 
@@ -222,10 +224,12 @@ class S3Sync(
                         }
 
                         else -> {
-                            if (config.items.contains(S3Config.BackupItem.FILES) && zipEntry.name.startsWith("upload/")) {
-                                val fileName = zipEntry.name.substringAfter("upload/")
+                            if (config.items.contains(S3Config.BackupItem.FILES) &&
+                                zipEntry.name.startsWith("${FileFolders.UPLOAD}/")
+                            ) {
+                                val fileName = zipEntry.name.substringAfter("${FileFolders.UPLOAD}/")
                                 if (fileName.isNotEmpty()) {
-                                    val uploadFolder = File(context.filesDir, "upload")
+                                    val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
                                     if (!uploadFolder.exists()) {
                                         uploadFolder.mkdirs()
                                         Log.i(TAG, "restoreFromBackupFile: Created upload directory")
@@ -271,6 +275,27 @@ class S3Sync(
             fis.copyTo(zipOut)
             zipOut.closeEntry()
             Log.d(TAG, "addFileToZip: Added $entryName (${file.length()} bytes) to zip")
+        }
+    }
+
+    private fun addDirectoryToZip(
+        zipOut: ZipOutputStream,
+        rootDir: File,
+        currentDir: File,
+        entryPrefix: String,
+    ) {
+        currentDir.listFiles()?.forEach { file ->
+            if (file.isDirectory) {
+                addDirectoryToZip(
+                    zipOut = zipOut,
+                    rootDir = rootDir,
+                    currentDir = file,
+                    entryPrefix = entryPrefix,
+                )
+            } else if (file.isFile) {
+                val relativePath = file.relativeTo(rootDir).invariantSeparatorsPath
+                addFileToZip(zipOut, file, "$entryPrefix$relativePath")
+            }
         }
     }
 

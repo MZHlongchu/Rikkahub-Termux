@@ -7,7 +7,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
@@ -127,9 +126,11 @@ import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
+import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.ui.components.ui.InjectionSelector
 import me.rerere.rikkahub.ui.components.ui.KeepScreenOn
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
@@ -438,6 +439,9 @@ private fun TextInputRow(
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
     val assistant = settings.getCurrentAssistant()
+    val quickMessages = remember(settings.quickMessages, assistant.quickMessageIds) {
+        settings.getQuickMessagesOfAssistant(assistant)
+    }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -546,9 +550,9 @@ private fun TextInputRow(
                     }
                 }
 
-                assistant.quickMessages.isNotEmpty() -> {
+                quickMessages.isNotEmpty() -> {
                     {
-                        QuickMessageButton(assistant = assistant, state = state)
+                        QuickMessageButton(quickMessages = quickMessages, state = state)
                     }
                 }
 
@@ -580,7 +584,7 @@ private fun TermuxCommandModePrefix() {
 
 @Composable
 private fun QuickMessageButton(
-    assistant: Assistant,
+    quickMessages: List<QuickMessage>,
     state: ChatInputState,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -597,10 +601,11 @@ private fun QuickMessageButton(
                 .widthIn(min = 200.dp)
                 .width(IntrinsicSize.Min)
         ) {
-            assistant.quickMessages.forEach { quickMessage ->
+            quickMessages.forEach { quickMessage ->
                 Surface(
                     onClick = {
                         state.appendText(quickMessage.content)
+                        expanded = false
                     },
                     color = Color.Transparent,
                     modifier = Modifier.fillMaxWidth(),
@@ -1132,7 +1137,6 @@ private fun ImagePickButton(onAddImages: (List<Uri>) -> Unit = {}) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
     var preCropTempFile by remember { mutableStateOf<File?>(null) }
-
     val (_, launchCrop) = useCropLauncher(
         onCroppedImageReady = { croppedUri ->
             onAddImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
@@ -1142,20 +1146,12 @@ private fun ImagePickButton(onAddImages: (List<Uri>) -> Unit = {}) {
             preCropTempFile = null
         }
     )
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia()
-    ) { selectedUris ->
-        if (selectedUris.isNotEmpty()) {
-            Log.d("ImagePickButton", "Selected URIs: $selectedUris")
-            // Check if we should skip crop based on settings
-            if (settings.displaySetting.skipCropImage) {
-                // Skip crop, directly add images
-                onAddImages(filesManager.createChatFilesByContents(selectedUris))
-            } else {
-                // Show crop interface
-                if (selectedUris.size == 1) {
-                    // Single image - copy to app temp storage first, then crop
+    val imagePickerLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selectedUris ->
+            if (selectedUris.isNotEmpty()) {
+                if (settings.displaySetting.skipCropImage) {
+                    onAddImages(filesManager.createChatFilesByContents(selectedUris))
+                } else if (selectedUris.size == 1) {
                     val tempFile = File(context.appTempFolder, "pick_temp_${System.currentTimeMillis()}.jpg")
                     runCatching {
                         context.contentResolver.openInputStream(selectedUris.first())?.use { input ->
@@ -1168,21 +1164,17 @@ private fun ImagePickButton(onAddImages: (List<Uri>) -> Unit = {}) {
                         launchCrop(selectedUris.first())
                     }
                 } else {
-                    // Multiple images - no crop
                     onAddImages(filesManager.createChatFilesByContents(selectedUris))
                 }
             }
-        } else {
-            Log.d("ImagePickButton", "No images selected")
         }
-    }
 
     BigIconTextButton(icon = {
         Icon(HugeIcons.Image02, null)
     }, text = {
         Text(stringResource(R.string.photo))
     }) {
-        imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        imagePickerLauncher.launch("image/*")
     }
 }
 
@@ -1231,7 +1223,6 @@ fun TakePicButton(onAddImages: (List<Uri>) -> Unit = {}) {
             cameraOutputUri = null
         }
     }
-
     // 使用权限管理器包装
     PermissionManager(
         permissionState = cameraPermission
@@ -1468,7 +1459,7 @@ private fun InjectionQuickConfigSheet(
                         onDismiss()
                         navController.navigate(Screen.Prompts)
                     }
-                }
+                },
             )
 
             Spacer(modifier = Modifier.height(16.dp))
