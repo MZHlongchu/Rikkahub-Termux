@@ -1246,5 +1246,32 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_provider_page_deselect_all">전체 선택 해제</string>
   <string name="provider_share_sheet_models_not_included">공유된 제공업체에는 모델 목록이 포함되지 않습니다.</string>
   <string name="provider_share_sheet_qr_unavailable">이 선택 항목은 QR 코드에 담기엔 너무 큽니다. 대신 시스템 공유를 사용하세요.</string>
+  <string name="setting_display_page_custom_theme_section_title">사용자 지정 테마 토큰</string>
+  <string name="setting_display_page_custom_theme_enabled_title">사용자 지정 테마 사용</string>
+  <string name="setting_display_page_custom_theme_enabled_desc">현재 Compose 테마를 사용자가 정의한 ColorScheme 토큰으로 재정의합니다.</string>
+  <string name="setting_display_page_custom_theme_edit_title">라이트 및 다크 토큰 편집</string>
+  <string name="setting_display_page_custom_theme_edit_desc">설정된 라이트 토큰: %1$d개, 다크 토큰: %2$d개</string>
+  <string name="setting_display_page_custom_theme_dialog_title">사용자 지정 테마 편집</string>
+  <string name="setting_display_page_custom_theme_dialog_desc">CSS와 같은 형식으로 ColorScheme 토큰을 선언하세요. 사용 가능한 키에는 primary, background, surfaceContainer, outline 등이 있습니다.</string>
+  <string name="setting_display_page_custom_theme_light_label">라이트 토큰</string>
+  <string name="setting_display_page_custom_theme_dark_label">다크 토큰</string>
+  <string name="setting_display_page_custom_theme_format_hint">형식 예: key: #RRGGBBAA; #RRGGBB 또는 0xAARRGGBB도 사용할 수 있습니다.</string>
+  <string name="setting_display_page_custom_theme_parse_hint">%1$d개 토큰을 인식했습니다. %2$d개 항목은 무시됩니다.</string>
+  <string name="setting_display_page_custom_theme_advanced_edit">고급</string>
+  <string name="setting_display_page_custom_theme_hex_label">16진수 값</string>
+  <string name="setting_display_page_custom_theme_presets">프리셋</string>
+  <string name="setting_display_page_custom_theme_reset">토큰 초기화</string>
+  <string name="setting_display_page_custom_theme_raw_editor_title">고급 토큰 편집기</string>
+  <string name="setting_display_page_custom_theme_insert_light_template">라이트 템플릿 삽입</string>
+  <string name="setting_display_page_custom_theme_insert_dark_template">다크 템플릿 삽입</string>
+  <string name="setting_display_page_custom_theme_state_default">기본값</string>
+  <string name="setting_display_page_custom_theme_state_custom">사용자 지정</string>
+  <string name="safe_mode_title">안전 모드</string>
+  <string name="safe_mode_description">앱이 마지막 실행에서 충돌했습니다. 문제를 해결하려면 다른 어시스턴트로 전환할 수 있습니다.</string>
+  <string name="safe_mode_current_assistant">현재 어시스턴트: %s</string>
+  <string name="safe_mode_default_assistant">기본 비서</string>
+  <string name="safe_mode_switch_assistant">어시스턴트 전환</string>
+  <string name="safe_mode_crash_report">충돌 보고서</string>
+  <string name="safe_mode_copy">복사</string>
+  <string name="safe_mode_assistants">도우미</string>
 </resources>
-
