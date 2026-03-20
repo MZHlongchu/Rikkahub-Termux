@@ -174,15 +174,6 @@ fun darkExtendColors(): ExtendColors = ExtendColors(
 object CustomColors {
     var black = false
 
-    @Composable
-    fun cardColorsForContainer(
-        containerColor: Color,
-        contentColor: Color = colorScheme.onSurface,
-    ): CardColors = CardDefaults.cardColors(
-        containerColor = containerColor,
-        contentColor = contentColor,
-    )
-
     val topBarColors: TopAppBarColors
         @Composable get() {
             val container = colorScheme.surfaceColorAtElevation(4.dp).copy(
@@ -195,22 +186,17 @@ object CustomColors {
         }
 
     val cardColors: CardColors
-        @Composable get() = cardColorsForContainer(
+        @Composable get() = CardDefaults.cardColors(
             containerColor = colorScheme.surfaceColorAtElevation(3.dp).copy(
                 alpha = if (LocalDarkMode.current) 0.76f else 0.94f
             )
         )
 
     val cardColorsOnSurfaceContainer: CardColors
-        @Composable get() = cardColorsForContainer(
+        @Composable get() = CardDefaults.cardColors(
             containerColor = colorScheme.surfaceColorAtElevation(2.dp).copy(
                 alpha = if (LocalDarkMode.current) 0.72f else 0.92f
             )
-        )
-
-    val listItemCardColors: CardColors
-        @Composable get() = cardColorsForContainer(
-            containerColor = listItemColors.containerColor
         )
 
     val listItemColors: ListItemColors
