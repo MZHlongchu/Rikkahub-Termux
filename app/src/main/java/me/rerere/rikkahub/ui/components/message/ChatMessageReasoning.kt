@@ -127,6 +127,7 @@ private fun ReasoningContent(
     expandState: ReasoningCardState,
     scrollState: ScrollState,
     fadeHeight: Float,
+    loading: Boolean,
     messageDepthFromEnd: Int? = null,
 ) {
     val isPreview = expandState == ReasoningCardState.Preview
@@ -165,16 +166,22 @@ private fun ReasoningContent(
             }
     ) {
         SelectionContainer {
-            MarkdownBlock(
-                content = reasoning.reasoning.replaceRegexes(
+            val reasoningText = if (loading) {
+                reasoning.reasoning
+            } else {
+                reasoning.reasoning.replaceRegexes(
                     assistant = assistant,
                     scope = AssistantAffectScope.ASSISTANT,
                     phase = AssistantRegexApplyPhase.VISUAL_ONLY,
                     messageDepthFromEnd = messageDepthFromEnd,
-                ),
+                )
+            }
+            MarkdownBlock(
+                content = reasoningText,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxSize(),
                 messageDepthFromEnd = messageDepthFromEnd,
+                streaming = loading,
             )
         }
     }
@@ -238,6 +245,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
                 expandState = state.expandState,
                 scrollState = state.scrollState,
                 fadeHeight = fadeHeight,
+                loading = loading,
                 messageDepthFromEnd = messageDepthFromEnd,
             )
         },

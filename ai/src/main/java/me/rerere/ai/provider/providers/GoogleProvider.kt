@@ -236,8 +236,9 @@ class GoogleProvider(private val client: OkHttpClient) : Provider<ProviderSettin
                 type: String?,
                 data: String
             ) {
-                Log.i(TAG, "onEvent: $data")
-
+                if (params.streamEventDebugLoggingEnabled) {
+                    Log.d(TAG, "onEvent: $data")
+                }
                 try {
                     val jsonData = json.parseToJsonElement(data).jsonObject
                     val reason = 

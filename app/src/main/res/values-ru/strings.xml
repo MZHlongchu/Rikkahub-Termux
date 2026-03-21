@@ -1380,5 +1380,8 @@
   <string name="setting_display_page_custom_theme_state_auto">Авто</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_title">Автогенерация on* цветов</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_desc">Автоматически подбирать соответствующие on* цвета переднего плана при изменении парного базового token; если этот on* token задан явно, сохраняется явное значение.</string>
+  <string name="about_page_diagnostics">Диагностика</string>
+  <string name="about_page_stream_event_debug_logging_desc">Выводить события SSE‑фрагментов провайдера в Logcat во время потоковой передачи. Включайте это только при отладке поведения провайдера.</string>
+  <string name="about_page_stream_event_debug_logging">Журналы отладки событий Stream</string>
 </resources>
 

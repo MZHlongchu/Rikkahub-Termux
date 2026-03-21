@@ -54,6 +54,7 @@ data class TextGenerationParams(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val openAIReasoningEffort: String = "",
+    val streamEventDebugLoggingEnabled: Boolean = false,
 )
 
 @Serializable

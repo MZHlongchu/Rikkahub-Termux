@@ -1378,4 +1378,7 @@
   <string name="setting_display_page_chat_font_family_default">Default</string>
   <string name="setting_display_page_chat_font_family_serif">Serif</string>
   <string name="setting_display_page_chat_font_family_monospace">Monospace</string>
+  <string name="about_page_diagnostics">Diagnostics</string>
+  <string name="about_page_stream_event_debug_logging">Stream event debug logs</string>
+  <string name="about_page_stream_event_debug_logging_desc">Print provider SSE chunk events to Logcat while streaming. Turn this on only when debugging provider behavior.</string>
 </resources>

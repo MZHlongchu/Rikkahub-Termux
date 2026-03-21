@@ -1380,5 +1380,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_display_page_custom_theme_state_auto">自动</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_title">自动生成 on* 颜色</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_desc">当成对的基础色 token 变化时，自动推导对应的 on* 前景色；如果该 on* token 已显式设置，则保留显式值。</string>
+  <string name="about_page_diagnostics">诊断</string>
+  <string name="about_page_stream_event_debug_logging">流式事件调试日志</string>
+  <string name="about_page_stream_event_debug_logging_desc">在流式传输时将 provider 的 SSE 分块事件打印到 Logcat。仅在调试 provider 行为时才打开此选项。</string>
 </resources>
-

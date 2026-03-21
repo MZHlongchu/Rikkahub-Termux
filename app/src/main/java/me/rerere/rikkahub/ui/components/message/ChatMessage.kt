@@ -467,6 +467,16 @@ private fun MessagePartsBlock(
                                     }
                                 }
                             } else {
+                                val assistantText = if (loading) {
+                                    part.text
+                                } else {
+                                    part.text.replaceRegexes(
+                                        assistant = assistant,
+                                        scope = AssistantAffectScope.ASSISTANT,
+                                        phase = AssistantRegexApplyPhase.VISUAL_ONLY,
+                                        messageDepthFromEnd = messageDepthFromEnd,
+                                    )
+                                }
                                 if (settings.displaySetting.showAssistantBubble) {
                                     Surface(
                                         shape = RoundedCornerShape(22.dp),
@@ -478,28 +488,20 @@ private fun MessagePartsBlock(
                                     ) {
                                         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                                             MarkdownBlock(
-                                                content = part.text.replaceRegexes(
-                                                    assistant = assistant,
-                                                    scope = AssistantAffectScope.ASSISTANT,
-                                                    phase = AssistantRegexApplyPhase.VISUAL_ONLY,
-                                                    messageDepthFromEnd = messageDepthFromEnd,
-                                                ),
+                                                content = assistantText,
                                                 messageDepthFromEnd = messageDepthFromEnd,
                                                 onClickCitation = handleClickCitation,
+                                                streaming = loading,
                                             )
                                         }
                                     }
                                 } else {
                                     MarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.ASSISTANT,
-                                            phase = AssistantRegexApplyPhase.VISUAL_ONLY,
-                                            messageDepthFromEnd = messageDepthFromEnd,
-                                        ),
+                                        content = assistantText,
                                         messageDepthFromEnd = messageDepthFromEnd,
                                         onClickCitation = handleClickCitation,
-                                        modifier = Modifier
+                                        modifier = Modifier,
+                                        streaming = loading,
                                     )
                                 }
                             }
