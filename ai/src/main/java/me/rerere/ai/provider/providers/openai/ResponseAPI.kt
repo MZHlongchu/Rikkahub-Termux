@@ -125,7 +125,9 @@ class ResponseAPI(private val client: OkHttpClient) : OpenAIImpl {
                     close()
                     return
                 }
-                Log.d(TAG, "onEvent: $id/$type $data")
+                if (params.streamEventDebugLoggingEnabled) {
+                    Log.d(TAG, "onEvent: $id/$type $data")
+                }
                 val json = json.parseToJsonElement(data).jsonObject
                 val chunk = parseResponseDelta(json)
                 if (chunk != null) {

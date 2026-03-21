@@ -50,6 +50,7 @@ import java.util.Locale
 import kotlin.time.Clock
 
 private const val TAG = "GenerationHandler"
+private const val STREAM_UI_FRAME_WINDOW_NANOS = 33_000_000L
 
 internal data class ToolApprovalPassResult(
     val tools: List<UIMessagePart.Tool>,
@@ -391,9 +392,12 @@ class GenerationHandler(
             customBody = buildList {
                 addAll(assistant.customBodies)
                 addAll(model.customBodies)
-            }
+            },
+            streamEventDebugLoggingEnabled = settings.streamEventDebugLoggingEnabled,
         )
         if (stream) {
+            var lastStreamUiUpdateAt = 0L
+            var hasPendingStreamUiUpdate = false
             aiLoggingManager.addLog(
                 AILogging.Generation(
                     params = params,
@@ -417,6 +421,19 @@ class GenerationHandler(
                         }
                     }
                 }
+                val now = System.nanoTime()
+                if (
+                    lastStreamUiUpdateAt == 0L ||
+                    now - lastStreamUiUpdateAt >= STREAM_UI_FRAME_WINDOW_NANOS
+                ) {
+                    lastStreamUiUpdateAt = now
+                    hasPendingStreamUiUpdate = false
+                    onUpdateMessages(messages)
+                } else {
+                    hasPendingStreamUiUpdate = true
+                }
+            }
+            if (hasPendingStreamUiUpdate) {
                 onUpdateMessages(messages)
             }
         } else {
@@ -478,6 +495,7 @@ class GenerationHandler(
                 params = TextGenerationParams(
                     model = model,
                     thinkingBudget = settings.translateThinkingBudget,
+                    streamEventDebugLoggingEnabled = settings.streamEventDebugLoggingEnabled,
                 ),
             ).collect { chunk ->
                 messages = messages.handleMessageChunk(chunk)
@@ -509,7 +527,8 @@ class GenerationHandler(
                                 )
                             }
                         )
-                    )
+                    ),
+                    streamEventDebugLoggingEnabled = settings.streamEventDebugLoggingEnabled,
                 ),
             )
             val translatedText = chunk.choices.firstOrNull()?.message?.toText() ?: ""

@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import me.rerere.rikkahub.APP_DISPLAY_NAME
 import me.rerere.rikkahub.APP_GITHUB_LICENSE_URL
@@ -56,12 +58,14 @@ import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.plus
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun SettingAboutPage() {
+fun SettingAboutPage(vm: SettingVM = koinViewModel()) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
     val navController = LocalNavController.current
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val emojiOptions = remember {
         listOf(
             "🎉", "✨", "🌟", "💫", "🎊", "🥳", "🎈", "🎆", "🎇", "🧨",
@@ -158,6 +162,28 @@ fun SettingAboutPage() {
                                 Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE} / SDK ${android.os.Build.VERSION.SDK_INT}")
                             },
                             headlineContent = { Text(stringResource(R.string.about_page_system)) },
+                        )
+                    }
+                }
+
+                item {
+                    CardGroup(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        title = { Text(stringResource(R.string.about_page_diagnostics)) },
+                    ) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.about_page_stream_event_debug_logging)) },
+                            supportingContent = { Text(stringResource(R.string.about_page_stream_event_debug_logging_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = settings.streamEventDebugLoggingEnabled,
+                                    onCheckedChange = {
+                                        vm.updateSettings(
+                                            settings.copy(streamEventDebugLoggingEnabled = it)
+                                        )
+                                    }
+                                )
+                            },
                         )
                     }
                 }

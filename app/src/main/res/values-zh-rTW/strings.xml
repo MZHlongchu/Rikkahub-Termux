@@ -1378,4 +1378,8 @@
   <string name="provider_share_sheet_models_not_included">分享的提供商設定不包含模型清單。</string>
   <string name="provider_share_sheet_qr_unavailable">所選內容過多，無法產生 QR Code，請改用系統分享。</string>
   <string name="theme_name_lune">月輝 Lune</string>
+  <string name="about_page_stream_event_debug_logging_desc">在串流時將 provider 的 SSE 區塊事件輸出到 Logcat。僅在偵錯 provider 行為時啟用。</string>
+  <string name="about_page_diagnostics">診斷</string>
+  <string name="about_page_stream_event_debug_logging">Stream 事件偵錯記錄</string>
 </resources>
+

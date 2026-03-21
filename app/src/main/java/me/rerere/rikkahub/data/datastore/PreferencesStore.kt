@@ -87,6 +87,7 @@ class SettingsStore(
         val CUSTOM_THEME_SETTING = stringPreferencesKey("custom_theme_setting")
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val STREAM_EVENT_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("stream_event_debug_logging_enabled")
 
         // 模型选择
         val ENABLE_WEB_SEARCH = booleanPreferencesKey("enable_web_search")
@@ -223,6 +224,7 @@ class SettingsStore(
                     JsonInstant.decodeFromString(it)
                 } ?: CustomThemeSetting(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
+                streamEventDebugLoggingEnabled = preferences[STREAM_EVENT_DEBUG_LOGGING_ENABLED] == true,
                 displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
                 scheduledTasks = preferences[SCHEDULED_TASKS]?.let {
                     JsonInstant.decodeFromString(it)
@@ -438,6 +440,7 @@ class SettingsStore(
             preferences[THEME_ID] = settings.themeId
             preferences[CUSTOM_THEME_SETTING] = JsonInstant.encodeToString(settings.customThemeSetting)
             preferences[DEVELOPER_MODE] = settings.developerMode
+            preferences[STREAM_EVENT_DEBUG_LOGGING_ENABLED] = settings.streamEventDebugLoggingEnabled
             preferences[DISPLAY_SETTING] = JsonInstant.encodeToString(settings.displaySetting)
 
             preferences[ENABLE_WEB_SEARCH] = settings.enableWebSearch
@@ -587,6 +590,7 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemeSetting: CustomThemeSetting = CustomThemeSetting(),
     val developerMode: Boolean = false,
+    val streamEventDebugLoggingEnabled: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val enableWebSearch: Boolean = false,
     val favoriteModels: List<Uuid> = emptyList(),

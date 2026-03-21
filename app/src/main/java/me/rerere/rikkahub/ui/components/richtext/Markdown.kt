@@ -276,8 +276,19 @@ fun MarkdownBlock(
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
     messageDepthFromEnd: Int? = null,
-    onClickCitation: (String) -> Unit = {}
+    onClickCitation: (String) -> Unit = {},
+    streaming: Boolean = false,
 ) {
+    if (streaming) {
+        ProvideTextStyle(style) {
+            Text(
+                text = content,
+                modifier = modifier.padding(start = 4.dp),
+            )
+        }
+        return
+    }
+
     var (data, setData) = remember {
         val preprocessed = preProcessMarkdownContent(content)
         val astTree = parser.buildMarkdownTreeFromString(preprocessed)

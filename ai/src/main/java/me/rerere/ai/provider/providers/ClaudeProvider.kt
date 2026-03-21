@@ -171,9 +171,11 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
                 type: String?,
                 data: String
             ) {
-                Log.d(TAG, "onEvent: type=$type, data=$data")
                 if (data == "[DONE]") {
                     return
+                }
+                if (params.streamEventDebugLoggingEnabled) {
+                    Log.d(TAG, "onEvent: type=$type, data=$data")
                 }
 
                 val dataJson = json.parseToJsonElement(data).jsonObject

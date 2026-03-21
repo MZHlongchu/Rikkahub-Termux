@@ -159,11 +159,12 @@ class ChatCompletionsAPI(
                 data: String
             ) {
                 if (data == "[DONE]") {
-                    println("[onEvent] (done) 结束流: $data")
                     close()
                     return
                 }
-                Log.d(TAG, "onEvent: $data")
+                if (params.streamEventDebugLoggingEnabled) {
+                    Log.d(TAG, "onEvent: $data")
+                }
                 data
                     .trim()
                     .split("\n")

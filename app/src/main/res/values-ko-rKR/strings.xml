@@ -1380,5 +1380,8 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_display_page_custom_theme_state_auto">자동</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_title">on* 색상 자동 생성</string>
   <string name="setting_display_page_custom_theme_auto_on_colors_desc">짝이 되는 기본 색상 token 이 변경되면 대응하는 on* 전경색을 자동으로 계산합니다. 해당 on* token 이 명시적으로 설정된 경우에는 그 값을 유지합니다.</string>
+  <string name="about_page_diagnostics">진단</string>
+  <string name="about_page_stream_event_debug_logging_desc">스트리밍 중 provider SSE 청크 이벤트를 Logcat에 출력합니다. provider 동작을 디버깅할 때에만 켜세요.</string>
+  <string name="about_page_stream_event_debug_logging">Stream 이벤트 디버그 로그</string>
 </resources>
 
