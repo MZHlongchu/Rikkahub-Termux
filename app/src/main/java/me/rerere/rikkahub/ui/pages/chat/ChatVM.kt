@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
@@ -18,9 +17,12 @@ import androidx.paging.map
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -32,17 +34,17 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.model.resolveStSendIfEmptyContent
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
-import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.NodeFavoriteTarget
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.service.ChatError
+import me.rerere.rikkahub.service.ChatRuntimeInspection
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.ui.hooks.writeStringPreference
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -64,7 +66,6 @@ class ChatVM(
     private val chatService: ChatService,
     val updateChecker: UpdateChecker,
     private val analytics: FirebaseAnalytics,
-    private val filesManager: FilesManager,
     private val favoriteRepository: FavoriteRepository,
 ) : ViewModel() {
     private val _conversationId: Uuid = Uuid.parse(id)
@@ -93,8 +94,21 @@ class ChatVM(
             chatService.initializeConversation(_conversationId)
         }
 
-        // 记住对话ID, 方便下次启动恢复
-        context.writeStringPreference("lastConversationId", _conversationId.toString())
+        // 临时对话不应作为下次启动时恢复的目标。
+        viewModelScope.launch {
+            conversation
+                .map { current ->
+                    if (current.isTemporaryConversation) {
+                        null
+                    } else {
+                        _conversationId.toString()
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { conversationId ->
+                    context.writeStringPreference("lastConversationId", conversationId)
+                }
+        }
     }
 
     override fun onCleared() {
@@ -186,6 +200,9 @@ class ChatVM(
     // 错误状态
     val errors: StateFlow<List<ChatError>> = chatService.errors
 
+    private val _runtimeInspection = MutableStateFlow<UiState<ChatRuntimeInspection>>(UiState.Idle)
+    val runtimeInspection: StateFlow<UiState<ChatRuntimeInspection>> = _runtimeInspection.asStateFlow()
+
     fun dismissError(id: Uuid) = chatService.dismissError(id)
 
     fun clearAllErrors() = chatService.clearAllErrors()
@@ -199,20 +216,19 @@ class ChatVM(
     // 更新设置
     fun updateSettings(newSettings: Settings) {
         viewModelScope.launch {
-            val oldSettings = settings.value
-            // 检查用户头像是否有变化，如果有则删除旧头像
-            checkUserAvatarDelete(oldSettings, newSettings)
             settingsStore.update(newSettings)
         }
     }
 
-    // 检查用户头像删除
-    private fun checkUserAvatarDelete(oldSettings: Settings, newSettings: Settings) {
-        val oldAvatar = oldSettings.displaySetting.userAvatar
-        val newAvatar = newSettings.displaySetting.userAvatar
-
-        if (oldAvatar is Avatar.Image && oldAvatar != newAvatar) {
-            filesManager.deleteChatFiles(listOf(oldAvatar.url.toUri()))
+    fun refreshRuntimeInspection() {
+        viewModelScope.launch {
+            _runtimeInspection.value = UiState.Loading
+            _runtimeInspection.value = runCatching {
+                chatService.inspectConversationRuntime(_conversationId)
+            }.fold(
+                onSuccess = { UiState.Success(it) },
+                onFailure = { UiState.Error(it) },
+            )
         }
     }
 
@@ -236,7 +252,7 @@ class ChatVM(
 
     // Update checker
     val updateState =
-        updateChecker.checkUpdate().stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+        updateChecker.checkUpdate().stateIn(viewModelScope, SharingStarted.Eagerly, updateChecker.initialState)
 
     /**
      * 处理消息发送
@@ -249,12 +265,20 @@ class ChatVM(
         answer: Boolean = true,
         forceTermuxCommandMode: Boolean = false,
     ) {
-        if (content.isEmptyInputMessage()) return
+        val resolvedContent = if (forceTermuxCommandMode) {
+            if (content.isEmptyInputMessage()) return
+            content
+        } else {
+            settingsStore.settingsFlow.value.resolveStSendIfEmptyContent(
+                content = content,
+                answer = answer,
+            ) ?: return
+        }
         analytics.logEvent("ai_send_message", null)
 
         chatService.sendMessage(
             conversationId = _conversationId,
-            content = content,
+            content = resolvedContent,
             answer = answer,
             forceTermuxCommandMode = forceTermuxCommandMode
         )
@@ -299,9 +323,23 @@ class ChatVM(
         }
     }
 
+    fun selectMessageNode(nodeId: Uuid, selectIndex: Int) {
+        viewModelScope.launch {
+            chatService.selectMessageNode(_conversationId, nodeId, selectIndex)
+        }
+    }
+
+    fun showEditBlockedWhileGeneratingError() {
+        showHistoryMutationBlockedWhileGeneratingError("请先停止生成再编辑消息")
+    }
+
     fun showDeleteBlockedWhileGeneratingError() {
+        showHistoryMutationBlockedWhileGeneratingError("请先停止生成再删除消息")
+    }
+
+    private fun showHistoryMutationBlockedWhileGeneratingError(message: String) {
         chatService.addError(
-            error = IllegalStateException("请先停止生成再删除消息"),
+            error = IllegalStateException(message),
             conversationId = _conversationId
         )
     }
@@ -312,6 +350,11 @@ class ChatVM(
     ) {
         analytics.logEvent("ai_regenerate_at_message", null)
         chatService.regenerateAtMessage(_conversationId, message, regenerateAssistantMsg)
+    }
+
+    fun continueAssistantMessage(message: UIMessage) {
+        analytics.logEvent("ai_continue_at_message", null)
+        chatService.continueAssistantMessage(_conversationId, message)
     }
 
     fun handleToolApproval(
@@ -393,6 +436,18 @@ class ChatVM(
     fun updateConversation(newConversation: Conversation) {
         chatService.updateConversationState(_conversationId) {
             newConversation
+        }
+    }
+
+    fun toggleTemporaryConversation() {
+        chatService.updateConversationState(_conversationId) { currentConversation ->
+            if (currentConversation.newConversation && currentConversation.messageNodes.isEmpty()) {
+                currentConversation.copy(
+                    isTemporaryConversation = !currentConversation.isTemporaryConversation
+                )
+            } else {
+                currentConversation
+            }
         }
     }
 

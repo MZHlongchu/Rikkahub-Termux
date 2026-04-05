@@ -32,6 +32,8 @@ import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
+import me.rerere.rikkahub.data.ai.transformers.LorebookRuntimeState
+import me.rerere.rikkahub.data.ai.transformers.StMacroState
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
@@ -82,6 +84,9 @@ class GenerationHandler(
         memories: List<AssistantMemory>? = null,
         tools: List<Tool> = emptyList(),
         maxSteps: Int = 256,
+        stGenerationType: String = "normal",
+        stMacroState: StMacroState? = null,
+        lorebookRuntimeState: LorebookRuntimeState? = null,
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -134,7 +139,10 @@ class GenerationHandler(
                             context = context,
                             model = model,
                             assistant = assistant,
-                            settings = settings
+                            settings = settings,
+                            stGenerationType = stGenerationType,
+                            stMacroState = stMacroState,
+                            lorebookRuntimeState = lorebookRuntimeState,
                         )
                         emit(
                             GenerationChunk.Messages(
@@ -143,7 +151,10 @@ class GenerationHandler(
                                     context = context,
                                     model = model,
                                     assistant = assistant,
-                                    settings = settings
+                                    settings = settings,
+                                    stGenerationType = stGenerationType,
+                                    stMacroState = stMacroState,
+                                    lorebookRuntimeState = lorebookRuntimeState,
                                 )
                             )
                         )
@@ -154,21 +165,20 @@ class GenerationHandler(
                     provider = provider,
                     tools = toolsInternal,
                     memories = memories ?: emptyList(),
-                    stream = assistant.streamOutput
-                )
-                messages = messages.visualTransforms(
-                    transformers = outputTransformers,
-                    context = context,
-                    model = model,
-                    assistant = assistant,
-                    settings = settings
+                    stream = assistant.streamOutput,
+                    stGenerationType = stGenerationType,
+                    stMacroState = stMacroState,
+                    lorebookRuntimeState = lorebookRuntimeState,
                 )
                 messages = messages.onGenerationFinish(
                     transformers = outputTransformers,
                     context = context,
                     model = model,
                     assistant = assistant,
-                    settings = settings
+                    settings = settings,
+                    stGenerationType = stGenerationType,
+                    stMacroState = stMacroState,
+                    lorebookRuntimeState = lorebookRuntimeState,
                 )
                 messages = messages.slice(0 until messages.lastIndex) + messages.last().copy(
                     finishedAt = Clock.System.now()
@@ -312,13 +322,43 @@ class GenerationHandler(
                         context = context,
                         model = model,
                         assistant = assistant,
-                        settings = settings
+                        settings = settings,
+                        stGenerationType = stGenerationType,
+                        stMacroState = stMacroState,
+                        lorebookRuntimeState = lorebookRuntimeState,
                     )
                 )
             )
         }
 
     }.flowOn(Dispatchers.IO)
+
+    suspend fun previewPreparedMessages(
+        settings: Settings,
+        model: Model,
+        messages: List<UIMessage>,
+        inputTransformers: List<InputMessageTransformer> = emptyList(),
+        assistant: Assistant,
+        memories: List<AssistantMemory>? = null,
+        tools: List<Tool> = emptyList(),
+        stGenerationType: String = "normal",
+        stMacroState: StMacroState? = null,
+        lorebookRuntimeState: LorebookRuntimeState? = null,
+    ): List<UIMessage> {
+        return prepareInternalMessages(
+            assistant = assistant,
+            settings = settings,
+            messages = messages,
+            transformers = inputTransformers,
+            model = model,
+            tools = tools,
+            memories = memories ?: emptyList(),
+            stGenerationType = stGenerationType,
+            stMacroState = stMacroState,
+            lorebookRuntimeState = lorebookRuntimeState,
+            dryRun = true,
+        )
+    }
 
     private suspend fun generateInternal(
         assistant: Assistant,
@@ -331,48 +371,22 @@ class GenerationHandler(
         provider: ProviderSetting,
         tools: List<Tool>,
         memories: List<AssistantMemory>,
-        stream: Boolean
+        stream: Boolean,
+        stGenerationType: String,
+        stMacroState: StMacroState?,
+        lorebookRuntimeState: LorebookRuntimeState?,
     ) {
-        val internalMessages = buildList {
-            val system = buildString {
-                // 如果助手有系统提示，则添加到消息中
-                if (assistant.systemPrompt.isNotBlank()) {
-                    append(assistant.systemPrompt)
-                }
-
-                // 记忆
-                if (assistant.enableMemory) {
-                    appendLine()
-                    append(buildMemoryPrompt(memories = memories))
-                }
-                if (assistant.enableRecentChatsReference) {
-                    appendLine()
-                    append(buildRecentChatsPrompt(assistant, conversationRepo))
-                }
-
-                buildSkillsCatalogPrompt(
-                    assistant = assistant,
-                    model = model,
-                    catalog = skillsRepository.state.value,
-                )?.let {
-                    appendLine()
-                    append(it)
-                }
-
-                // 工具prompt
-                tools.forEach { tool ->
-                    appendLine()
-                    append(tool.systemPrompt(model, messages))
-                }
-            }
-            if (system.isNotBlank()) add(UIMessage.system(prompt = system))
-            addAll(messages.limitContext(assistant.contextMessageSize))
-        }.transforms(
-            transformers = transformers,
-            context = context,
-            model = model,
+        val internalMessages = prepareInternalMessages(
             assistant = assistant,
-            settings = settings
+            settings = settings,
+            messages = messages,
+            transformers = transformers,
+            model = model,
+            tools = tools,
+            memories = memories,
+            stGenerationType = stGenerationType,
+            stMacroState = stMacroState,
+            lorebookRuntimeState = lorebookRuntimeState,
         )
 
         var messages: List<UIMessage> = messages
@@ -381,9 +395,19 @@ class GenerationHandler(
             temperature = assistant.temperature,
             topP = assistant.topP,
             maxTokens = assistant.maxTokens,
+            frequencyPenalty = assistant.frequencyPenalty,
+            presencePenalty = assistant.presencePenalty,
+            minP = assistant.minP,
+            topK = assistant.topK,
+            topA = assistant.topA,
+            repetitionPenalty = assistant.repetitionPenalty,
+            seed = assistant.seed,
+            stopSequences = assistant.stopSequences,
+            googleResponseMimeType = assistant.googleResponseMimeType,
             tools = tools,
             thinkingBudget = assistant.thinkingBudget,
             openAIReasoningEffort = assistant.openAIReasoningEffort,
+            openAIVerbosity = assistant.openAIVerbosity,
             customHeaders = buildList {
                 addAll(assistant.customHeaders)
                 addAll(model.customHeaders)
@@ -447,6 +471,63 @@ class GenerationHandler(
             }
             onUpdateMessages(messages)
         }
+    }
+
+    private suspend fun prepareInternalMessages(
+        assistant: Assistant,
+        settings: Settings,
+        messages: List<UIMessage>,
+        transformers: List<MessageTransformer>,
+        model: Model,
+        tools: List<Tool>,
+        memories: List<AssistantMemory>,
+        stGenerationType: String,
+        stMacroState: StMacroState?,
+        lorebookRuntimeState: LorebookRuntimeState?,
+        dryRun: Boolean = false,
+    ): List<UIMessage> {
+        return buildList {
+            val system = buildString {
+                if (assistant.systemPrompt.isNotBlank()) {
+                    append(assistant.systemPrompt)
+                }
+
+                if (assistant.enableMemory) {
+                    appendLine()
+                    append(buildMemoryPrompt(memories = memories))
+                }
+                if (assistant.enableRecentChatsReference) {
+                    appendLine()
+                    append(buildRecentChatsPrompt(assistant, conversationRepo))
+                }
+
+                buildSkillsCatalogPrompt(
+                    assistant = assistant,
+                    model = model,
+                    catalog = skillsRepository.state.value,
+                )?.let {
+                    appendLine()
+                    append(it)
+                }
+
+                tools.forEach { tool ->
+                    appendLine()
+                    append(tool.systemPrompt(model, messages))
+                }
+            }
+            if (system.isNotBlank()) add(UIMessage.system(prompt = system))
+            addAll(messages.limitContext(assistant.contextMessageSize))
+        }.transforms(
+            transformers = transformers,
+            context = context,
+            model = model,
+            assistant = assistant,
+            settings = settings,
+            stGenerationType = stGenerationType,
+            stMacroState = stMacroState,
+            lorebookRuntimeState = lorebookRuntimeState,
+            dryRun = dryRun,
+        )
     }
 
     fun translateText(

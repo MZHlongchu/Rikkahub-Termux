@@ -8,7 +8,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import me.rerere.rikkahub.data.ai.transformers.LorebookRuntimeState
+import me.rerere.rikkahub.data.ai.transformers.StRuntimeSnapshot
+import me.rerere.rikkahub.data.ai.transformers.StMacroState
 import me.rerere.rikkahub.data.model.Conversation
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.uuid.Uuid
 
@@ -26,6 +30,12 @@ class ConversationSession(
 
     // 原子引用计数
     private val refCount = AtomicInteger(0)
+
+    // ST 宏局部变量按会话保存，避免每轮生成都重新归零
+    private val stMacroLocalVariables = ConcurrentHashMap<String, String>()
+    private val lorebookRuntimeState = LorebookRuntimeState()
+
+    var stGenerationType: String = "normal"
 
     // 生成任务（内聚在 session 中）
     private val _generationJob = MutableStateFlow<Job?>(null)
@@ -79,6 +89,58 @@ class ConversationSession(
 
     fun getJob(): Job? = _generationJob.value
 
+    fun getStMacroState(
+        globalVariables: MutableMap<String, String>,
+        onLocalVariablesChanged: (() -> Unit)? = null,
+        onGlobalVariablesChanged: (() -> Unit)? = null,
+    ): StMacroState {
+        return StMacroState(
+            localVariables = ObservedMutableMap(stMacroLocalVariables, onLocalVariablesChanged),
+            globalVariables = ObservedMutableMap(globalVariables, onGlobalVariablesChanged),
+        )
+    }
+
+    fun getLorebookRuntimeState(): LorebookRuntimeState = lorebookRuntimeState
+
+    fun getPersistentLocalVariablesSnapshot(): Map<String, String> = stMacroLocalVariables.toMap()
+
+    fun resetStMacroLocalVariables() {
+        stMacroLocalVariables.clear()
+    }
+
+    fun resetLorebookRuntimeState() {
+        lorebookRuntimeState.clear()
+    }
+
+    fun snapshotStRuntimeState(): StRuntimeSnapshot {
+        return StRuntimeSnapshot(
+            generationType = stGenerationType,
+            localVariables = stMacroLocalVariables.toMap(),
+            lorebookRuntimeState = lorebookRuntimeState.snapshotForPersistence(),
+        )
+    }
+
+    fun restoreStRuntimeState(
+        snapshot: StRuntimeSnapshot?,
+        persistentLocalVariables: Map<String, String> = emptyMap(),
+    ) {
+        stMacroLocalVariables.clear()
+        lorebookRuntimeState.clear()
+        stGenerationType = snapshot?.generationType
+            ?.trim()
+            ?.lowercase()
+            .orEmpty()
+            .ifBlank { "normal" }
+
+        val resolvedLocalVariables = persistentLocalVariables.ifEmpty {
+            snapshot?.localVariables.orEmpty()
+        }
+        if (resolvedLocalVariables.isNotEmpty()) {
+            stMacroLocalVariables.putAll(resolvedLocalVariables)
+        }
+        snapshot?.lorebookRuntimeState?.let { lorebookRuntimeState.restoreFromSnapshot(it) }
+    }
+
     private fun scheduleIdleCheck() {
         idleCheckJob?.cancel()
         idleCheckJob = scope.launch {
@@ -99,5 +161,49 @@ class ConversationSession(
         _generationJob.value = null
         idleCheckJob?.cancel()
         idleCheckJob = null
+        lorebookRuntimeState.clear()
+    }
+}
+
+internal class ObservedMutableMap<K, V>(
+    private val delegate: MutableMap<K, V>,
+    private val onMutate: (() -> Unit)?,
+) : MutableMap<K, V> by delegate {
+    override fun clear() {
+        if (delegate.isEmpty()) return
+        delegate.clear()
+        onMutate?.invoke()
+    }
+
+    override fun put(key: K, value: V): V? {
+        val previous = delegate.put(key, value)
+        if (previous != value) {
+            onMutate?.invoke()
+        }
+        return previous
+    }
+
+    override fun putAll(from: Map<out K, V>) {
+        if (from.isEmpty()) return
+        var changed = false
+        from.forEach { (key, value) ->
+            val previous = delegate.put(key, value)
+            if (previous != value) {
+                changed = true
+            }
+        }
+        if (changed) {
+            onMutate?.invoke()
+        }
+    }
+
+    override fun remove(key: K): V? {
+        val previous = delegate.remove(key)
+        if (previous != null || !delegate.containsKey(key)) {
+            if (previous != null) {
+                onMutate?.invoke()
+            }
+        }
+        return previous
     }
 }

@@ -45,9 +45,12 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -68,11 +71,14 @@ import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
+import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowDownDouble
 import me.rerere.hugeicons.stroke.ArrowUpDouble
+import me.rerere.hugeicons.stroke.BubbleChatTemporary
 import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.InspectCode
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
@@ -80,11 +86,17 @@ import me.rerere.hugeicons.stroke.MoreVertical
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParser
+import me.rerere.rikkahub.data.event.ChatComposerBridge
+import me.rerere.rikkahub.data.event.ChatHistoryBridge
+import me.rerere.rikkahub.data.event.replaceHistoryText
+import me.rerere.rikkahub.data.event.toChatHistorySnapshot
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.effectiveUserName
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -103,6 +115,14 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import kotlin.uuid.Uuid
+
+internal fun draftSubmissionRequiresModel(
+    isEditing: Boolean,
+    answer: Boolean,
+    isTermuxDirect: Boolean,
+): Boolean {
+    return !isEditing && answer && !isTermuxDirect
+}
 
 @Composable
 private fun ChatStatusBarImmersiveEffect() {
@@ -132,6 +152,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
             parametersOf(id.toString())
         }
     )
+    val context = LocalContext.current
     val filesManager: FilesManager = koinInject()
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
@@ -279,6 +300,21 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     }
 }
 
+private fun Conversation.findCurrentMessageByNodeId(nodeId: String): UIMessage? {
+    return messageNodes.firstOrNull { it.id.toString() == nodeId }?.currentMessage
+}
+
+private fun Settings.resolveHistoryAssistantName(conversation: Conversation): String {
+    return getAssistantById(conversation.assistantId)
+        ?.stCharacterData
+        ?.name
+        ?.takeIf { it.isNotBlank() }
+        ?: getAssistantById(conversation.assistantId)
+            ?.name
+            ?.takeIf { it.isNotBlank() }
+        ?: "Assistant"
+}
+
 @Composable
 private fun ChatPageContent(
     inputState: ChatInputState,
@@ -298,11 +334,163 @@ private fun ChatPageContent(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
+    val chatComposerBridge: ChatComposerBridge = koinInject()
+    val chatHistoryBridge: ChatHistoryBridge = koinInject()
+    val runtimeInspection by vm.runtimeInspection.collectAsStateWithLifecycle()
+    val selectModelFirstText = stringResource(R.string.chat_page_select_model_first)
     var previewMode by rememberSaveable { mutableStateOf(false) }
     var topBarVisible by rememberSaveable { mutableStateOf(true) }
+    var inspectorVisible by rememberSaveable { mutableStateOf(false) }
+    var inspectorTab by rememberSaveable { mutableStateOf(ChatRuntimeInspectorTab.PROMPTS) }
     val enableGlassBlur = setting.displaySetting.enableBlurEffect
     val hazeState = rememberHazeState()
     val activeHazeState = if (enableGlassBlur) hazeState else null
+    val currentDraftText = inputState.textContent.text.toString()
+    val historyUserName = setting.effectiveUserName().ifBlank { "User" }
+    val historyAssistantName = setting.resolveHistoryAssistantName(conversation)
+    val chatHistorySnapshot = remember(
+        conversation.id,
+        conversation.messageNodes,
+        historyUserName,
+        historyAssistantName,
+    ) {
+        conversation.toChatHistorySnapshot(
+            userName = historyUserName,
+            assistantName = historyAssistantName,
+        )
+    }
+
+    fun submitDraft(
+        answer: Boolean,
+        overrideText: String? = null,
+    ): Boolean {
+        if (loadingJob != null) {
+            loadingJob.cancel()
+            return false
+        }
+
+        if (overrideText != null) {
+            inputState.setMessageText(overrideText)
+        }
+
+        val contents = inputState.getContents()
+        val termuxDirect = if (inputState.isEditing()) {
+            null
+        } else {
+            TermuxDirectCommandParser.parse(
+                parts = contents,
+                commandModeEnabled = setting.termuxCommandModeEnabled
+            )
+        }
+
+        if (
+            currentChatModel == null && draftSubmissionRequiresModel(
+                isEditing = inputState.isEditing(),
+                answer = answer,
+                isTermuxDirect = termuxDirect?.isDirect == true,
+            )
+        ) {
+            toaster.show(
+                selectModelFirstText,
+                type = ToastType.Error,
+            )
+            return false
+        }
+
+        if (inputState.isEditing()) {
+            vm.handleMessageEdit(
+                parts = contents,
+                messageId = inputState.editingMessage!!,
+            )
+        } else {
+            vm.handleMessageSend(
+                content = contents,
+                answer = answer,
+                forceTermuxCommandMode = setting.termuxCommandModeEnabled
+            )
+            scope.launch {
+                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+            }
+        }
+        inputState.clearInput()
+        return true
+    }
+
+    val latestCurrentDraftText by rememberUpdatedState(currentDraftText)
+    val latestSubmitDraft by rememberUpdatedState(::submitDraft)
+    val latestInputState by rememberUpdatedState(inputState)
+    val latestConversation by rememberUpdatedState(conversation)
+    val latestLoadingJob by rememberUpdatedState(loadingJob)
+
+    SideEffect {
+        chatComposerBridge.updateDraftTextSnapshot(currentDraftText)
+    }
+
+    LaunchedEffect(chatHistoryBridge, chatHistorySnapshot) {
+        chatHistoryBridge.updateSnapshot(chatHistorySnapshot)
+    }
+
+    DisposableEffect(chatComposerBridge, chatHistoryBridge) {
+        val composerDelegate = object : ChatComposerBridge.Delegate {
+            override fun replaceDraftText(text: String) {
+                latestInputState.setMessageText(text)
+            }
+
+            override fun appendDraftText(text: String) {
+                latestInputState.appendText(text)
+            }
+
+            override fun submitDraft(answer: Boolean, overrideText: String?) {
+                latestSubmitDraft(answer, overrideText)
+            }
+        }
+        val historyDelegate = object : ChatHistoryBridge.Delegate {
+            override fun editMessage(nodeId: String, text: String) {
+                if (latestLoadingJob != null) {
+                    vm.showEditBlockedWhileGeneratingError()
+                    return
+                }
+
+                val targetMessage = latestConversation.findCurrentMessageByNodeId(nodeId) ?: return
+                vm.handleMessageEdit(
+                    parts = targetMessage.parts.replaceHistoryText(text),
+                    messageId = targetMessage.id,
+                )
+            }
+
+            override fun deleteMessage(nodeId: String) {
+                if (latestLoadingJob != null) {
+                    vm.showDeleteBlockedWhileGeneratingError()
+                    return
+                }
+
+                val targetMessage = latestConversation.findCurrentMessageByNodeId(nodeId) ?: return
+                vm.deleteMessage(targetMessage)
+            }
+
+            override fun selectMessageNode(nodeId: String, selectIndex: Int) {
+                val targetNode = latestConversation.messageNodes.firstOrNull { it.id.toString() == nodeId } ?: return
+                vm.selectMessageNode(targetNode.id, selectIndex)
+            }
+
+            override fun regenerateMessage(nodeId: String, regenerateAssistantMessage: Boolean) {
+                val targetMessage = latestConversation.findCurrentMessageByNodeId(nodeId) ?: return
+                vm.regenerateAtMessage(targetMessage, regenerateAssistantMessage)
+            }
+
+            override fun continueMessage(nodeId: String) {
+                val targetMessage = latestConversation.findCurrentMessageByNodeId(nodeId) ?: return
+                vm.continueAssistantMessage(targetMessage)
+            }
+        }
+        chatComposerBridge.register(composerDelegate)
+        chatHistoryBridge.register(historyDelegate)
+        onDispose {
+            chatComposerBridge.updateDraftTextSnapshot(latestCurrentDraftText)
+            chatComposerBridge.unregister(composerDelegate)
+            chatHistoryBridge.unregister(historyDelegate)
+        }
+    }
 
     ChatStatusBarImmersiveEffect()
     TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
@@ -337,6 +525,9 @@ private fun ChatPageContent(
                                 onNewChat = {
                                     navigateToChatPage(navController)
                                 },
+                                onToggleTemporaryConversation = {
+                                    vm.toggleTemporaryConversation()
+                                },
                                 onClickMenu = {
                                     previewMode = !previewMode
                                 },
@@ -345,6 +536,11 @@ private fun ChatPageContent(
                                 },
                                 onHideTopBar = {
                                     topBarVisible = false
+                                },
+                                onOpenRuntimeInspector = {
+                                    inspectorTab = ChatRuntimeInspectorTab.PROMPTS
+                                    inspectorVisible = true
+                                    vm.refreshRuntimeInspection()
                                 }
                             )
                         }
@@ -380,54 +576,10 @@ private fun ChatPageContent(
                             )
                         },
                         onSendClick = {
-                            val contents = inputState.getContents()
-                            val termuxDirect = if (inputState.isEditing()) {
-                                null
-                            } else {
-                                TermuxDirectCommandParser.parse(
-                                    parts = contents,
-                                    commandModeEnabled = setting.termuxCommandModeEnabled
-                                )
-                            }
-
-                            if (currentChatModel == null && termuxDirect?.isDirect != true) {
-                                toaster.show("请先选择模型", type = ToastType.Error)
-                                return@ChatInput
-                            }
-                            if (inputState.isEditing()) {
-                                vm.handleMessageEdit(
-                                    parts = contents,
-                                    messageId = inputState.editingMessage!!,
-                                )
-                            } else {
-                                vm.handleMessageSend(
-                                    content = contents,
-                                    forceTermuxCommandMode = setting.termuxCommandModeEnabled
-                                )
-                                scope.launch {
-                                    chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                                }
-                            }
-                            inputState.clearInput()
+                            submitDraft(answer = true)
                         },
                         onLongSendClick = {
-                            val contents = inputState.getContents()
-                            if (inputState.isEditing()) {
-                                vm.handleMessageEdit(
-                                    parts = contents,
-                                    messageId = inputState.editingMessage!!,
-                                )
-                            } else {
-                                vm.handleMessageSend(
-                                    content = contents,
-                                    answer = false,
-                                    forceTermuxCommandMode = setting.termuxCommandModeEnabled
-                                )
-                                scope.launch {
-                                    chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                                }
-                            }
-                            inputState.clearInput()
+                            submitDraft(answer = false)
                         },
                         onUpdateChatModel = {
                             vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
@@ -466,6 +618,7 @@ private fun ChatPageContent(
                     state = chatListState,
                     loading = loadingJob != null,
                     previewMode = previewMode,
+                    topBarVisible = topBarVisible,
                     settings = setting,
                     hazeState = hazeState,
                     errors = errors,
@@ -473,6 +626,9 @@ private fun ChatPageContent(
                     onClearAllErrors = onClearAllErrors,
                     onRegenerate = {
                         vm.regenerateAtMessage(it)
+                    },
+                    onContinue = {
+                        vm.continueAssistantMessage(it)
                     },
                     onEdit = {
                         inputState.editingMessage = it.id
@@ -561,6 +717,19 @@ private fun ChatPageContent(
                     )
                 }
             }
+
+            if (inspectorVisible) {
+                ChatRuntimeInspectorSheet(
+                    state = runtimeInspection,
+                    initialTab = inspectorTab,
+                    onDismissRequest = {
+                        inspectorVisible = false
+                    },
+                    onRefresh = {
+                        vm.refreshRuntimeInspection()
+                    },
+                )
+            }
         }
     }
 }
@@ -574,14 +743,22 @@ private fun TopBar(
     previewMode: Boolean,
     onClickMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onToggleTemporaryConversation: () -> Unit,
     onUpdateTitle: (String) -> Unit,
     onHideTopBar: () -> Unit,
+    onOpenRuntimeInspector: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val titleState = useEditState<String> {
         onUpdateTitle(it)
     }
+    val showTemporaryConversationAction = conversation.newConversation && conversation.messageNodes.isEmpty()
+    val temporaryConversationEnabled = conversation.isTemporaryConversation
+    val newChatText = stringResource(R.string.chat_page_new_chat)
+    val temporaryConversationText = stringResource(R.string.chat_page_temporary_chat)
+    val temporaryConversationEnabledText = stringResource(R.string.chat_page_temporary_chat_enabled)
+    val temporaryConversationDisabledText = stringResource(R.string.chat_page_temporary_chat_disabled)
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -596,7 +773,7 @@ private fun TopBar(
                         scope.launch { drawerState.open() }
                     }
                 ) {
-                    Icon(HugeIcons.Menu03, "Messages")
+                    Icon(HugeIcons.Menu03, stringResource(R.string.chat_page_messages))
                 }
             }
         },
@@ -613,7 +790,13 @@ private fun TopBar(
                 color = Color.Transparent,
             ) {
                 Text(
-                    text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
+                    text = conversation.title.ifBlank {
+                        if (temporaryConversationEnabled) {
+                            temporaryConversationText
+                        } else {
+                            newChatText
+                        }
+                    },
                     maxLines = 1,
                     style = MaterialTheme.typography.titleMedium,
                     overflow = TextOverflow.Ellipsis,
@@ -623,10 +806,42 @@ private fun TopBar(
         actions = {
             IconButton(
                 onClick = {
-                    onNewChat()
+                    if (showTemporaryConversationAction) {
+                        onToggleTemporaryConversation()
+                        toaster.show(
+                            if (temporaryConversationEnabled) {
+                                temporaryConversationDisabledText
+                            } else {
+                                temporaryConversationEnabledText
+                            },
+                            type = if (temporaryConversationEnabled) {
+                                ToastType.Info
+                            } else {
+                                ToastType.Success
+                            }
+                        )
+                    } else {
+                        onNewChat()
+                    }
                 }
             ) {
-                Icon(HugeIcons.MessageAdd01, "New Message")
+                Icon(
+                    imageVector = if (showTemporaryConversationAction) {
+                        HugeIcons.BubbleChatTemporary
+                    } else {
+                        HugeIcons.MessageAdd01
+                    },
+                    contentDescription = if (showTemporaryConversationAction) {
+                        temporaryConversationText
+                    } else {
+                        newChatText
+                    },
+                    tint = if (temporaryConversationEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        LocalContentColor.current
+                    }
+                )
             }
 
             var showOverflowMenu by rememberSaveable { mutableStateOf(false) }
@@ -666,6 +881,16 @@ private fun TopBar(
                     },
                     leadingIcon = {
                         Icon(HugeIcons.ArrowUpDouble, null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("运行时检查") },
+                    onClick = {
+                        showOverflowMenu = false
+                        onOpenRuntimeInspector()
+                    },
+                    leadingIcon = {
+                        Icon(HugeIcons.InspectCode, null)
                     }
                 )
             }

@@ -39,8 +39,8 @@ android {
         applicationId = "me.rerere.rikkahub.ywxk"
         minSdk = 26
         targetSdk = 36
-        versionCode = 147
-        versionName = "0.6.0"
+        versionCode = 148
+        versionName = "1.0.0-pre.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -231,9 +231,6 @@ dependencies {
 
     // ucrop
     implementation(libs.ucrop)
-
-    // pebble (template engine)
-    implementation(libs.pebble)
 
     // coil
     implementation(libs.coil.compose)

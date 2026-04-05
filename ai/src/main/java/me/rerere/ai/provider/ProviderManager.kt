@@ -1,5 +1,6 @@
 package me.rerere.ai.provider
 
+import android.content.Context
 import me.rerere.ai.provider.providers.ClaudeProvider
 import me.rerere.ai.provider.providers.GoogleProvider
 import me.rerere.ai.provider.providers.OpenAIProvider
@@ -8,15 +9,15 @@ import okhttp3.OkHttpClient
 /**
  * Provider管理器，负责注册和获取Provider实例
  */
-class ProviderManager(client: OkHttpClient) {
+class ProviderManager(client: OkHttpClient, context: Context) {
     // 存储已注册的Provider实例
     private val providers = mutableMapOf<String, Provider<*>>()
 
     init {
         // 注册默认Provider
-        registerProvider("openai", OpenAIProvider(client))
-        registerProvider("google", GoogleProvider(client))
-        registerProvider("claude", ClaudeProvider(client))
+        registerProvider("openai", OpenAIProvider(client, context))
+        registerProvider("google", GoogleProvider(client, context))
+        registerProvider("claude", ClaudeProvider(client, context))
     }
 
     /**
@@ -52,5 +53,23 @@ class ProviderManager(client: OkHttpClient) {
             is ProviderSetting.Google -> getProvider("google")
             is ProviderSetting.Claude -> getProvider("claude")
         } as Provider<T>
+    }
+
+    fun previewTextRequest(
+        setting: ProviderSetting,
+        messages: List<me.rerere.ai.ui.UIMessage>,
+        params: TextGenerationParams,
+        stream: Boolean,
+    ): TextRequestPreview {
+        return when (setting) {
+            is ProviderSetting.OpenAI ->
+                (getProvider("openai") as OpenAIProvider).previewTextRequest(setting, messages, params, stream)
+
+            is ProviderSetting.Google ->
+                (getProvider("google") as GoogleProvider).previewTextRequest(setting, messages, params, stream)
+
+            is ProviderSetting.Claude ->
+                (getProvider("claude") as ClaudeProvider).previewTextRequest(setting, messages, params, stream)
+        }
     }
 }

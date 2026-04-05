@@ -1,5 +1,6 @@
 package me.rerere.ai.provider.providers
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -29,12 +30,17 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.TextRequestHeader
+import me.rerere.ai.provider.TextRequestPreview
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.providers.openai.normalizedTopKOrNull
+import me.rerere.ai.provider.providers.normalizedStopSequencesOrNull
 import me.rerere.ai.ui.ImageGenerationResult
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessageChoice
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.util.KeyRoulette
 import me.rerere.ai.util.configureReferHeaders
 import me.rerere.ai.util.encodeBase64
 import me.rerere.ai.util.json
@@ -57,12 +63,39 @@ import kotlin.time.Clock
 private const val TAG = "ClaudeProvider"
 private const val ANTHROPIC_VERSION = "2023-06-01"
 
-class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSetting.Claude> {
+class ClaudeProvider(private val client: OkHttpClient, context: Context? = null) : Provider<ProviderSetting.Claude> {
+    private val keyRoulette = if (context != null) KeyRoulette.lru(context) else KeyRoulette.default()
+
+    fun previewTextRequest(
+        providerSetting: ProviderSetting.Claude,
+        messages: List<UIMessage>,
+        params: TextGenerationParams,
+        stream: Boolean,
+    ): TextRequestPreview {
+        val requestBody = buildMessageRequest(providerSetting, messages, params, stream = stream)
+        val request = Request.Builder()
+            .url("${providerSetting.baseUrl}/messages")
+            .headers(params.customHeaders.toHeaders())
+            .addHeader("x-api-key", "<redacted>")
+            .addHeader("anthropic-version", ANTHROPIC_VERSION)
+            .addHeader("Content-Type", "application/json")
+            .configureReferHeaders(providerSetting.baseUrl)
+            .build()
+        return TextRequestPreview(
+            providerName = providerSetting.name,
+            apiName = "Claude Messages API",
+            url = request.url.toString(),
+            stream = stream,
+            headers = request.headers.toHeaderList(),
+            body = requestBody,
+        )
+    }
+
     override suspend fun listModels(providerSetting: ProviderSetting.Claude): List<Model> =
         withContext(Dispatchers.IO) {
             val request = Request.Builder()
                 .url("${providerSetting.baseUrl}/models")
-                .addHeader("x-api-key", providerSetting.apiKey)
+                .addHeader("x-api-key", keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString()))
                 .addHeader("anthropic-version", ANTHROPIC_VERSION)
                 .get()
                 .build()
@@ -105,7 +138,7 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
             .url("${providerSetting.baseUrl}/messages")
             .headers(params.customHeaders.toHeaders())
             .post(json.encodeToString(requestBody).toRequestBody("application/json".toMediaType()))
-            .addHeader("x-api-key", providerSetting.apiKey)
+            .addHeader("x-api-key", keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString()))
             .addHeader("anthropic-version", ANTHROPIC_VERSION)
             .configureReferHeaders(providerSetting.baseUrl)
             .build()
@@ -152,7 +185,7 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
             .url("${providerSetting.baseUrl}/messages")
             .headers(params.customHeaders.toHeaders())
             .post(json.encodeToString(requestBody).toRequestBody("application/json".toMediaType()))
-            .addHeader("x-api-key", providerSetting.apiKey)
+            .addHeader("x-api-key", keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString()))
             .addHeader("anthropic-version", ANTHROPIC_VERSION)
             .addHeader("Content-Type", "application/json")
             .configureReferHeaders(providerSetting.baseUrl)
@@ -260,10 +293,14 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
         stream: Boolean = false
     ): JsonObject {
         fun cacheControlEphemeral() = buildJsonObject { put("type", "ephemeral") }
+        val normalizedMessages = demoteSystemMessages(
+            splitLeadingSystemMessages(messages).remainingMessages
+        )
+        val systemTextParts = collectLeadingSystemTextParts(messages)
 
         return buildJsonObject {
             put("model", params.model.modelId)
-            put("messages", buildMessages(messages, providerSetting.promptCaching))
+            put("messages", buildMessages(normalizedMessages, providerSetting.promptCaching))
             put("max_tokens", params.maxTokens ?: 64_000)
 
             if (params.temperature != null && (params.thinkingBudget ?: 0) == 0) put(
@@ -271,12 +308,14 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
                 params.temperature
             )
             if (params.topP != null) put("top_p", params.topP)
+            params.topK.normalizedTopKOrNull()?.let { put("top_k", it) }
+            params.stopSequences.normalizedStopSequencesOrNull()?.let { stopSequences ->
+                put("stop_sequences", json.encodeToJsonElement(stopSequences))
+            }
 
             put("stream", stream)
 
             // system prompt
-            val systemMessage = messages.firstOrNull { it.role == MessageRole.SYSTEM }
-            val systemTextParts = systemMessage?.parts?.filterIsInstance<UIMessagePart.Text>().orEmpty()
             if (systemTextParts.isNotEmpty()) {
                 put("system", buildJsonArray {
                     systemTextParts.forEachIndexed { index, part ->
@@ -332,7 +371,7 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
 
     private fun buildMessages(messages: List<UIMessage>, promptCaching: Boolean) = buildJsonArray {
         messages
-            .filter { it.isValidToUpload() && it.role != MessageRole.SYSTEM }
+            .filter { it.isValidToUpload() }
             .forEach { message ->
                 if (message.role == MessageRole.ASSISTANT) {
                     addAssistantMessage(message)
@@ -429,7 +468,7 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
 
     private fun JsonArrayBuilder.addUserMessage(message: UIMessage) {
         add(buildJsonObject {
-            put("role", message.role.name.lowercase())
+            put("role", "user")
             putJsonArray("content") {
                 message.parts.mapNotNull { it.toContentBlock() }.forEach { add(it) }
             }
@@ -568,6 +607,15 @@ class ClaudeProvider(private val client: OkHttpClient) : Provider<ProviderSettin
             completionTokens = completionTokens,
             totalTokens = promptTokens + completionTokens,
             cachedTokens = cachedInputTokens,
+        )
+    }
+}
+
+private fun okhttp3.Headers.toHeaderList(): List<TextRequestHeader> {
+    return List(size) { index ->
+        TextRequestHeader(
+            name = name(index),
+            value = value(index),
         )
     }
 }

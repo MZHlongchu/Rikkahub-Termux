@@ -12,12 +12,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -80,11 +78,17 @@ import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.AssistantRegexApplyPhase
+import me.rerere.rikkahub.data.model.AssistantRegexPlacement
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.effectiveUserAvatar
+import me.rerere.rikkahub.data.model.effectiveUserName
 import me.rerere.rikkahub.data.model.replaceRegexes
+import me.rerere.rikkahub.data.model.runtimeRegexes
+import me.rerere.rikkahub.data.model.selectedUserPersonaProfile
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
@@ -107,6 +111,9 @@ internal fun UIMessage.shouldShowPrimaryActions(loading: Boolean): Boolean {
     return !loading && !parts.isEmptyUIMessage()
 }
 
+internal fun userRegexRenderCacheKey(settings: Settings) =
+    settings.selectedUserPersonaProfile() to settings.displaySetting.userNickname.trim()
+
 @Composable
 fun ChatMessage(
     node: MessageNode,
@@ -118,6 +125,7 @@ fun ChatMessage(
     showMetadata: Boolean = false,
     onFork: () -> Unit,
     onRegenerate: () -> Unit,
+    onContinue: () -> Unit,
     onEdit: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
@@ -131,7 +139,8 @@ fun ChatMessage(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
 ) {
     val message = node.messages[node.selectIndex]
-    val settings = LocalSettings.current.displaySetting
+    val allSettings = LocalSettings.current
+    val settings = allSettings.displaySetting
     val baseFontSize = LocalTextStyle.current.fontSize * settings.fontSizeRatio
     val scaledLineHeight = if (LocalTextStyle.current.lineHeight.isSpecified) {
         LocalTextStyle.current.lineHeight * settings.fontSizeRatio
@@ -157,11 +166,15 @@ fun ChatMessage(
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
-    val assistantAvatarSlotWidth = if (message.role == MessageRole.ASSISTANT && settings.showModelIcon) 32.dp else 0.dp
-    val userAvatarSlotWidth = if (message.role == MessageRole.USER && settings.showUserAvatar) 36.dp else 0.dp
-    val avatarGap = 6.dp
+    val headerState = message.headerState(
+        settings = allSettings,
+        showIdentity = showIdentity,
+        model = model,
+        assistant = assistant,
+    )
     val showPrimaryActions = message.shouldShowPrimaryActions(loading)
     val showAccessoryRow = showPrimaryActions || node.messages.size > 1
+    val contentAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start
 
     @Composable
     fun MessageContentColumn(horizontalAlignment: Alignment.Horizontal) {
@@ -171,14 +184,6 @@ fun ChatMessage(
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (showIdentity) {
-                ChatMessageIdentityLabel(
-                    message = message,
-                    model = model,
-                    assistant = assistant,
-                )
-            }
-
             ProvideTextStyle(textStyle) {
                 MessagePartsBlock(
                     assistant = assistant,
@@ -215,6 +220,7 @@ fun ChatMessage(
                             ChatMessageActionButtons(
                                 message = message,
                                 onRegenerate = onRegenerate,
+                                onContinue = onContinue,
                                 node = node,
                                 onUpdate = onUpdate,
                                 onOpenActionSheet = {
@@ -237,59 +243,70 @@ fun ChatMessage(
         }
     }
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        when (message.role) {
-            MessageRole.ASSISTANT -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.Start,
-                ) {
-                    if (assistantAvatarSlotWidth > 0.dp) {
-                        if (showIdentity) {
-                            ChatMessageAssistantAvatar(
-                                model = model,
-                                assistant = assistant,
-                                loading = loading,
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.width(assistantAvatarSlotWidth))
-                        }
-                        Spacer(modifier = Modifier.width(avatarGap))
+    @Composable
+    fun MessageHeaderRow() {
+        Row(
+            modifier = Modifier.widthIn(max = 680.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when (message.role) {
+                MessageRole.USER -> {
+                    if (headerState.showIdentityLabel) {
+                        ChatMessageIdentityLabel(
+                            message = message,
+                            model = model,
+                            assistant = assistant,
+                        )
                     }
-                    MessageContentColumn(horizontalAlignment = Alignment.Start)
-                }
-            }
-
-            MessageRole.USER -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    MessageContentColumn(horizontalAlignment = Alignment.End)
-                    if (userAvatarSlotWidth > 0.dp) {
-                        Spacer(modifier = Modifier.width(avatarGap))
-                        if (showIdentity) {
-                            ChatMessageUserAvatar(
-                                avatar = settings.userAvatar,
-                                nickname = settings.userNickname,
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.width(userAvatarSlotWidth))
-                        }
+                    if (headerState.showAvatar) {
+                        ChatMessageUserAvatar(
+                            avatar = allSettings.effectiveUserAvatar(),
+                            nickname = allSettings.effectiveUserName(),
+                        )
                     }
                 }
-            }
 
-            else -> {
-                MessageContentColumn(horizontalAlignment = Alignment.Start)
+                MessageRole.ASSISTANT -> {
+                    if (headerState.showAvatar) {
+                        ChatMessageAssistantAvatar(
+                            model = model,
+                            assistant = assistant,
+                            loading = loading,
+                        )
+                    }
+                    if (headerState.showIdentityLabel) {
+                        ChatMessageIdentityLabel(
+                            message = message,
+                            model = model,
+                            assistant = assistant,
+                        )
+                    }
+                }
+
+                else -> {
+                    if (headerState.showIdentityLabel) {
+                        ChatMessageIdentityLabel(
+                            message = message,
+                            model = model,
+                            assistant = assistant,
+                        )
+                    }
+                }
             }
         }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = contentAlignment,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (headerState.isVisible) {
+            MessageHeaderRow()
+        }
+
+        MessageContentColumn(horizontalAlignment = contentAlignment)
     }
     if (showActionsSheet) {
         ChatMessageActionsSheet(
@@ -356,6 +373,8 @@ private fun MessagePartsBlock(
     // 消息输出HapticFeedback
     val hapticFeedback = LocalHapticFeedback.current
     val settings = LocalSettings.current
+    val runtimeRegexes = remember(settings) { settings.runtimeRegexes() }
+    val regexRenderCacheKey = userRegexRenderCacheKey(settings)
     val handleClickCitation: (String) -> Unit = remember {
         handler@{ citationId ->
             latestParts.forEach { part ->
@@ -440,12 +459,20 @@ private fun MessagePartsBlock(
                                     modifier = Modifier
                                 )
                             } else {
-                                val renderedText = remember(part.text, assistant, messageDepthFromEnd) {
+                                val renderedText = remember(
+                                    part.text,
+                                    assistant,
+                                    runtimeRegexes,
+                                    messageDepthFromEnd,
+                                    regexRenderCacheKey,
+                                ) {
                                     part.text.replaceRegexes(
                                         assistant = assistant,
+                                        settings = settings,
                                         scope = AssistantAffectScope.USER,
                                         phase = AssistantRegexApplyPhase.VISUAL_ONLY,
                                         messageDepthFromEnd = messageDepthFromEnd,
+                                        placement = AssistantRegexPlacement.USER_INPUT,
                                     )
                                 }
                                 Surface(
@@ -469,12 +496,20 @@ private fun MessagePartsBlock(
                                 }
                             }
                         } else {
-                            val renderedText = remember(part.text, assistant, messageDepthFromEnd) {
+                            val renderedText = remember(
+                                part.text,
+                                assistant,
+                                runtimeRegexes,
+                                messageDepthFromEnd,
+                                regexRenderCacheKey,
+                            ) {
                                 part.text.replaceRegexes(
                                     assistant = assistant,
+                                    settings = settings,
                                     scope = AssistantAffectScope.ASSISTANT,
                                     phase = AssistantRegexApplyPhase.VISUAL_ONLY,
                                     messageDepthFromEnd = messageDepthFromEnd,
+                                    placement = AssistantRegexPlacement.AI_OUTPUT,
                                 )
                             }
                             if (settings.displaySetting.showAssistantBubble) {

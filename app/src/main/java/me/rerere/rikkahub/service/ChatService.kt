@@ -17,6 +17,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -56,6 +62,7 @@ import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.TOOL_APPROVAL_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.hasBlockingToolsForContinuation
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
@@ -71,15 +78,24 @@ import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.ai.tools.termux.isSuccessful
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
-import me.rerere.rikkahub.data.ai.transformers.MessageTemplateInjectionTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
 import me.rerere.rikkahub.data.ai.transformers.PromptInjectionTransformer
 import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
 import me.rerere.rikkahub.data.ai.transformers.RegexPromptOnlyTransformer
-import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
+import me.rerere.rikkahub.data.ai.transformers.StMacroEnvironment
+import me.rerere.rikkahub.data.ai.transformers.SillyTavernCompatScriptTransformer
+import me.rerere.rikkahub.data.ai.transformers.StMacroState
+import me.rerere.rikkahub.data.ai.transformers.LorebookRuntimeState
+import me.rerere.rikkahub.data.ai.transformers.SillyTavernPromptTransformer
+import me.rerere.rikkahub.data.ai.transformers.SillyTavernMacroTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
+import me.rerere.rikkahub.data.ai.transformers.TransformerContext
+import me.rerere.rikkahub.data.ai.transformers.estimateLorebookTokenCount
+import me.rerere.rikkahub.data.ai.transformers.readLatestAssistantStRuntimeSnapshot
+import me.rerere.rikkahub.data.ai.transformers.readStRuntimeSnapshot
+import me.rerere.rikkahub.data.ai.transformers.withStRuntimeSnapshot
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
@@ -92,7 +108,12 @@ import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.ScheduledPromptTask
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.AssistantRegexApplyPhase
+import me.rerere.rikkahub.data.model.AssistantRegexPlacement
+import me.rerere.rikkahub.data.model.applyActiveStPresetSampling
+import me.rerere.rikkahub.data.model.activeStPresetTemplate
 import me.rerere.rikkahub.data.model.replaceRegexes
+import me.rerere.rikkahub.data.model.resolveConversationStarterMessages
+import me.rerere.rikkahub.data.model.resolveStSendIfEmptyContent
 import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
@@ -111,6 +132,16 @@ import kotlin.uuid.Uuid
 private const val TAG = "ChatService"
 private const val TERMUX_BASH_PATH = "/data/data/com.termux/files/usr/bin/bash"
 
+internal fun shouldSkipConversationPersistence(
+    exists: Boolean,
+    conversation: Conversation,
+): Boolean {
+    if (conversation.isTemporaryConversation) {
+        return true
+    }
+    return !exists && conversation.title.isBlank() && conversation.messageNodes.isEmpty()
+}
+
 data class ChatError(
     val id: Uuid = Uuid.random(),
     val error: Throwable,
@@ -128,8 +159,9 @@ data class ScheduledTaskExecutionResult(
 private val inputTransformers by lazy {
     listOf(
         TimeReminderTransformer,
-        MessageTemplateInjectionTransformer,
+        SillyTavernPromptTransformer,
         PromptInjectionTransformer,
+        SillyTavernMacroTransformer,
         PlaceholderTransformer,
         DocumentAsPromptTransformer,
         OcrTransformer,
@@ -151,9 +183,9 @@ class ChatService(
     private val conversationRepo: ConversationRepository,
     private val memoryRepository: MemoryRepository,
     private val generationHandler: GenerationHandler,
-    private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
     private val localTools: LocalTools,
+    private val stCompatScriptTransformer: SillyTavernCompatScriptTransformer,
     private val termuxCommandManager: TermuxCommandManager,
     private val termuxPtySessionManager: TermuxPtySessionManager,
     val mcpManager: McpManager,
@@ -161,6 +193,9 @@ class ChatService(
 ) {
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
+    private val stMacroGlobalVariables = ConcurrentHashMap<String, String>()
+    private val persistConversationLocalVariablesJobs = ConcurrentHashMap<Uuid, Job>()
+    private var persistGlobalVariablesJob: Job? = null
     private val _sessionsVersion = MutableStateFlow(0L)
 
     // 错误状态
@@ -199,11 +234,22 @@ class ChatService(
     init {
         // 添加生命周期观察者
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        appScope.launch {
+            val persistedSettings = settingsStore.settingsFlowRaw.first()
+            stMacroGlobalVariables.clear()
+            stMacroGlobalVariables.putAll(persistedSettings.stGlobalVariables)
+        }
     }
 
     fun cleanup() = runCatching {
         ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
-        sessions.values.forEach { it.cleanup() }
+        persistGlobalVariablesJob?.cancel()
+        persistConversationLocalVariablesJobs.values.forEach { it.cancel() }
+        persistConversationLocalVariablesJobs.clear()
+        sessions.values.forEach { session ->
+            cleanupUnsavedConversationFiles(session.id, session.state.value)
+            session.cleanup()
+        }
         sessions.clear()
     }
 
@@ -234,10 +280,208 @@ class ChatService(
             return
         }
         if (sessions.remove(conversationId, session)) {
+            cleanupUnsavedConversationFiles(conversationId, session.state.value)
             session.cleanup()
             _sessionsVersion.value++
             Log.i(TAG, "removeSession: $conversationId (remaining: ${sessions.size})")
         }
+    }
+
+    private fun cleanupUnsavedConversationFiles(
+        conversationId: Uuid,
+        conversation: Conversation,
+    ) {
+        val files = conversation.files
+        if (files.isEmpty()) return
+        appScope.launch {
+            if (!conversationRepo.existsConversationById(conversationId)) {
+                filesManager.deleteChatFiles(files)
+                Log.i(TAG, "cleanupUnsavedConversationFiles: $conversationId")
+            }
+        }
+    }
+
+    private fun getConversationStMacroState(conversationId: Uuid): StMacroState {
+        val session = getOrCreateSession(conversationId)
+        return session.getStMacroState(
+            globalVariables = stMacroGlobalVariables,
+            onLocalVariablesChanged = {
+                syncConversationLocalVariables(
+                    conversationId = conversationId,
+                    localVariables = session.getPersistentLocalVariablesSnapshot(),
+                )
+            },
+            onGlobalVariablesChanged = {
+                schedulePersistGlobalVariables()
+            },
+        )
+    }
+
+    private fun resetConversationStRuntimeState(
+        conversationId: Uuid,
+        clearLocalVariables: Boolean = false,
+    ) {
+        sessions[conversationId]?.let { session ->
+            if (clearLocalVariables) {
+                session.resetStMacroLocalVariables()
+                syncConversationLocalVariables(conversationId = conversationId, localVariables = emptyMap())
+            }
+            session.resetLorebookRuntimeState()
+            session.stGenerationType = "normal"
+        }
+    }
+
+    private fun syncConversationLocalVariables(
+        conversationId: Uuid,
+        localVariables: Map<String, String>,
+    ) {
+        val session = sessions[conversationId] ?: return
+        val conversation = session.state.value
+        if (conversation.stLocalVariables == localVariables) return
+        updateConversation(
+            conversationId = conversationId,
+            conversation = conversation.copy(stLocalVariables = localVariables),
+        )
+        schedulePersistConversationLocalVariables(conversationId, localVariables)
+    }
+
+    private fun schedulePersistGlobalVariables() {
+        val snapshot = stMacroGlobalVariables.toMap()
+        persistGlobalVariablesJob?.cancel()
+        persistGlobalVariablesJob = appScope.launch {
+            delay(300)
+            settingsStore.update { settings ->
+                if (settings.stGlobalVariables == snapshot) {
+                    settings
+                } else {
+                    settings.copy(stGlobalVariables = snapshot)
+                }
+            }
+        }
+    }
+
+    private fun schedulePersistConversationLocalVariables(
+        conversationId: Uuid,
+        localVariables: Map<String, String>,
+    ) {
+        persistConversationLocalVariablesJobs.remove(conversationId)?.cancel()
+        val job = appScope.launch {
+            delay(300)
+            conversationRepo.updateConversationLocalVariables(conversationId, localVariables)
+        }
+        persistConversationLocalVariablesJobs[conversationId] = job
+        job.invokeOnCompletion {
+            persistConversationLocalVariablesJobs.remove(conversationId, job)
+        }
+    }
+
+    private fun applyPersistentStLocalVariables(
+        conversationId: Uuid,
+        conversation: Conversation,
+    ): Conversation {
+        val localVariables = sessions[conversationId]
+            ?.getPersistentLocalVariablesSnapshot()
+            ?: conversation.stLocalVariables
+        return if (conversation.stLocalVariables == localVariables) {
+            conversation
+        } else {
+            conversation.copy(stLocalVariables = localVariables)
+        }
+    }
+
+    private fun setConversationStGenerationType(conversationId: Uuid, stGenerationType: String) {
+        getOrCreateSession(conversationId).stGenerationType = stGenerationType.trim().lowercase().ifBlank { "normal" }
+    }
+
+    private fun getConversationStGenerationType(conversationId: Uuid): String {
+        return sessions[conversationId]?.stGenerationType ?: "normal"
+    }
+
+    private fun resolveConversationStGenerationType(
+        conversationId: Uuid,
+        conversation: Conversation,
+    ): String {
+        val persisted = conversation.currentMessages
+            .readLatestAssistantStRuntimeSnapshot()
+            ?.generationType
+            .orEmpty()
+            .trim()
+            .lowercase()
+        if (persisted.isNotBlank()) {
+            return persisted
+        }
+        return getConversationStGenerationType(conversationId)
+    }
+
+    private suspend fun restoreConversationStRuntimeState(
+        conversationId: Uuid,
+        visibleMessages: List<UIMessage>,
+    ) {
+        val session = getOrCreateSession(conversationId)
+        // Unsnapshotted assistant turns may come from imported history, greeting presets,
+        // or legacy branches, so treating them as prior generations corrupts ST state.
+        val persistentLocalVariables = session.state.value.stLocalVariables
+        session.restoreStRuntimeState(
+            snapshot = visibleMessages.readLatestAssistantStRuntimeSnapshot(),
+            persistentLocalVariables = persistentLocalVariables,
+        )
+        if (persistentLocalVariables.isEmpty()) {
+            val migratedLocalVariables = session.getPersistentLocalVariablesSnapshot()
+            if (migratedLocalVariables.isNotEmpty()) {
+                syncConversationLocalVariables(
+                    conversationId = conversationId,
+                    localVariables = migratedLocalVariables,
+                )
+            }
+        }
+    }
+
+    private fun selectMessagesForGeneration(
+        messages: List<UIMessage>,
+        messageRange: ClosedRange<Int>?,
+    ): List<UIMessage> {
+        if (messageRange == null) return messages
+
+        val start = messageRange.start.coerceIn(0, messages.size)
+        val endExclusive = (messageRange.endInclusive + 1).coerceIn(start, messages.size)
+        return messages.subList(start, endExclusive)
+    }
+
+    private fun selectMessagesForStateRestore(
+        messages: List<UIMessage>,
+        messageRange: ClosedRange<Int>?,
+    ): List<UIMessage> {
+        if (messageRange == null) return messages
+
+        val endExclusive = (messageRange.endInclusive + 1).coerceIn(0, messages.size)
+        return messages.take(endExclusive)
+    }
+
+    private fun persistAssistantRuntimeSnapshot(
+        conversation: Conversation,
+        messageId: Uuid?,
+        session: ConversationSession,
+    ): Conversation {
+        if (messageId == null) return conversation
+
+        val snapshot = session.snapshotStRuntimeState()
+        val updatedNodes = conversation.messageNodes.map { node ->
+            val messageIndex = node.messages.indexOfFirst { it.id == messageId }
+            if (messageIndex == -1) {
+                node
+            } else {
+                node.copy(
+                    messages = node.messages.mapIndexed { index, message ->
+                        if (index == messageIndex) {
+                            message.withStRuntimeSnapshot(snapshot)
+                        } else {
+                            message
+                        }
+                    }
+                )
+            }
+        }
+        return conversation.copy(messageNodes = updatedNodes)
     }
 
     // ---- 引用管理 ----
@@ -288,6 +532,114 @@ class ChatService(
         }
     }
 
+    suspend fun inspectConversationRuntime(conversationId: Uuid): ChatRuntimeInspection {
+        val settings = settingsStore.settingsFlow.first()
+        val conversation = applyPersistentStLocalVariables(
+            conversationId = conversationId,
+            conversation = getConversationFlow(conversationId).value,
+        )
+        val assistant = settings.applyActiveStPresetSampling(
+            settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
+        )
+        val model = assistant.chatModelId?.let { settings.findModelById(it) }
+            ?: settings.getCurrentChatModel()
+            ?: error("No model configured for this conversation")
+        val provider = model.findProvider(settings.providers)
+            ?: error("No provider configured for model ${model.modelId}")
+        val generationType = resolveConversationStGenerationType(
+            conversationId = conversationId,
+            conversation = conversation,
+        )
+        val currentLocalVariables = conversation.stLocalVariables.toMap()
+        val currentGlobalVariables = stMacroGlobalVariables.toMap()
+        val previewMacroState = StMacroState(
+            localVariables = LinkedHashMap(currentLocalVariables),
+            globalVariables = LinkedHashMap(currentGlobalVariables),
+        )
+        val previewLorebookRuntimeState = LorebookRuntimeState().apply {
+            conversation.currentMessages
+                .readLatestAssistantStRuntimeSnapshot()
+                ?.lorebookRuntimeState
+                ?.let(::restoreFromSnapshot)
+        }
+        val conversationTools = buildConversationTools(
+            settings = settings,
+            assistant = assistant,
+        )
+        val preparedMessages = generationHandler.previewPreparedMessages(
+            settings = settings,
+            model = model,
+            messages = conversation.currentMessages,
+            inputTransformers = buildList {
+                addAll(inputTransformers)
+                add(RegexPromptOnlyTransformer)
+                add(stCompatScriptTransformer)
+            },
+            assistant = assistant,
+            memories = if (assistant.useGlobalMemory) {
+                memoryRepository.getGlobalMemories()
+            } else {
+                memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
+            },
+            tools = conversationTools,
+            stGenerationType = generationType,
+            stMacroState = previewMacroState,
+            lorebookRuntimeState = previewLorebookRuntimeState,
+        )
+        val promptPreviewMessages = preparedMessages.map(::toPromptPreviewMessage)
+        val payloadPreview = providerManager.previewTextRequest(
+            setting = provider,
+            messages = preparedMessages,
+            params = buildConversationGenerationParams(
+                assistant = assistant,
+                model = model,
+                tools = conversationTools,
+            ),
+            stream = assistant.streamOutput,
+        )
+        val activeTemplate = settings.activeStPresetTemplate()
+            ?.takeIf { settings.stPresetEnabled }
+        val macroEnvironment = StMacroEnvironment.from(
+            ctx = TransformerContext(
+                context = context,
+                model = model,
+                assistant = assistant,
+                settings = settings,
+                stGenerationType = generationType,
+                stMacroState = previewMacroState,
+                lorebookRuntimeState = previewLorebookRuntimeState,
+                dryRun = true,
+            ),
+            messages = conversation.currentMessages,
+            template = activeTemplate,
+            characterData = assistant.stCharacterData,
+        )
+        return ChatRuntimeInspection(
+            assistantName = assistant.name.ifBlank { context.getString(R.string.assistant_page_default_assistant) },
+            characterName = assistant.stCharacterData?.name
+                ?.takeIf { it.isNotBlank() }
+                ?: assistant.name.ifBlank { context.getString(R.string.assistant_page_default_assistant) },
+            modelName = model.displayName.ifBlank { model.modelId },
+            presetName = activeTemplate?.sourceName?.takeIf { it.isNotBlank() } ?: "未启用",
+            generationType = generationType,
+            promptMessages = promptPreviewMessages,
+            promptTokenEstimate = promptPreviewMessages.sumOf { it.tokenEstimate },
+            localVariables = currentLocalVariables,
+            globalVariables = currentGlobalVariables,
+            contextVariables = buildRuntimeContextJson(
+                conversation = conversation,
+                assistant = assistant,
+                modelName = model.displayName.ifBlank { model.modelId },
+                presetName = activeTemplate?.sourceName.orEmpty(),
+                generationType = generationType,
+                environment = macroEnvironment,
+                promptMessages = promptPreviewMessages,
+                previewMacroState = previewMacroState,
+            ),
+            payloadPreview = payloadPreview,
+        )
+    }
+
     // ---- 初始化对话 ----
 
     suspend fun initializeConversation(conversationId: Uuid) {
@@ -298,15 +650,225 @@ class ChatService(
             settingsStore.updateAssistant(conversation.assistantId)
         } else {
             // 新建对话, 并添加预设消息
+            resetConversationStRuntimeState(conversationId, clearLocalVariables = true)
             val currentSettings = settingsStore.settingsFlowRaw.first()
             val assistant = currentSettings.getCurrentAssistant()
             val newConversation = Conversation.ofId(
                 id = conversationId,
                 assistantId = assistant.id,
                 newConversation = true
-            ).updateCurrentMessages(assistant.presetMessages)
+            ).updateCurrentMessages(assistant.resolveConversationStarterMessages())
             updateConversation(conversationId, newConversation)
         }
+    }
+
+    private fun buildConversationTools(
+        settings: me.rerere.rikkahub.data.datastore.Settings,
+        assistant: Assistant,
+    ): List<Tool> {
+        val mcpTools = mcpManager.getAvailableToolsForServers(assistant.mcpServers)
+        return buildList {
+            if (settings.enableWebSearch) {
+                addAll(createSearchTools(settings))
+            }
+            addAll(localTools.getTools(assistant.localTools))
+            mcpTools.forEach { tool ->
+                add(
+                    Tool(
+                        name = "mcp__${tool.name}",
+                        description = tool.description ?: "",
+                        parameters = { tool.inputSchema },
+                        needsApproval = tool.needsApproval,
+                        execute = {
+                            mcpManager.callToolFromServers(
+                                serverIds = assistant.mcpServers,
+                                toolName = tool.name,
+                                args = it.jsonObject,
+                            )
+                        },
+                    )
+                )
+            }
+        }
+    }
+
+    private fun buildConversationGenerationParams(
+        assistant: Assistant,
+        model: me.rerere.ai.provider.Model,
+        tools: List<Tool>,
+    ): TextGenerationParams {
+        return TextGenerationParams(
+            model = model,
+            temperature = assistant.temperature,
+            topP = assistant.topP,
+            maxTokens = assistant.maxTokens,
+            frequencyPenalty = assistant.frequencyPenalty,
+            presencePenalty = assistant.presencePenalty,
+            minP = assistant.minP,
+            topK = assistant.topK,
+            topA = assistant.topA,
+            repetitionPenalty = assistant.repetitionPenalty,
+            seed = assistant.seed,
+            stopSequences = assistant.stopSequences,
+            googleResponseMimeType = assistant.googleResponseMimeType,
+            tools = tools,
+            thinkingBudget = assistant.thinkingBudget,
+            openAIReasoningEffort = assistant.openAIReasoningEffort,
+            openAIVerbosity = assistant.openAIVerbosity,
+            customHeaders = buildList {
+                addAll(assistant.customHeaders)
+                addAll(model.customHeaders)
+            },
+            customBody = buildList {
+                addAll(assistant.customBodies)
+                addAll(model.customBodies)
+            }
+        )
+    }
+
+    private fun buildRuntimeContextJson(
+        conversation: Conversation,
+        assistant: Assistant,
+        modelName: String,
+        presetName: String,
+        generationType: String,
+        environment: StMacroEnvironment,
+        promptMessages: List<ChatPromptPreviewMessage>,
+        previewMacroState: StMacroState,
+    ): JsonObject {
+        return buildJsonObject {
+            put(
+                "assistant",
+                buildJsonObject {
+                    put("id", assistant.id.toString())
+                    put("name", assistant.name)
+                    put("character_name", assistant.stCharacterData?.name.orEmpty())
+                    put("model", modelName)
+                    put("preset", presetName)
+                }
+            )
+            put(
+                "conversation",
+                buildJsonObject {
+                    put("id", conversation.id.toString())
+                    put("message_count", conversation.currentMessages.size)
+                    put("generation_type", generationType)
+                }
+            )
+            put(
+                "macro_environment",
+                buildJsonObject {
+                    put("user", environment.user)
+                    put("char", environment.char)
+                    put("group", environment.group)
+                    put("group_not_muted", environment.groupNotMuted)
+                    put("not_char", environment.notChar)
+                    put("persona", environment.persona)
+                    put("scenario", environment.scenario)
+                    put("character_description", environment.characterDescription)
+                    put("character_personality", environment.characterPersonality)
+                    put("character_prompt", environment.charPrompt)
+                    put("character_instruction", environment.charInstruction)
+                    put("character_depth_prompt", environment.charDepthPrompt)
+                    put("creator_notes", environment.creatorNotes)
+                    put("example_messages_raw", environment.exampleMessagesRaw)
+                    put("last_chat_message", environment.lastChatMessage)
+                    put("last_user_message", environment.lastUserMessage)
+                    put("last_assistant_message", environment.lastAssistantMessage)
+                    put("model_name", environment.modelName)
+                    put("max_prompt", environment.maxPrompt)
+                    put("default_system_prompt", environment.defaultSystemPrompt)
+                    put("system_prompt", environment.systemPrompt)
+                    put("chat_start", environment.chatStart)
+                    put("example_separator", environment.exampleSeparator)
+                    put("last_message_id", environment.lastMessageId)
+                    put("first_included_message_id", environment.firstIncludedMessageId)
+                    put("first_displayed_message_id", environment.firstDisplayedMessageId)
+                    put("last_swipe_id", environment.lastSwipeId)
+                    put("current_swipe_id", environment.currentSwipeId)
+                    put("is_mobile", environment.isMobile)
+                    put("outlets", environment.outlets.toJsonObject())
+                    put("available_extensions", environment.availableExtensions.toJsonArray())
+                    put("last_user_message_created_at", environment.lastUserMessageCreatedAt?.toString().orEmpty())
+                }
+            )
+            put(
+                "dry_run",
+                buildJsonObject {
+                    put("prompt_message_count", promptMessages.size)
+                    put("prompt_token_estimate", promptMessages.sumOf { it.tokenEstimate })
+                    put("local_variables", previewMacroState.localVariables.toJsonObject())
+                    put("global_variables", previewMacroState.globalVariables.toJsonObject())
+                    put("outlets", previewMacroState.outlets.toJsonObject())
+                }
+            )
+        }
+    }
+
+    private fun toPromptPreviewMessage(message: UIMessage): ChatPromptPreviewMessage {
+        val content = message.parts.toPromptPreviewText()
+        return ChatPromptPreviewMessage(
+            role = message.role,
+            content = content.ifBlank { "[Empty message]" },
+            tokenEstimate = estimateLorebookTokenCount(content),
+        )
+    }
+
+    private fun List<UIMessagePart>.toPromptPreviewText(): String {
+        return buildList<String> {
+            this@toPromptPreviewText.forEach { part ->
+                when (part) {
+                    is UIMessagePart.Text -> add(part.text)
+                    is UIMessagePart.Image -> add("[Image]\n${part.url}")
+                    is UIMessagePart.Video -> add("[Video]\n${part.url}")
+                    is UIMessagePart.Audio -> add("[Audio]\n${part.url}")
+                    is UIMessagePart.Document -> add("[Document] ${part.fileName} (${part.mime})\n${part.url}")
+                    // Prompt viewer should stay human-readable and avoid mixing in
+                    // provider-specific reasoning replay semantics. Exact wire payload
+                    // is exposed separately in the Payload tab.
+                    is UIMessagePart.Reasoning -> Unit
+                    is UIMessagePart.Tool -> {
+                        add("[Tool:${part.toolName}]\n${part.input}")
+                        if (part.output.isNotEmpty()) {
+                            add("[Tool Output]\n${part.output.toPromptPreviewText()}")
+                        }
+                    }
+
+                    is UIMessagePart.ToolCall -> add("[Tool Call:${part.toolName}]\n${part.arguments}")
+                    is UIMessagePart.ToolResult -> add("[Tool Result:${part.toolName}]\n${part.content}")
+                    is UIMessagePart.Search -> add("[Search]")
+                }
+            }
+        }.map { it.trimEnd() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+            .trim()
+    }
+
+    private fun Map<String, String>.toJsonObject(): JsonObject {
+        return JsonObject(entries.associate { (key, value) ->
+            key to JsonPrimitive(value)
+        })
+    }
+
+    private fun Collection<String>.toJsonArray(): JsonArray {
+        return buildJsonArray {
+            this@toJsonArray.forEach { value ->
+                add(JsonPrimitive(value))
+            }
+        }
+    }
+
+    private fun kotlinx.serialization.json.JsonObjectBuilder.put(key: String, value: String) {
+        put(key, JsonPrimitive(value))
+    }
+
+    private fun kotlinx.serialization.json.JsonObjectBuilder.put(key: String, value: Int) {
+        put(key, JsonPrimitive(value))
+    }
+
+    private fun kotlinx.serialization.json.JsonObjectBuilder.put(key: String, value: Boolean) {
+        put(key, JsonPrimitive(value))
     }
 
     // ---- 发送消息 ----
@@ -315,21 +877,34 @@ class ChatService(
         conversationId: Uuid,
         content: List<UIMessagePart>,
         answer: Boolean = true,
-        forceTermuxCommandMode: Boolean = false
+        forceTermuxCommandMode: Boolean = false,
+        stGenerationType: String = "normal",
     ) {
-        if (content.isEmptyInputMessage()) return
-
         val session = getOrCreateSession(conversationId)
         session.getJob()?.cancel()
-        val commandModeEnabled = forceTermuxCommandMode || settingsStore.settingsFlow.value.termuxCommandModeEnabled
+        val currentSettings = settingsStore.settingsFlow.value
+        val normalizedGenerationType = stGenerationType.trim().lowercase().ifBlank { "normal" }
+        val resolvedContent = when {
+            forceTermuxCommandMode && content.isEmptyInputMessage() -> return
+            else -> currentSettings.resolveStSendIfEmptyContent(
+                content = content,
+                answer = answer,
+                stGenerationType = normalizedGenerationType,
+            ) ?: return
+        }
+        val commandModeEnabled = forceTermuxCommandMode || currentSettings.termuxCommandModeEnabled
         val directCommand = TermuxDirectCommandParser.parse(
-            parts = content,
+            parts = resolvedContent,
             commandModeEnabled = commandModeEnabled
         )
         val processedContent = if (directCommand.isDirect) {
-            listOf(UIMessagePart.Text(TermuxDirectCommandParser.toSlashCommandText(directCommand.command)))
+            preprocessUserInputParts(
+                parts = listOf(UIMessagePart.Text(TermuxDirectCommandParser.toSlashCommandText(directCommand.command))),
+                messageDepthFromEnd = 1,
+                placement = AssistantRegexPlacement.SLASH_COMMAND,
+            )
         } else {
-            preprocessUserInputParts(content, messageDepthFromEnd = 1)
+            preprocessUserInputParts(resolvedContent, messageDepthFromEnd = 1)
         }
 
         val job = appScope.launch {
@@ -352,7 +927,10 @@ class ChatService(
                     )
                 } else if (answer) {
                     // 开始补全
-                    handleMessageComplete(conversationId)
+                    handleMessageComplete(
+                        conversationId = conversationId,
+                        stGenerationType = normalizedGenerationType,
+                    )
                 }
 
                 _generationDoneFlow.emit(conversationId)
@@ -467,12 +1045,16 @@ class ChatService(
     private fun preprocessUserInputParts(
         parts: List<UIMessagePart>,
         messageDepthFromEnd: Int = 1,
+        placement: Int = AssistantRegexPlacement.USER_INPUT,
+        isEdit: Boolean = false,
     ): List<UIMessagePart> {
         val assistant = settingsStore.settingsFlow.value.getCurrentAssistant()
         return preprocessUserInputParts(
             parts = parts,
             assistant = assistant,
-            messageDepthFromEnd = messageDepthFromEnd
+            messageDepthFromEnd = messageDepthFromEnd,
+            placement = placement,
+            isEdit = isEdit,
         )
     }
 
@@ -480,6 +1062,8 @@ class ChatService(
         parts: List<UIMessagePart>,
         assistant: Assistant,
         messageDepthFromEnd: Int = 1,
+        placement: Int = AssistantRegexPlacement.USER_INPUT,
+        isEdit: Boolean = false,
     ): List<UIMessagePart> {
         return parts.map { part ->
             when (part) {
@@ -487,9 +1071,12 @@ class ChatService(
                     part.copy(
                         text = part.text.replaceRegexes(
                             assistant = assistant,
+                            settings = settingsStore.settingsFlow.value,
                             scope = AssistantAffectScope.USER,
                             phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-                            messageDepthFromEnd = messageDepthFromEnd
+                            messageDepthFromEnd = messageDepthFromEnd,
+                            placement = placement,
+                            isEdit = isEdit,
                         )
                     )
                 }
@@ -519,10 +1106,12 @@ class ChatService(
             enableWebSearch = task.overrideEnableWebSearch ?: settings.enableWebSearch,
             searchServiceSelected = effectiveSearchServiceIndex
         )
-        val effectiveAssistant = assistant.copy(
-            chatModelId = task.overrideModelId ?: assistant.chatModelId,
-            localTools = task.overrideLocalTools ?: assistant.localTools,
-            mcpServers = task.overrideMcpServers ?: assistant.mcpServers
+        val effectiveAssistant = effectiveSettings.applyActiveStPresetSampling(
+            assistant.copy(
+                chatModelId = task.overrideModelId ?: assistant.chatModelId,
+                localTools = task.overrideLocalTools ?: assistant.localTools,
+                mcpServers = task.overrideMcpServers ?: assistant.mcpServers
+            )
         )
         val model = effectiveAssistant.chatModelId?.let { effectiveSettings.findModelById(it) }
             ?: effectiveSettings.getCurrentChatModel()
@@ -555,10 +1144,15 @@ class ChatService(
             } else {
                 memoryRepository.getMemoriesOfAssistant(effectiveAssistant.id.toString())
             },
+            stMacroState = StMacroState(
+                globalVariables = ObservedMutableMap(stMacroGlobalVariables) {
+                    schedulePersistGlobalVariables()
+                }
+            ),
             inputTransformers = buildList {
                 addAll(inputTransformers)
-                add(templateTransformer)
                 add(RegexPromptOnlyTransformer)
+                add(stCompatScriptTransformer)
             },
             outputTransformers = outputTransformers,
             tools = buildList {
@@ -568,7 +1162,6 @@ class ChatService(
                 addAll(
                     localTools.getTools(
                         options = effectiveAssistant.localTools,
-                        assistant = effectiveAssistant,
                         overrideTermuxNeedsApproval = task.overrideTermuxNeedsApproval
                     )
                 )
@@ -620,7 +1213,8 @@ class ChatService(
     fun regenerateAtMessage(
         conversationId: Uuid,
         message: UIMessage,
-        regenerateAssistantMsg: Boolean = true
+        regenerateAssistantMsg: Boolean = true,
+        stGenerationType: String = "normal",
     ) {
         val session = getOrCreateSession(conversationId)
         session.getJob()?.cancel()
@@ -637,17 +1231,69 @@ class ChatService(
                         messageNodes = conversation.messageNodes.subList(0, indexAt + 1)
                     )
                     saveConversation(conversationId, newConversation)
-                    handleMessageComplete(conversationId)
+                    resetConversationStRuntimeState(conversationId)
+                    handleMessageComplete(
+                        conversationId = conversationId,
+                        stGenerationType = stGenerationType,
+                    )
                 } else {
                     if (regenerateAssistantMsg) {
                         val node = conversation.getMessageNodeByMessage(message)
                         val nodeIndex = conversation.messageNodes.indexOf(node)
-                        handleMessageComplete(conversationId, messageRange = 0..<nodeIndex)
+                        resetConversationStRuntimeState(conversationId)
+                        handleMessageComplete(
+                            conversationId = conversationId,
+                            messageRange = 0..<nodeIndex,
+                            stGenerationType = stGenerationType,
+                        )
                     } else {
                         saveConversation(conversationId, conversation)
                     }
                 }
 
+                _generationDoneFlow.emit(conversationId)
+            } catch (e: Exception) {
+                addError(e, conversationId)
+            }
+        }
+
+        session.setJob(job)
+    }
+
+    fun continueAssistantMessage(
+        conversationId: Uuid,
+        message: UIMessage,
+    ) {
+        if (message.role != MessageRole.ASSISTANT) return
+        if (message.hasBlockingToolsForContinuation()) {
+            message.getTools().lastOrNull { it.isPending }?.let { pendingTool ->
+                sendToolApprovalNotification(conversationId, pendingTool)
+            }
+            addError(
+                IllegalStateException("Continue is unavailable until this message's tool calls are resolved."),
+                conversationId
+            )
+            return
+        }
+
+        val session = getOrCreateSession(conversationId)
+        session.getJob()?.cancel()
+
+        val job = appScope.launch {
+            try {
+                val conversation = session.state.value
+                val node = conversation.getMessageNodeByMessage(message)
+                    ?: error("Message node not found")
+                val nodeIndex = conversation.messageNodes.indexOf(node)
+                val truncatedConversation = conversation.copy(
+                    messageNodes = conversation.messageNodes.subList(0, nodeIndex + 1)
+                )
+                saveConversation(conversationId, truncatedConversation)
+                // Continue should inherit ST runtime state from the reply being extended.
+                handleMessageComplete(
+                    conversationId = conversationId,
+                    stGenerationType = "continue",
+                )
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId)
@@ -709,7 +1355,10 @@ class ChatService(
 
                 // Only continue generation when all pending tools are handled
                 if (!hasPendingTools) {
-                    handleMessageComplete(conversationId)
+                    handleMessageComplete(
+                        conversationId = conversationId,
+                        stGenerationType = resolveConversationStGenerationType(conversationId, updatedConversation),
+                    )
                 }
 
                 _generationDoneFlow.emit(conversationId)
@@ -726,11 +1375,16 @@ class ChatService(
     private suspend fun handleMessageComplete(
         conversationId: Uuid,
         messageRange: ClosedRange<Int>? = null,
-        notifyOnCompletion: Boolean = true
+        notifyOnCompletion: Boolean = true,
+        stGenerationType: String = "normal",
     ) {
+        val session = getOrCreateSession(conversationId)
+        setConversationStGenerationType(conversationId, stGenerationType)
         val settings = settingsStore.settingsFlow.first()
         val conversation = getConversationFlow(conversationId).value
-        val assistant = settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
+        val assistant = settings.applyActiveStPresetSampling(
+            settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
+        )
         val model = assistant.chatModelId?.let { settings.findModelById(it) } ?: settings.getCurrentChatModel() ?: return
         val mcpTools = mcpManager.getAvailableToolsForServers(assistant.mcpServers)
 
@@ -740,6 +1394,7 @@ class ChatService(
             model.displayName
         }
         val ptySessionsOpenedThisRun = linkedSetOf<String>()
+        var latestGeneratedAssistantId: Uuid? = null
         runCatching {
             // reset suggestions
             updateConversation(conversationId, conversation.copy(chatSuggestions = emptyList()))
@@ -757,52 +1412,45 @@ class ChatService(
             // check invalid messages
             checkInvalidMessages(conversationId)
 
+            val effectiveConversation = getConversationFlow(conversationId).value
+            val messagesForGeneration = selectMessagesForGeneration(
+                messages = effectiveConversation.currentMessages,
+                messageRange = messageRange,
+            )
+            val messagesForStateRestore = selectMessagesForStateRestore(
+                messages = effectiveConversation.currentMessages,
+                messageRange = messageRange,
+            )
+            restoreConversationStRuntimeState(
+                conversationId = conversationId,
+                visibleMessages = messagesForStateRestore,
+            )
+            setConversationStGenerationType(conversationId, stGenerationType)
+
             // start generating
             generationHandler.generateText(
                 settings = settings,
                 model = model,
-                messages = conversation.currentMessages.let {
-                    if (messageRange != null) {
-                        it.subList(messageRange.start, messageRange.endInclusive + 1)
-                    } else {
-                        it
-                    }
-                },
+                messages = messagesForGeneration,
                 assistant = assistant,
                 memories = if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
                 } else {
                     memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
                 },
+                stGenerationType = stGenerationType,
+                stMacroState = getConversationStMacroState(conversationId),
+                lorebookRuntimeState = session.getLorebookRuntimeState(),
                 inputTransformers = buildList {
                     addAll(inputTransformers)
-                    add(templateTransformer)
                     add(RegexPromptOnlyTransformer)
+                    add(stCompatScriptTransformer)
                 },
                 outputTransformers = outputTransformers,
-                tools = buildList {
-                    if (settings.enableWebSearch) {
-                        addAll(createSearchTools(settings))
-                    }
-                    addAll(localTools.getTools(assistant.localTools, assistant))
-                    mcpTools.forEach { tool ->
-                        add(
-                            Tool(
-                                name = "mcp__" + tool.name,
-                                description = tool.description ?: "",
-                                parameters = { tool.inputSchema },
-                                needsApproval = tool.needsApproval,
-                                execute = {
-                                    mcpManager.callToolFromServers(
-                                        serverIds = assistant.mcpServers,
-                                        toolName = tool.name,
-                                        args = it.jsonObject
-                                    )
-                                },
-                            )
-                        )
-                    }
-                },
+                tools = buildConversationTools(
+                    settings = settings,
+                    assistant = assistant,
+                ),
             ).onCompletion { cause ->
                 // 取消 Live Update 通知
                 cancelLiveUpdateNotification(conversationId)
@@ -837,6 +1485,10 @@ class ChatService(
                 when (chunk) {
                     is GenerationChunk.Messages -> {
                         ptySessionsOpenedThisRun += extractPtySessionIds(chunk.messages)
+                        latestGeneratedAssistantId = chunk.messages
+                            .lastOrNull { it.role == MessageRole.ASSISTANT }
+                            ?.id
+                            ?: latestGeneratedAssistantId
                         val previousPendingToolId =
                             findPendingApprovalTool(getConversationFlow(conversationId).value.currentMessages)?.toolCallId
                         val updatedConversation = getConversationFlow(conversationId).value
@@ -865,7 +1517,11 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
-            val finalConversation = getConversationFlow(conversationId).value
+            val finalConversation = persistAssistantRuntimeSnapshot(
+                conversation = getConversationFlow(conversationId).value,
+                messageId = latestGeneratedAssistantId,
+                session = session,
+            )
             saveConversation(conversationId, finalConversation)
 
             launchWithConversationReference(conversationId) {
@@ -1316,18 +1972,31 @@ class ChatService(
 
     suspend fun saveConversation(conversationId: Uuid, conversation: Conversation) {
         val exists = conversationRepo.existsConversationById(conversation.id)
-        if (!exists && conversation.title.isBlank() && conversation.messageNodes.isEmpty()) {
-            return // 新会话且为空时不保存
+        val updatedConversation = applyPersistentStLocalVariables(
+            conversationId = conversationId,
+            conversation = conversation.copy(),
+        )
+        val normalizedConversation = if (updatedConversation.messageNodes.isEmpty()) {
+            updatedConversation
+        } else {
+            updatedConversation.copy(newConversation = false)
         }
 
-        val updatedConversation = conversation.copy()
-        updateConversation(conversationId, updatedConversation)
+        if (shouldSkipConversationPersistence(exists, normalizedConversation)) {
+            updateConversation(conversationId, normalizedConversation)
+            persistConversationLocalVariablesJobs.remove(conversationId)?.cancel()
+            return
+        }
+
+        updateConversation(conversationId, normalizedConversation)
 
         if (!exists) {
-            conversationRepo.insertConversation(updatedConversation)
+            conversationRepo.insertConversation(normalizedConversation)
         } else {
-            conversationRepo.updateConversation(updatedConversation)
+            conversationRepo.updateConversation(normalizedConversation)
         }
+
+        persistConversationLocalVariablesJobs.remove(conversationId)?.cancel()
     }
 
     // ---- 翻译消息 ----
@@ -1410,7 +2079,8 @@ class ChatService(
 
         val processedParts = preprocessUserInputParts(
             parts = parts,
-            messageDepthFromEnd = currentConversation.messageNodes.size - targetNodeIndex
+            messageDepthFromEnd = currentConversation.messageNodes.size - targetNodeIndex,
+            isEdit = true,
         )
 
         var edited = false
@@ -1431,6 +2101,7 @@ class ChatService(
         }
         if (!edited) return
 
+        resetConversationStRuntimeState(conversationId)
         saveConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
     }
 
@@ -1465,6 +2136,7 @@ class ChatService(
             id = Uuid.random(),
             assistantId = currentConversation.assistantId,
             messageNodes = copiedNodes,
+            stLocalVariables = currentConversation.stLocalVariables,
         )
 
         saveConversation(forkConversation.id, forkConversation)
@@ -1496,6 +2168,7 @@ class ChatService(
             }
         }
 
+        resetConversationStRuntimeState(conversationId)
         saveConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
     }
 
@@ -1514,6 +2187,7 @@ class ChatService(
             return
         }
 
+        resetConversationStRuntimeState(conversationId)
         saveConversation(conversationId, updatedConversation)
     }
 

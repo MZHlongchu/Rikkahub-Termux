@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
@@ -299,7 +301,7 @@ private fun RenderImage(
     if (src.isNotEmpty()) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .wrapContentSize()
                 .padding(vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -307,7 +309,7 @@ private fun RenderImage(
                 model = src,
                 contentDescription = alt.takeIf { it.isNotEmpty() },
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .widthIn(min = 120.dp, max = 280.dp)
                     .heightIn(max = 400.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Fit,

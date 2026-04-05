@@ -1,5 +1,6 @@
 package me.rerere.ai.provider.providers
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -17,6 +18,7 @@ import me.rerere.ai.provider.ImageGenerationParams
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.TextRequestPreview
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.providers.openai.ChatCompletionsAPI
 import me.rerere.ai.provider.providers.openai.ResponseAPI
@@ -37,17 +39,41 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class OpenAIProvider(
-    private val client: OkHttpClient
+    private val client: OkHttpClient,
+    context: Context? = null
 ) : Provider<ProviderSetting.OpenAI> {
-    private val keyRoulette = KeyRoulette.default()
+    private val keyRoulette = if (context != null) KeyRoulette.lru(context) else KeyRoulette.default()
 
     private val chatCompletionsAPI = ChatCompletionsAPI(client = client, keyRoulette = keyRoulette)
-    private val responseAPI = ResponseAPI(client = client)
+    private val responseAPI = ResponseAPI(client = client, keyRoulette = keyRoulette)
+
+    fun previewTextRequest(
+        providerSetting: ProviderSetting.OpenAI,
+        messages: List<UIMessage>,
+        params: TextGenerationParams,
+        stream: Boolean,
+    ): TextRequestPreview {
+        return if (providerSetting.useResponseApi) {
+            responseAPI.previewTextRequest(
+                providerSetting = providerSetting,
+                messages = messages,
+                params = params,
+                stream = stream,
+            )
+        } else {
+            chatCompletionsAPI.previewTextRequest(
+                providerSetting = providerSetting,
+                messages = messages,
+                params = params,
+                stream = stream,
+            )
+        }
+    }
 
 
     override suspend fun listModels(providerSetting: ProviderSetting.OpenAI): List<Model> =
         withContext(Dispatchers.IO) {
-            val key = keyRoulette.next(providerSetting.apiKey)
+            val key = keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString())
             val request = Request.Builder()
                 .url("${providerSetting.baseUrl}/models")
                 .addHeader("Authorization", "Bearer $key")
@@ -75,7 +101,7 @@ class OpenAIProvider(
         }
 
     override suspend fun getBalance(providerSetting: ProviderSetting.OpenAI): String = withContext(Dispatchers.IO) {
-        val key = keyRoulette.next(providerSetting.apiKey)
+        val key = keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString())
         val url = if (providerSetting.balanceOption.apiPath.startsWith("http")) {
             providerSetting.balanceOption.apiPath
         } else {
@@ -144,7 +170,7 @@ class OpenAIProvider(
     ): EmbeddingGenerationResult = withContext(Dispatchers.IO) {
         require(params.input.isNotEmpty()) { "Embedding input cannot be empty" }
 
-        val key = keyRoulette.next(providerSetting.apiKey)
+        val key = keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString())
         val requestBody = json.encodeToString(
             buildJsonObject {
                 put("model", params.model.modelId)
@@ -197,7 +223,7 @@ class OpenAIProvider(
             "Expected OpenAI provider setting"
         }
 
-        val key = keyRoulette.next(providerSetting.apiKey)
+        val key = keyRoulette.next(providerSetting.apiKey, providerSetting.id.toString())
 
         val requestBody = json.encodeToString(
             buildJsonObject {

@@ -18,6 +18,7 @@ data class Conversation(
     val assistantId: Uuid,
     val title: String = "",
     val messageNodes: List<MessageNode>,
+    val stLocalVariables: Map<String, String> = emptyMap(),
     val chatSuggestions: List<String> = emptyList(),
     val isPinned: Boolean = false,
     @Serializable(with = InstantSerializer::class)
@@ -25,7 +26,9 @@ data class Conversation(
     @Serializable(with = InstantSerializer::class)
     val updateAt: Instant = Instant.now(),
     @Transient
-    val newConversation: Boolean = false
+    val newConversation: Boolean = false,
+    @Transient
+    val isTemporaryConversation: Boolean = false,
 ) {
     val files: List<Uri>
         get() = messageNodes
@@ -88,12 +91,15 @@ data class Conversation(
             id: Uuid,
             assistantId: Uuid = DEFAULT_ASSISTANT_ID,
             messages: List<MessageNode> = emptyList(),
-            newConversation: Boolean = false
+            newConversation: Boolean = false,
+            isTemporaryConversation: Boolean = false,
         ) = Conversation(
             id = id,
             assistantId = assistantId,
             messageNodes = messages,
+            stLocalVariables = emptyMap(),
             newConversation = newConversation,
+            isTemporaryConversation = isTemporaryConversation,
         )
     }
 }

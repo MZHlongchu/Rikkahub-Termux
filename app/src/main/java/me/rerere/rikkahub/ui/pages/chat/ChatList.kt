@@ -1,14 +1,6 @@
 package me.rerere.rikkahub.ui.pages.chat
 
-import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Tick01
-import me.rerere.hugeicons.stroke.ArrowDown01
-import me.rerere.hugeicons.stroke.ArrowUp01
-import me.rerere.hugeicons.stroke.ArrowDownDouble
-import me.rerere.hugeicons.stroke.ArrowUpDouble
-import me.rerere.hugeicons.stroke.CursorPointer01
-import me.rerere.hugeicons.stroke.Search01
-import me.rerere.hugeicons.stroke.Cancel01
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -22,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -55,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -67,7 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalScrollCaptureInProgress
 import androidx.compose.ui.res.stringResource
@@ -76,6 +75,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.zIndex
@@ -86,6 +86,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.ArrowDownDouble
+import me.rerere.hugeicons.stroke.ArrowUp01
+import me.rerere.hugeicons.stroke.ArrowUpDouble
+import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.CursorPointer01
+import me.rerere.hugeicons.stroke.Search01
+import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxUserShellCommandCodec
 import me.rerere.rikkahub.data.datastore.Settings
@@ -126,12 +135,14 @@ fun ChatList(
     state: LazyListState,
     loading: Boolean,
     previewMode: Boolean,
+    topBarVisible: Boolean,
     settings: Settings,
     hazeState: HazeState,
     errors: List<ChatError> = emptyList(),
     onDismissError: (Uuid) -> Unit = {},
     onClearAllErrors: () -> Unit = {},
     onRegenerate: (UIMessage) -> Unit = {},
+    onContinue: (UIMessage) -> Unit = {},
     onEdit: (UIMessage) -> Unit = {},
     onForkMessage: (UIMessage) -> Unit = {},
     onDelete: (UIMessage) -> Unit = {},
@@ -167,12 +178,14 @@ fun ChatList(
                 conversation = conversation,
                 state = state,
                 loading = loading,
+                topBarVisible = topBarVisible,
                 settings = settings,
                 hazeState = hazeState,
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
                 onRegenerate = onRegenerate,
+                onContinue = onContinue,
                 onEdit = onEdit,
                 onForkMessage = onForkMessage,
                 onDelete = onDelete,
@@ -196,12 +209,14 @@ private fun ChatListNormal(
     conversation: Conversation,
     state: LazyListState,
     loading: Boolean,
+    topBarVisible: Boolean,
     settings: Settings,
     hazeState: HazeState,
     errors: List<ChatError>,
     onDismissError: (Uuid) -> Unit,
     onClearAllErrors: () -> Unit,
     onRegenerate: (UIMessage) -> Unit,
+    onContinue: (UIMessage) -> Unit,
     onEdit: (UIMessage) -> Unit,
     onForkMessage: (UIMessage) -> Unit,
     onDelete: (UIMessage) -> Unit,
@@ -218,7 +233,10 @@ private fun ChatListNormal(
     val scope = rememberCoroutineScope()
     var isRecentScroll by remember { mutableStateOf(false) }
     val density = LocalDensity.current
+    val activity = LocalActivity.current as? me.rerere.rikkahub.RouteActivity
     val enableGlassBlur = settings.displaySetting.enableBlurEffect
+    val topFadeHeight = if (topBarVisible) innerPadding.calculateTopPadding() + 24.dp else 0.dp
+    val bottomFadeHeight = innerPadding.calculateBottomPadding() + 28.dp
     val assistant = remember(settings.assistants, conversation.assistantId) {
         settings.getAssistantById(conversation.assistantId)
     }
@@ -238,6 +256,34 @@ private fun ChatListNormal(
             val lastPos = lastItem.offset + lastItem.size
             val inputPos = state.layoutInfo.viewportEndOffset - inputBarHeight.roundToInt()
             lastPos <= inputPos - 8
+        }
+    }
+    DisposableEffect(
+        activity,
+        state,
+        density,
+        innerPadding,
+        settings.displaySetting.enableVolumeKeyScroll,
+        settings.displaySetting.volumeKeyScrollRatio,
+    ) {
+        val listener: (Boolean) -> Boolean = { isVolumeUp ->
+            if (settings.displaySetting.enableVolumeKeyScroll) {
+                val bottomPaddingPx = with(density) {
+                    (32.dp + innerPadding.calculateBottomPadding()).toPx()
+                }
+                val scrollAmount = (state.layoutInfo.viewportSize.height - bottomPaddingPx) *
+                    settings.displaySetting.volumeKeyScrollRatio
+                scope.launch {
+                    state.scrollBy(if (isVolumeUp) -scrollAmount else scrollAmount)
+                }
+                true
+            } else {
+                false
+            }
+        }
+        activity?.volumeKeyListeners?.add(listener)
+        onDispose {
+            activity?.volumeKeyListeners?.remove(listener)
         }
     }
 
@@ -300,6 +346,10 @@ private fun ChatListNormal(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
+                .chatFadingEdges(
+                    topEdgeHeight = topFadeHeight,
+                    bottomEdgeHeight = bottomFadeHeight,
+                )
                 .then(
                     if (enableGlassBlur) {
                         Modifier.hazeSource(state = hazeState)
@@ -349,6 +399,9 @@ private fun ChatListNormal(
                             loading = loading && index == conversation.messageNodes.lastIndex,
                             onRegenerate = {
                                 onRegenerate(node.currentMessage)
+                            },
+                            onContinue = {
+                                onContinue(node.currentMessage)
                             },
                             onEdit = {
                                 onEdit(node.currentMessage)
@@ -408,6 +461,11 @@ private fun ChatListNormal(
                 )
             }
         }
+
+        ChatListChromeScrims(
+            innerPadding = innerPadding,
+            showTopScrim = topBarVisible,
+        )
 
         Box(
             modifier = Modifier
@@ -523,6 +581,86 @@ private fun ChatListNormal(
                         .padding(bottom = 8.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.ChatListChromeScrims(
+    innerPadding: PaddingValues,
+    showTopScrim: Boolean,
+) {
+    val background = MaterialTheme.colorScheme.background
+
+    if (showTopScrim) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(innerPadding.calculateTopPadding() + 32.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            background.copy(alpha = 0.68f),
+                            Color.Transparent,
+                        ),
+                    )
+                )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .height(innerPadding.calculateBottomPadding() + 44.dp)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        background.copy(alpha = 0.74f),
+                    ),
+                )
+            )
+    )
+}
+
+private fun Modifier.chatFadingEdges(
+    topEdgeHeight: Dp,
+    bottomEdgeHeight: Dp,
+): Modifier {
+    if (topEdgeHeight == 0.dp && bottomEdgeHeight == 0.dp) {
+        return this
+    }
+
+    return graphicsLayer {
+        compositingStrategy = CompositingStrategy.Offscreen
+    }.drawWithContent {
+        drawContent()
+
+        val topEdgePx = topEdgeHeight.toPx()
+        val bottomEdgePx = bottomEdgeHeight.toPx()
+
+        if (topEdgePx > 0f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startY = 0f,
+                    endY = topEdgePx,
+                ),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+
+        if (bottomEdgePx > 0f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startY = size.height - bottomEdgePx,
+                    endY = size.height,
+                ),
+                blendMode = BlendMode.DstIn,
+            )
         }
     }
 }

@@ -3,6 +3,7 @@ package me.rerere.rikkahub
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -87,9 +88,13 @@ import me.rerere.rikkahub.ui.pages.favorite.FavoritePage
 import me.rerere.rikkahub.ui.pages.history.HistoryPage
 import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
 import me.rerere.rikkahub.ui.pages.log.LogPage
+import me.rerere.rikkahub.ui.pages.persona.UserPersonaPage
 import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
+import me.rerere.rikkahub.ui.pages.extensions.LorebookSettingsPage
+import me.rerere.rikkahub.ui.pages.extensions.ModeInjectionSettingsPage
 import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
+import me.rerere.rikkahub.ui.pages.extensions.SillyTavernPresetPage
 import me.rerere.rikkahub.ui.pages.extensions.WorkdirBrowserPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
@@ -101,6 +106,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
 import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPage
+import me.rerere.rikkahub.ui.pages.setting.SettingPluginPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
@@ -131,12 +137,49 @@ import kotlin.uuid.Uuid
 
 private const val TAG = "RouteActivity"
 
+internal data class ShareHandlerRequest(
+    val text: String,
+    val streamUri: String? = null,
+)
+
+internal fun resolveShareHandlerRequest(
+    action: String?,
+    sharedText: String?,
+    sharedImageUri: String?,
+    processedText: CharSequence?,
+): ShareHandlerRequest? {
+    return when (action) {
+        Intent.ACTION_SEND -> ShareHandlerRequest(
+            text = sharedText.orEmpty(),
+            streamUri = sharedImageUri,
+        )
+
+        Intent.ACTION_PROCESS_TEXT -> ShareHandlerRequest(
+            text = processedText?.toString().orEmpty(),
+        )
+
+        else -> null
+    }
+}
+
 class RouteActivity : ComponentActivity() {
     private val highlighter by inject<Highlighter>()
     private val okHttpClient by inject<OkHttpClient>()
     private val settingsStore by inject<SettingsStore>()
     private val chatService by inject<ChatService>()
     private var navStack: MutableList<NavKey>? = null
+
+    internal val volumeKeyListeners = mutableListOf<(isVolumeUp: Boolean) -> Boolean>()
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val isVolumeUp = when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> true
+            KeyEvent.KEYCODE_VOLUME_DOWN -> false
+            else -> return super.onKeyDown(keyCode, event)
+        }
+        if (volumeKeyListeners.lastOrNull()?.invoke(isVolumeUp) == true) return true
+        return super.onKeyDown(keyCode, event)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -177,21 +220,18 @@ class RouteActivity : ComponentActivity() {
 
     @Composable
     private fun ShareHandler(backStack: MutableList<NavKey>) {
-        val shareIntent = remember {
-            Intent().apply {
-                action = intent?.action
-                putExtra(Intent.EXTRA_TEXT, intent?.getStringExtra(Intent.EXTRA_TEXT))
-                putExtra(Intent.EXTRA_STREAM, intent?.getStringExtra(Intent.EXTRA_STREAM))
-            }
+        val shareRequest = remember {
+            resolveShareHandlerRequest(
+                action = intent?.action,
+                sharedText = intent?.getStringExtra(Intent.EXTRA_TEXT),
+                sharedImageUri = intent?.getStringExtra(Intent.EXTRA_STREAM),
+                processedText = intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT),
+            )
         }
 
-        LaunchedEffect(backStack) {
-            when (shareIntent.action) {
-                Intent.ACTION_SEND -> {
-                    val text = shareIntent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
-                    val imageUri = shareIntent.getStringExtra(Intent.EXTRA_STREAM)
-                    backStack.add(Screen.ShareHandler(text, imageUri))
-                }
+        LaunchedEffect(backStack, shareRequest) {
+            shareRequest?.let {
+                backStack.add(Screen.ShareHandler(it.text, it.streamUri))
             }
         }
     }
@@ -272,6 +312,17 @@ class RouteActivity : ComponentActivity() {
         if (intent.getBooleanExtra("openScheduledTaskSettings", false)) {
             navStack?.add(Screen.SettingScheduledTasks)
             return
+        }
+        resolveShareHandlerRequest(
+            action = intent.action,
+            sharedText = intent.getStringExtra(Intent.EXTRA_TEXT),
+            sharedImageUri = intent.getStringExtra(Intent.EXTRA_STREAM),
+            processedText = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT),
+        )?.let { shareRequest ->
+            if (backStack != null) {
+                backStack.add(Screen.ShareHandler(shareRequest.text, shareRequest.streamUri))
+                return
+            }
         }
         // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
@@ -426,6 +477,10 @@ class RouteActivity : ComponentActivity() {
                                 AssistantRequestPage(key.id)
                             }
 
+                            entry<Screen.AssistantPlugin> {
+                                SettingPluginPage()
+                            }
+
                             entry<Screen.AssistantMcp> { key ->
                                 AssistantMcpPage(key.id)
                             }
@@ -450,12 +505,20 @@ class RouteActivity : ComponentActivity() {
                                 SettingPage()
                             }
 
+                            entry<Screen.SettingPlugin> {
+                                SettingPluginPage()
+                            }
+
                             entry<Screen.Backup> {
                                 BackupPage()
                             }
 
                             entry<Screen.ImageGen> {
                                 ImageGenPage()
+                            }
+
+                            entry<Screen.UserPersona> {
+                                UserPersonaPage()
                             }
 
                             entry<Screen.WebView> { key ->
@@ -541,6 +604,18 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.Prompts> {
                                 PromptPage()
+                            }
+
+                            entry<Screen.StPresets> {
+                                SillyTavernPresetPage()
+                            }
+
+                            entry<Screen.ModeInjections> {
+                                ModeInjectionSettingsPage()
+                            }
+
+                            entry<Screen.Lorebooks> {
+                                LorebookSettingsPage()
                             }
 
                             entry<Screen.WorkdirBrowser> { key ->
@@ -649,6 +724,9 @@ sealed interface Screen : NavKey {
     data class AssistantRequest(val id: String) : Screen
 
     @Serializable
+    data class AssistantPlugin(val id: String) : Screen
+
+    @Serializable
     data class AssistantMcp(val id: String) : Screen
 
     @Serializable
@@ -667,10 +745,16 @@ sealed interface Screen : NavKey {
     data object Setting : Screen
 
     @Serializable
+    data object SettingPlugin : Screen
+
+    @Serializable
     data object Backup : Screen
 
     @Serializable
     data object ImageGen : Screen
+
+    @Serializable
+    data object UserPersona : Screen
 
     @Serializable
     data class WebView(val url: String = "", val content: String = "") : Screen
@@ -734,6 +818,15 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Prompts : Screen
+
+    @Serializable
+    data object StPresets : Screen
+
+    @Serializable
+    data object ModeInjections : Screen
+
+    @Serializable
+    data object Lorebooks : Screen
 
     @Serializable
     data class WorkdirBrowser(val relativePath: String = "") : Screen
