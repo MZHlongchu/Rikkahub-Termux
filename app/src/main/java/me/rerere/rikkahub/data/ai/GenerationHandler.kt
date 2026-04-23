@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
+import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
 import me.rerere.ai.core.merge
 import me.rerere.ai.provider.CustomBody
@@ -28,6 +29,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.ui.limitContext
+import me.rerere.ai.ui.limitToolCallRounds
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
@@ -43,6 +45,7 @@ import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
+import me.rerere.rikkahub.data.model.resolveToolCallKeepRoundsLimit
 import me.rerere.rikkahub.data.skills.SkillsRepository
 import me.rerere.rikkahub.data.skills.buildSkillsCatalogPrompt
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -63,6 +66,32 @@ sealed interface GenerationChunk {
     data class Messages(
         val messages: List<UIMessage>
     ) : GenerationChunk
+}
+
+internal fun List<UIMessage>.prepareMessagesForGeneration(
+    contextMessageSize: Int,
+    toolCallKeepRoundsLimit: Int?,
+): List<UIMessage> {
+    val contextLimitedMessages = limitContext(contextMessageSize)
+    if (toolCallKeepRoundsLimit == null || contextLimitedMessages.isEmpty()) {
+        return contextLimitedMessages
+    }
+
+    val lastMessage = contextLimitedMessages.last()
+    val isActiveToolChain = lastMessage.role == MessageRole.ASSISTANT && lastMessage.getTools().isNotEmpty()
+    if (!isActiveToolChain) {
+        return contextLimitedMessages.limitToolCallRounds(toolCallKeepRoundsLimit)
+    }
+
+    val currentTurnStartIndex = contextLimitedMessages.indexOfLast { it.role == MessageRole.USER }
+    if (currentTurnStartIndex <= 0) {
+        return contextLimitedMessages
+    }
+
+    // Keep the in-flight tool turn intact so the next model step still sees earlier tool outputs.
+    return contextLimitedMessages.subList(0, currentTurnStartIndex)
+        .limitToolCallRounds(toolCallKeepRoundsLimit) +
+        contextLimitedMessages.subList(currentTurnStartIndex, contextLimitedMessages.size)
 }
 
 class GenerationHandler(
@@ -98,7 +127,7 @@ class GenerationHandler(
 
             val toolsInternal = buildList {
                 Log.i(TAG, "generateInternal: build tools($assistant)")
-                if (assistant?.enableMemory == true) {
+                if (assistant.enableMemory) {
                     val memoryAssistantId = if (assistant.useGlobalMemory) {
                         MemoryRepository.GLOBAL_MEMORY_ID
                     } else {
@@ -120,9 +149,9 @@ class GenerationHandler(
                 addAll(tools)
             }
 
-            // Check if we have approved tool calls to execute (resuming after approval)
+            // Check if we have tool calls ready to continue after user interaction.
             val pendingTools = messages.lastOrNull()?.getTools()?.filter {
-                !it.isExecuted && (it.approvalState is ToolApprovalState.Approved || it.approvalState is ToolApprovalState.Denied || it.approvalState is ToolApprovalState.Answered)
+                it.canResumeExecution
             } ?: emptyList()
 
             val toolsToProcess: List<UIMessagePart.Tool>
@@ -225,11 +254,9 @@ class GenerationHandler(
 
                 toolsToProcess = updatedTools
             } else {
-                // Resuming after approval - use the pending tools directly
-                Log.i(TAG, "generateText: resuming with ${pendingTools.size} approved/denied tools")
-                toolsToProcess = messages.last().getTools().filter {
-                    !it.isExecuted && (it.approvalState is ToolApprovalState.Approved || it.approvalState is ToolApprovalState.Denied || it.approvalState is ToolApprovalState.Answered)
-                }
+                // Resuming after user interaction - use the resumable tools directly.
+                Log.i(TAG, "generateText: resuming with ${pendingTools.size} resumable tools")
+                toolsToProcess = messages.last().getTools().filter { it.canResumeExecution }
             }
 
             // Handle tools (execute approved tools, handle denied tools)
@@ -405,7 +432,7 @@ class GenerationHandler(
             stopSequences = assistant.stopSequences,
             googleResponseMimeType = assistant.googleResponseMimeType,
             tools = tools,
-            thinkingBudget = assistant.thinkingBudget,
+            reasoningLevel = assistant.reasoningLevel,
             openAIReasoningEffort = assistant.openAIReasoningEffort,
             openAIVerbosity = assistant.openAIVerbosity,
             customHeaders = buildList {
@@ -486,6 +513,11 @@ class GenerationHandler(
         lorebookRuntimeState: LorebookRuntimeState?,
         dryRun: Boolean = false,
     ): List<UIMessage> {
+        val preparedMessages = messages.prepareMessagesForGeneration(
+            contextMessageSize = assistant.contextMessageSize,
+            toolCallKeepRoundsLimit = assistant.resolveToolCallKeepRoundsLimit(),
+        )
+
         return buildList {
             val system = buildString {
                 if (assistant.systemPrompt.isNotBlank()) {
@@ -512,11 +544,11 @@ class GenerationHandler(
 
                 tools.forEach { tool ->
                     appendLine()
-                    append(tool.systemPrompt(model, messages))
+                    append(tool.systemPrompt(model, preparedMessages))
                 }
             }
             if (system.isNotBlank()) add(UIMessage.system(prompt = system))
-            addAll(messages.limitContext(assistant.contextMessageSize))
+            addAll(preparedMessages)
         }.transforms(
             transformers = transformers,
             context = context,
@@ -558,7 +590,7 @@ class GenerationHandler(
                 messages = messages,
                 params = TextGenerationParams(
                     model = model,
-                    thinkingBudget = settings.translateThinkingBudget,
+                    reasoningLevel = ReasoningLevel.fromBudgetTokens(settings.translateThinkingBudget),
                 ),
             ).collect { chunk ->
                 messages = messages.handleMessageChunk(chunk)

@@ -7,6 +7,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.provider.Model
@@ -53,19 +55,23 @@ data class UIMessage(
                     }
 
                     is UIMessagePart.Image -> {
-                        val lastPart = acc.lastOrNull()
-                        if (lastPart is UIMessagePart.Image) {
-                            // Append to the last Image part (for streaming base64)
-                            acc.dropLast(1) + lastPart.copy(
-                                url = lastPart.url + deltaPart.url,
-                                metadata = deltaPart.metadata ?: lastPart.metadata
-                            )
+                        val normalizedImage = deltaPart.normalize()
+                        val responseItemId = normalizedImage.metadata.stringValue("response_item_id")
+
+                        if (responseItemId != null) {
+                            val existingIndex = acc.indexOfLast { part ->
+                                part is UIMessagePart.Image &&
+                                    part.metadata.stringValue("response_item_id") == responseItemId
+                            }
+                            if (existingIndex >= 0) {
+                                acc.toMutableList().apply {
+                                    set(existingIndex, normalizedImage)
+                                }.toList()
+                            } else {
+                                acc + normalizedImage
+                            }
                         } else {
-                            // Create new Image part
-                            acc + UIMessagePart.Image(
-                                url = "data:image/png;base64,${deltaPart.url}",
-                                metadata = deltaPart.metadata,
-                            )
+                            acc + normalizedImage
                         }
                     }
 
@@ -224,6 +230,16 @@ data class UIMessage(
     }
 }
 
+private fun UIMessagePart.Image.normalize(): UIMessagePart.Image {
+    if (url.startsWith("data:")) return this
+    val mimeType = metadata.stringValue("mime_type") ?: "image/png"
+    return copy(url = "data:$mimeType;base64,$url")
+}
+
+private fun JsonObject?.stringValue(key: String): String? {
+    return this?.get(key)?.jsonPrimitive?.contentOrNull
+}
+
 /**
  * 处理MessageChunk合并
  *
@@ -319,12 +335,39 @@ fun List<UIMessage>.limitContext(size: Int): List<UIMessage> {
 
         // 如果当前消息包含已执行的tool（有output），往前查找对应的tool call
         if (currentMessage.getTools().any { it.isExecuted }) {
+            val executedToolIds = currentMessage.getTools()
+                .filter { it.isExecuted && it.toolCallId.isNotBlank() }
+                .map { it.toolCallId }
+                .toSet()
+            var foundMatchingToolCall = false
+
             for (i in adjustedStartIndex - 1 downTo 0) {
-                if (this[i].getTools().any { !it.isExecuted }) {
+                if (this[i].getTools().any { tool ->
+                        !tool.isExecuted && (executedToolIds.isEmpty() || tool.toolCallId in executedToolIds)
+                    }
+                ) {
+                    adjustedStartIndex = i
+                    needsAdjustment = true
+                    foundMatchingToolCall = true
+                    break
+                }
+            }
+
+            if (foundMatchingToolCall) {
+                continue
+            }
+
+            // Modern tool flows may keep the tool call and executed output in the same assistant message.
+            for (i in adjustedStartIndex - 1 downTo 0) {
+                if (this[i].role == MessageRole.USER) {
                     adjustedStartIndex = i
                     needsAdjustment = true
                     break
                 }
+            }
+
+            if (needsAdjustment) {
+                continue
             }
         }
 
@@ -341,6 +384,83 @@ fun List<UIMessage>.limitContext(size: Int): List<UIMessage> {
     }
 
     return this.subList(adjustedStartIndex, this.size)
+}
+
+fun List<UIMessage>.limitToolCallRounds(maxRounds: Int?): List<UIMessage> {
+    if (maxRounds == null || maxRounds < 0 || this.isEmpty()) return this
+
+    val totalRounds = sumOf { message ->
+        groupPartsByExecutedToolBoundary(message.parts).count { it is ExecutedToolRoundGroup.Tools }
+    }
+    if (totalRounds <= maxRounds) return this
+
+    var roundsToSkip = totalRounds - maxRounds
+    return buildList(this.size) {
+        this@limitToolCallRounds.forEach { message ->
+            if (roundsToSkip <= 0) {
+                add(message)
+                return@forEach
+            }
+
+            val filteredParts = buildList(message.parts.size) {
+                groupPartsByExecutedToolBoundary(message.parts).forEach { group ->
+                    when (group) {
+                        is ExecutedToolRoundGroup.Content -> addAll(group.parts)
+                        is ExecutedToolRoundGroup.Tools -> {
+                            if (roundsToSkip > 0) {
+                                roundsToSkip--
+                            } else {
+                                addAll(group.tools)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (filteredParts.isNotEmpty()) {
+                add(message.copy(parts = filteredParts))
+            }
+        }
+    }
+}
+
+private sealed class ExecutedToolRoundGroup {
+    data class Content(val parts: List<UIMessagePart>) : ExecutedToolRoundGroup()
+    data class Tools(val tools: List<UIMessagePart.Tool>) : ExecutedToolRoundGroup()
+}
+
+private fun groupPartsByExecutedToolBoundary(parts: List<UIMessagePart>): List<ExecutedToolRoundGroup> {
+    val groups = mutableListOf<ExecutedToolRoundGroup>()
+    val currentContent = mutableListOf<UIMessagePart>()
+    val currentTools = mutableListOf<UIMessagePart.Tool>()
+
+    fun flushContent() {
+        if (currentContent.isNotEmpty()) {
+            groups.add(ExecutedToolRoundGroup.Content(currentContent.toList()))
+            currentContent.clear()
+        }
+    }
+
+    fun flushTools() {
+        if (currentTools.isNotEmpty()) {
+            groups.add(ExecutedToolRoundGroup.Tools(currentTools.toList()))
+            currentTools.clear()
+        }
+    }
+
+    parts.forEach { part ->
+        if (part is UIMessagePart.Tool && part.isExecuted) {
+            flushContent()
+            currentTools.add(part)
+        } else {
+            flushTools()
+            currentContent.add(part)
+        }
+    }
+
+    flushContent()
+    flushTools()
+    return groups
 }
 
 @Serializable
@@ -364,6 +484,17 @@ sealed class ToolApprovalState {
     @Serializable
     @SerialName("answered")
     data class Answered(val answer: String) : ToolApprovalState()
+}
+
+fun ToolApprovalState.canResumeToolExecution(): Boolean {
+    return when (this) {
+        ToolApprovalState.Approved -> true
+        is ToolApprovalState.Denied -> true
+        is ToolApprovalState.Answered -> true
+        ToolApprovalState.Auto,
+        ToolApprovalState.Pending,
+            -> false
+    }
 }
 
 @Serializable
@@ -471,6 +602,9 @@ sealed class UIMessagePart {
         /** Whether the tool is pending user approval */
         val isPending: Boolean get() = approvalState is ToolApprovalState.Pending
 
+        /** Whether generation can resume and handle this tool immediately */
+        val canResumeExecution: Boolean get() = !isExecuted && approvalState.canResumeToolExecution()
+
         /** Parse input string as JsonElement */
         fun inputAsJson(): JsonElement = runCatching {
             json.parseToJsonElement(input.ifBlank { "{}" })
@@ -544,6 +678,27 @@ fun UIMessage.finishReasoning(): UIMessage {
             }
         }
     )
+}
+
+fun UIMessage.finishPendingTools(
+    transform: (UIMessagePart.Tool) -> UIMessagePart.Tool
+): UIMessage {
+    val updatedParts = parts.map { part ->
+        if (part is UIMessagePart.Tool && !part.isExecuted) {
+            transform(part)
+        } else {
+            part
+        }
+    }
+
+    if (updatedParts == parts) {
+        return this
+    }
+
+    return copy(
+        parts = updatedParts,
+        finishedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    ).finishReasoning()
 }
 
 /**

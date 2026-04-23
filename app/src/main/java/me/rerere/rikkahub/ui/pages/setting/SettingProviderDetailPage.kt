@@ -504,7 +504,7 @@ private fun ModelSettingsForm(
         onModelChange(
             model.copy(
                 modelId = id,
-                displayName = id.uppercase(),
+                displayName = id,
                 inputModalities = inputModality,
                 outputModalities = outputModality,
                 abilities = abilities
@@ -1370,6 +1370,10 @@ private fun BuiltInToolsSettings(
             BuiltInTools.UrlContext to Pair(
                 stringResource(R.string.setting_page_built_in_tools_url_context),
                 stringResource(R.string.setting_page_built_in_tools_url_context_desc)
+            ),
+            BuiltInTools.ImageGeneration to Pair(
+                stringResource(R.string.setting_page_built_in_tools_image_generation),
+                stringResource(R.string.setting_page_built_in_tools_image_generation_desc)
             )
         )
 

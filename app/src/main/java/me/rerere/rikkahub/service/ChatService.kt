@@ -44,6 +44,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.core.MessageRole
+import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderManager
@@ -51,6 +52,7 @@ import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.canResumeToolExecution
 import me.rerere.ai.ui.finishReasoning
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.common.android.Logging
@@ -712,7 +714,7 @@ class ChatService(
             stopSequences = assistant.stopSequences,
             googleResponseMimeType = assistant.googleResponseMimeType,
             tools = tools,
-            thinkingBudget = assistant.thinkingBudget,
+            reasoningLevel = assistant.reasoningLevel,
             openAIReasoningEffort = assistant.openAIReasoningEffort,
             openAIVerbosity = assistant.openAIVerbosity,
             customHeaders = buildList {
@@ -1396,8 +1398,10 @@ class ChatService(
         val ptySessionsOpenedThisRun = linkedSetOf<String>()
         var latestGeneratedAssistantId: Uuid? = null
         runCatching {
+            val initialConversation = getConversationFlow(conversationId).value
+
             // reset suggestions
-            updateConversation(conversationId, conversation.copy(chatSuggestions = emptyList()))
+            updateConversation(conversationId, initialConversation.copy(chatSuggestions = emptyList()))
 
             // memory tool
             if (!model.abilities.contains(ModelAbility.TOOL)) {
@@ -1545,11 +1549,11 @@ class ChatService(
             val hasPendingTools = node.currentMessage.getTools().any { !it.isExecuted }
 
             if (hasPendingTools) {
-                // Skip removal if any tool is Approved (waiting to be executed)
-                val hasApprovedTool = node.currentMessage.getTools().any {
-                    it.approvalState is ToolApprovalState.Approved
+                // Keep messages that are ready to resume, such as approved/denied/answered tools.
+                val hasResumableTool = node.currentMessage.getTools().any {
+                    !it.isExecuted && it.approvalState.canResumeToolExecution()
                 }
-                if (hasApprovedTool) {
+                if (hasResumableTool) {
                     return@mapIndexed node
                 }
 
@@ -1559,7 +1563,7 @@ class ChatService(
                     return@mapIndexed node
                 }
 
-                // Remove message with pending non-approved tools
+                // Remove messages that still have unresolved tool approvals.
                 return@mapIndexed node.copy(
                     messages = node.messages.filter { it.id != node.currentMessage.id },
                     selectIndex = node.selectIndex - 1
@@ -1615,7 +1619,7 @@ class ChatService(
                 ),
                 params = TextGenerationParams(
                     model = model,
-                    thinkingBudget = 0,
+                    reasoningLevel = ReasoningLevel.OFF,
                 ),
             )
 
@@ -1660,7 +1664,7 @@ class ChatService(
                 ),
                 params = TextGenerationParams(
                     model = model,
-                    thinkingBudget = 0,
+                    reasoningLevel = ReasoningLevel.OFF,
                 ),
             )
             val suggestions =

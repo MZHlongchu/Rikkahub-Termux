@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Box
@@ -18,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -68,13 +72,15 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.dokar.sonner.ToastType
 import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.ArrowDownDouble
+import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowUpDouble
 import me.rerere.hugeicons.stroke.BubbleChatTemporary
 import me.rerere.hugeicons.stroke.Cancel01
@@ -694,27 +700,53 @@ private fun ChatPageContent(
             AnimatedVisibility(
                 visible = !topBarVisible,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .windowInsetsPadding(WindowInsets.displayCutout)
-                    .padding(top = 8.dp, end = 12.dp),
-                enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.displayCutout),
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
             ) {
                 Surface(
                     onClick = {
                         topBarVisible = true
                     },
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = luneGlassContainerColor(),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, luneGlassBorderColor()),
+                    modifier = Modifier
+                        .size(width = 56.dp, height = 24.dp)
+                        .then(
+                            if (activeHazeState != null) {
+                                Modifier.hazeEffect(
+                                    state = activeHazeState,
+                                    style = HazeMaterials.thin(containerColor = luneGlassContainerColor())
+                                )
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    shape = RoundedCornerShape(
+                        topStart = 0.dp,
+                        topEnd = 0.dp,
+                        bottomStart = 16.dp,
+                        bottomEnd = 16.dp,
+                    ),
+                    color = if (activeHazeState != null) Color.Transparent else luneGlassContainerColor(),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = luneGlassBorderColor()
+                    ),
                 ) {
-                    Icon(
-                        imageVector = HugeIcons.ArrowDownDouble,
-                        contentDescription = stringResource(R.string.more_options),
+                    Box(
                         modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                            .size(18.dp)
-                    )
+                            .fillMaxSize()
+                            .padding(bottom = 2.dp),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        Icon(
+                            imageVector = HugeIcons.ArrowDown01,
+                            contentDescription = stringResource(R.string.chat_page_show_top_bar),
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 

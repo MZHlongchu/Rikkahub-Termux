@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -92,6 +93,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
@@ -113,6 +115,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
+import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Camera01
@@ -120,7 +123,6 @@ import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.CommandLine
 import me.rerere.hugeicons.stroke.Files02
 import me.rerere.hugeicons.stroke.FileZip
-import me.rerere.hugeicons.stroke.FullScreen
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Video01
@@ -190,6 +192,8 @@ fun ChatInput(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     var showControls by remember { mutableStateOf(false) }
+    var textFieldFocused by remember { mutableStateOf(false) }
+    var showFullScreenEditor by remember { mutableStateOf(false) }
 
     fun sendMessage() {
         focusManager.clearFocus(force = true)
@@ -220,6 +224,14 @@ fun ChatInput(
     )
     val hasMessageContent = !state.isEmpty() || state.messageContent.isNotEmpty()
     val enableHazeEffect = settings.displaySetting.enableBlurEffect && hazeState != null
+    val composerHazeModifier = if (enableHazeEffect) {
+        Modifier.hazeEffect(
+            state = hazeState,
+            style = HazeMaterials.thin(containerColor = hazeTintColor)
+        )
+    } else {
+        Modifier
+    }
 
     Surface(
         color = Color.Transparent,
@@ -229,22 +241,52 @@ fun ChatInput(
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            AnimatedVisibility(
+                visible = textFieldFocused && !showFullScreenEditor,
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom),
+                modifier = Modifier.zIndex(0f)
+            ) {
+                Surface(
+                    onClick = {
+                        showFullScreenEditor = true
+                    },
+                    modifier = Modifier
+                        .offset(y = 1.dp)
+                        .size(width = 54.dp, height = 22.dp)
+                        .then(composerHazeModifier),
+                    shape = RoundedCornerShape(
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp,
+                    ),
+                    tonalElevation = 0.dp,
+                    color = if (enableHazeEffect) Color.Transparent else hazeTintColor,
+                    border = BorderStroke(1.dp, luneGlassBorderColor()),
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = HugeIcons.ArrowUp01,
+                            contentDescription = stringResource(R.string.text_area_fullscreen_edit),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+
             Surface(
                 modifier = Modifier
+                    .zIndex(1f)
                     .fillMaxWidth()
                     .clip(composerShape)
-                    .then(
-                        if (enableHazeEffect) {
-                            Modifier.hazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.thin(containerColor = hazeTintColor)
-                            )
-                        } else {
-                            Modifier
-                        }
-                    ),
+                    .then(composerHazeModifier),
                 shape = composerShape,
                 tonalElevation = 0.dp,
                 color = if (enableHazeEffect) Color.Transparent else hazeTintColor,
@@ -273,6 +315,9 @@ fun ChatInput(
                             state = state,
                             termuxCommandModeEnabled = termuxCommandModeEnabled,
                             onSendMessage = { sendMessage() },
+                            onFocusChanged = { focused ->
+                                textFieldFocused = focused
+                            },
                             modifier = Modifier.weight(1f),
                         )
 
@@ -407,14 +452,13 @@ fun ChatInput(
                             val model = effectiveChatModel
                             if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
                                 ReasoningButton(
-                                    reasoningTokens = assistant.thinkingBudget ?: 0,
-                                    onUpdateReasoningTokens = {
-                                        onUpdateAssistant(assistant.copy(thinkingBudget = it))
+                                    reasoningLevel = assistant.reasoningLevel,
+                                    onUpdateReasoningLevel = {
+                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
                                     },
                                     openAIReasoningEffort = assistant.openAIReasoningEffort,
-                                    onUpdateOpenAIReasoningEffort = {
-                                        onUpdateAssistant(assistant.copy(openAIReasoningEffort = it))
-                                    },
+                                    model = effectiveChatModel,
+                                    provider = effectiveChatModel.findProvider(settings.providers),
                                     onlyIcon = true,
                                 )
                             }
@@ -446,13 +490,19 @@ fun ChatInput(
                             }
                         }
                     }
+                    }
                 }
             }
         }
-    }
 
-    if (showFilesPicker) {
-        ModalBottomSheet(
+        if (showFullScreenEditor) {
+            FullScreenEditor(state = state) {
+                showFullScreenEditor = false
+            }
+        }
+
+        if (showFilesPicker) {
+            ModalBottomSheet(
             onDismissRequest = { dismissFilesPicker() },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
@@ -487,6 +537,7 @@ private fun TextInputRow(
     state: ChatInputState,
     termuxCommandModeEnabled: Boolean,
     onSendMessage: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val settings = LocalSettings.current
@@ -499,8 +550,6 @@ private fun TextInputRow(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        var isFocused by remember { mutableStateOf(false) }
-        var isFullScreen by remember { mutableStateOf(false) }
         val receiveContentListener =
             remember(settings.displaySetting.pasteLongTextAsFile, settings.displaySetting.pasteLongTextThreshold) {
                 ReceiveContentListener { transferableContent ->
@@ -542,7 +591,7 @@ private fun TextInputRow(
                 .fillMaxWidth()
                 .contentReceiver(receiveContentListener)
                 .onFocusChanged {
-                    isFocused = it.isFocused
+                    onFocusChanged(it.isFocused)
                 },
             shape = MaterialTheme.shapes.largeIncreased,
             placeholder = {
@@ -563,17 +612,6 @@ private fun TextInputRow(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
             ),
-            trailingIcon = {
-                if (isFocused) {
-                    IconButton(
-                        onClick = {
-                            isFullScreen = !isFullScreen
-                        }
-                    ) {
-                        Icon(HugeIcons.FullScreen, null)
-                    }
-                }
-            },
             leadingIcon = when {
                 termuxCommandModeEnabled && !state.isEditing() -> {
                     {
@@ -590,11 +628,6 @@ private fun TextInputRow(
                 else -> null
             },
         )
-        if (isFullScreen) {
-            FullScreenEditor(state = state) {
-                isFullScreen = false
-            }
-        }
     }
 }
 

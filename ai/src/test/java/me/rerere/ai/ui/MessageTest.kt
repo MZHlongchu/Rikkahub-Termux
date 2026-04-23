@@ -1,6 +1,9 @@
 package me.rerere.ai.ui
 
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -105,6 +108,28 @@ class MessageTest {
     }
 
     @Test
+    fun `limitContext with executed tool in same assistant message should include corresponding user message`() {
+        val messages = listOf(
+            UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("User query"))),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Tool(
+                        toolCallId = "call1",
+                        toolName = "test_tool",
+                        input = "{}",
+                        output = listOf(UIMessagePart.Text("result"))
+                    ),
+                    UIMessagePart.Text("Intermediate response")
+                )
+            )
+        )
+
+        val result = messages.limitContext(1)
+        assertEquals(messages, result)
+    }
+
+    @Test
     fun `limitContext with legacy TOOL result at start should include corresponding tool call chain`() {
         val messages = listOf(
             UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("User query"))),
@@ -142,6 +167,122 @@ class MessageTest {
         val result = messages.limitContext(1)
         assertEquals(1, result.size)
         assertEquals(messages, result)
+    }
+
+    @Test
+    fun `limitToolCallRounds should keep only the latest executed tool rounds`() {
+        val messages = listOf(
+            UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("User 1"))),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Text("Before tool 1"),
+                    UIMessagePart.Tool(
+                        toolCallId = "call1",
+                        toolName = "search",
+                        input = "{}",
+                        output = listOf(UIMessagePart.Text("result 1"))
+                    ),
+                    UIMessagePart.Text("After tool 1")
+                )
+            ),
+            UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("User 2"))),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Text("Before tool 2"),
+                    UIMessagePart.Tool(
+                        toolCallId = "call2",
+                        toolName = "search",
+                        input = "{}",
+                        output = listOf(UIMessagePart.Text("result 2"))
+                    ),
+                    UIMessagePart.Text("After tool 2")
+                )
+            ),
+            UIMessage(role = MessageRole.ASSISTANT, parts = listOf(UIMessagePart.Text("Final answer")))
+        )
+
+        val result = messages.limitToolCallRounds(1)
+
+        assertEquals(5, result.size)
+        assertEquals(listOf(UIMessagePart.Text("Before tool 1"), UIMessagePart.Text("After tool 1")), result[1].parts)
+        assertTrue(result[3].parts.any { it is UIMessagePart.Tool && it.toolCallId == "call2" })
+        assertEquals(messages.last(), result.last())
+    }
+
+    @Test
+    fun `limitToolCallRounds should keep non-tool content between multiple rounds in one message`() {
+        val message = UIMessage(
+            role = MessageRole.ASSISTANT,
+            parts = listOf(
+                UIMessagePart.Text("Round 1 intro"),
+                UIMessagePart.Tool(
+                    toolCallId = "call1",
+                    toolName = "search",
+                    input = "{}",
+                    output = listOf(UIMessagePart.Text("result 1"))
+                ),
+                UIMessagePart.Text("Between rounds"),
+                UIMessagePart.Tool(
+                    toolCallId = "call2",
+                    toolName = "search",
+                    input = "{}",
+                    output = listOf(UIMessagePart.Text("result 2"))
+                ),
+                UIMessagePart.Text("Round 2 outro")
+            )
+        )
+
+        val result = listOf(message).limitToolCallRounds(1)
+
+        assertEquals(1, result.size)
+        assertEquals(
+            listOf(
+                UIMessagePart.Text("Round 1 intro"),
+                UIMessagePart.Text("Between rounds"),
+                UIMessagePart.Tool(
+                    toolCallId = "call2",
+                    toolName = "search",
+                    input = "{}",
+                    output = listOf(UIMessagePart.Text("result 2"))
+                ),
+                UIMessagePart.Text("Round 2 outro")
+            ),
+            result.single().parts
+        )
+    }
+
+    @Test
+    fun `limitToolCallRounds should remove all executed tool rounds when limited to zero`() {
+        val result = listOf(
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Text("Keep me"),
+                    UIMessagePart.Tool(
+                        toolCallId = "call1",
+                        toolName = "search",
+                        input = "{}",
+                        output = listOf(UIMessagePart.Text("result 1"))
+                    )
+                )
+            ),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Tool(
+                        toolCallId = "call2",
+                        toolName = "search",
+                        input = "{}",
+                        output = listOf(UIMessagePart.Text("result 2"))
+                    )
+                )
+            )
+        ).limitToolCallRounds(0)
+
+        assertEquals(1, result.size)
+        assertEquals(listOf(UIMessagePart.Text("Keep me")), result.single().parts)
     }
 
     @Test
@@ -224,6 +365,126 @@ class MessageTest {
         )
 
         assertTrue(message.isValidToUpload())
+    }
+
+    @Test
+    fun `handleMessageChunk should keep generated images as separate parts`() {
+        val base = listOf(
+            UIMessage(role = MessageRole.ASSISTANT, parts = emptyList())
+        )
+
+        val first = MessageChunk(
+            id = "chunk-1",
+            model = "",
+            choices = listOf(
+                UIMessageChoice(
+                    index = 0,
+                    delta = UIMessage(
+                        role = MessageRole.ASSISTANT,
+                        parts = listOf(
+                            UIMessagePart.Image(
+                                url = "abc123",
+                                metadata = buildJsonObject {
+                                    put("mime_type", "image/png")
+                                }
+                            )
+                        )
+                    ),
+                    message = null,
+                    finishReason = null
+                )
+            )
+        )
+        val second = MessageChunk(
+            id = "chunk-2",
+            model = "",
+            choices = listOf(
+                UIMessageChoice(
+                    index = 0,
+                    delta = UIMessage(
+                        role = MessageRole.ASSISTANT,
+                        parts = listOf(
+                            UIMessagePart.Image(
+                                url = "def456",
+                                metadata = buildJsonObject {
+                                    put("mime_type", "image/webp")
+                                }
+                            )
+                        )
+                    ),
+                    message = null,
+                    finishReason = null
+                )
+            )
+        )
+
+        val result = base.handleMessageChunk(first).handleMessageChunk(second)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result.single().parts.size)
+        assertEquals("data:image/png;base64,abc123", (result.single().parts[0] as UIMessagePart.Image).url)
+        assertEquals("data:image/webp;base64,def456", (result.single().parts[1] as UIMessagePart.Image).url)
+    }
+
+    @Test
+    fun `handleMessageChunk should replace generated image preview when response item id matches`() {
+        val base = listOf(
+            UIMessage(role = MessageRole.ASSISTANT, parts = emptyList())
+        )
+
+        val partial = MessageChunk(
+            id = "chunk-1",
+            model = "",
+            choices = listOf(
+                UIMessageChoice(
+                    index = 0,
+                    delta = UIMessage(
+                        role = MessageRole.ASSISTANT,
+                        parts = listOf(
+                            UIMessagePart.Image(
+                                url = "preview123",
+                                metadata = buildJsonObject {
+                                    put("response_item_id", "ig_123")
+                                    put("mime_type", "image/png")
+                                }
+                            )
+                        )
+                    ),
+                    message = null,
+                    finishReason = null
+                )
+            )
+        )
+        val completed = MessageChunk(
+            id = "chunk-2",
+            model = "",
+            choices = listOf(
+                UIMessageChoice(
+                    index = 0,
+                    delta = UIMessage(
+                        role = MessageRole.ASSISTANT,
+                        parts = listOf(
+                            UIMessagePart.Image(
+                                url = "final456",
+                                metadata = buildJsonObject {
+                                    put("response_item_id", "ig_123")
+                                    put("mime_type", "image/webp")
+                                }
+                            )
+                        )
+                    ),
+                    message = null,
+                    finishReason = null
+                )
+            )
+        )
+
+        val result = base.handleMessageChunk(partial).handleMessageChunk(completed)
+
+        assertEquals(1, result.single().parts.size)
+        val image = result.single().parts.single() as UIMessagePart.Image
+        assertEquals("data:image/webp;base64,final456", image.url)
+        assertEquals("ig_123", image.metadata?.get("response_item_id")?.jsonPrimitive?.content)
     }
 
     // ==================== migrateToolMessages Tests ====================

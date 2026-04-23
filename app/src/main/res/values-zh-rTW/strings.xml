@@ -341,11 +341,11 @@
   <string name="reasoning_auto">自動</string>
   <string name="reasoning_auto_desc">讓模型自動決定推理級別。</string>
   <string name="reasoning_custom">自定義推理預算</string>
-  <string name="reasoning_heavy">重度推理</string>
+  <string name="reasoning_heavy">高</string>
   <string name="reasoning_heavy_desc">模型將使用大量推理來回答問題。</string>
-  <string name="reasoning_light">輕度推理</string>
+  <string name="reasoning_light">低</string>
   <string name="reasoning_light_desc">模型將使用少量推理來回答問題。</string>
-  <string name="reasoning_medium">中度推理</string>
+  <string name="reasoning_medium">中等</string>
   <string name="reasoning_medium_desc">模型將使用更多推理來回答問題。</string>
   <string name="reasoning_off">關閉</string>
   <string name="reasoning_off_desc">關閉推理功能，模型將直接回答問題。</string>
@@ -1361,6 +1361,7 @@
   <string name="setting_display_page_chat_font_family_monospace">等寬字體</string>
   <string name="chat_page_back_to_conversation">返回對話</string>
   <string name="chat_page_hide_top_bar">隱藏頂部欄</string>
+  <string name="chat_page_show_top_bar">顯示頂部欄</string>
   <string name="setting_provider_page_import_success_count">已匯入 %1$d 個提供商</string>
   <string name="setting_provider_page_selected">已選擇</string>
   <string name="setting_provider_page_selected_count">已選擇 %1$d 個</string>
@@ -1787,4 +1788,20 @@
   <string name="assistant_page_sampling_desc_google">會在 generationConfig 內傳送，用於 Gemini 或與 Vertex 相容的後端。</string>
   <string name="assistant_page_sampling_desc_claude">會作為 Anthropic Messages API 欄位傳送。</string>
   <string name="assistant_page_sampling_desc_compat">只會使用所選後端支援的欄位。</string>
+  <string name="assistant_page_tool_call_keep_rounds">工具呼叫保留輪次</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">控制最近多少輪已執行的工具呼叫及其結果會保留在上下文中。更早的工具軌跡會被移除，但一般聊天訊息仍會保留。</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">已保留工具呼叫輪次: %d</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">工具呼叫輪次無限制</string>
+  <string name="setting_provider_page_import_service_account_json">匯入服務帳戶 JSON</string>
+  <string name="reasoning_xhigh">超高</string>
+  <string name="reasoning_picker_title">調整模型思考深度</string>
+  <string name="reasoning_picker_hint">並非所有模型都支援深度調整。請參閱模型與提供者文件。</string>
+  <string name="assistant_page_openai_reasoning_effort_sent_desc">針對每種 OpenAI API 格式所傳送的有效推理強度。</string>
+  <string name="assistant_page_openai_reasoning_effort_chat_completions">聊天補全</string>
+  <string name="assistant_page_openai_reasoning_effort_responses">回應</string>
+  <string name="assistant_page_reasoning_request_params">推理請求參數</string>
+  <string name="setting_page_built_in_tools_image_generation">圖片生成</string>
+  <string name="setting_page_built_in_tools_image_generation_desc">為支援的 OpenAI Responses 模型啟用內建影像生成工具</string>
+  <string name="setting_provider_page_use_service_account">使用 Service Account</string>
 </resources>
+

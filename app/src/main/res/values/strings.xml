@@ -133,6 +133,10 @@
   <string name="assistant_page_openai_reasoning_effort_desc">Overrides Chat Completions `reasoning_effort` and Responses `reasoning.effort`.</string>
   <string name="assistant_page_openai_reasoning_effort_hint">high / low / auto</string>
   <string name="assistant_page_openai_reasoning_effort_effective">Leave blank to follow thinking budget. Chat Completions: %1$s, Responses: %2$s</string>
+  <string name="assistant_page_openai_reasoning_effort_sent_desc">Effective reasoning effort sent for each OpenAI API format.</string>
+  <string name="assistant_page_openai_reasoning_effort_chat_completions">Chat Completions</string>
+  <string name="assistant_page_openai_reasoning_effort_responses">Responses</string>
+  <string name="assistant_page_reasoning_request_params">Reasoning Request Params</string>
   <string name="assistant_page_openai_reasoning_effort_not_sent">not sent</string>
   <string name="assistant_schedule_add_task">Add Scheduled Task</string>
   <string name="assistant_schedule_summary_title">Scheduled Tasks</string>
@@ -269,6 +273,7 @@
   <string name="chat_page_temporary_chat_disabled">Temporary chat disabled. This conversation will appear in history.</string>
   <string name="chat_page_back_to_conversation">Back to conversation</string>
   <string name="chat_page_hide_top_bar">Hide top bar</string>
+  <string name="chat_page_show_top_bar">Show top bar</string>
   <string name="chat_page_new_message">New message</string>
   <string name="chat_page_nickname_placeholder">Please enter nickname</string>
   <string name="chat_page_no_conversations">No conversations</string>
@@ -409,11 +414,11 @@
   <string name="reasoning_auto">Auto</string>
   <string name="reasoning_auto_desc">Let the model automatically determine reasoning level.</string>
   <string name="reasoning_custom">Custom reasoning budget</string>
-  <string name="reasoning_heavy">Heavy reasoning</string>
+  <string name="reasoning_heavy">High</string>
   <string name="reasoning_heavy_desc">The model will use a large amount of reasoning to answer questions.</string>
-  <string name="reasoning_light">Light reasoning</string>
+  <string name="reasoning_light">Low</string>
   <string name="reasoning_light_desc">The model will use a small amount of reasoning to answer questions.</string>
-  <string name="reasoning_medium">Medium reasoning</string>
+  <string name="reasoning_medium">Medium</string>
   <string name="reasoning_medium_desc">The model will use more reasoning to answer questions.</string>
   <string name="reasoning_off">Off</string>
   <string name="reasoning_off_desc">Turn off reasoning functionality, the model will directly answer questions.</string>
@@ -531,11 +536,13 @@
   <string name="setting_page_assistant">Assistant</string>
   <string name="setting_page_assistant_desc">Set up personalized assistants (agents)</string>
   <string name="setting_page_built_in_tools">Built-in Tools</string>
-  <string name="setting_page_built_in_tools_desc">Select built-in tools supported by the model. These tools are directly provided by the API without requiring app support. Currently, this feature is only supported by the official Gemini API.</string>
+  <string name="setting_page_built_in_tools_desc">Select built-in tools supported by the model. These tools are directly provided by the API without requiring app support. Support depends on the provider and model, such as Gemini built-in search/URL context and OpenAI Responses built-in search/image generation.</string>
   <string name="setting_page_built_in_tools_search">Search</string>
   <string name="setting_page_built_in_tools_search_desc">Enable Google Search integration</string>
   <string name="setting_page_built_in_tools_url_context">URL Context</string>
   <string name="setting_page_built_in_tools_url_context_desc">Enable URL content processing</string>
+  <string name="setting_page_built_in_tools_image_generation">Image Generation</string>
+  <string name="setting_page_built_in_tools_image_generation_desc">Enable the built-in image generation tool for supported OpenAI Responses models</string>
   <string name="setting_page_chat_storage">Chat Storage</string>
   <string name="setting_page_chat_storage_desc">%1$d files, %2$.2f MB</string>
   <string name="setting_page_color_mode">Color Mode</string>
@@ -658,6 +665,7 @@
   <string name="setting_provider_page_title">Providers</string>
   <string name="setting_provider_page_tool">Tool</string>
   <string name="setting_provider_page_vertex_ai">Vertex AI</string>
+  <string name="setting_provider_page_use_service_account">Use Service Account</string>
   <string name="provider_share_sheet_models_not_included">Shared providers do not include model lists.</string>
   <string name="provider_share_sheet_qr_unavailable">This selection is too large to fit in a QR code. Use system share instead.</string>
   <string name="setting_tts_page_add">Add</string>
@@ -1839,4 +1847,12 @@
   <string name="assistant_page_sampling_desc_google">Sent inside generationConfig for Gemini or Vertex-compatible backends.</string>
   <string name="assistant_page_sampling_desc_claude">Sent as Anthropic Messages API fields.</string>
   <string name="assistant_page_sampling_desc_compat">Only fields supported by the selected backend are used.</string>
+  <string name="assistant_page_tool_call_keep_rounds">Tool Call Rounds to Keep</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">Controls how many recent rounds of executed tool calls and results remain in context. Older tool traces are removed while regular chat messages stay.</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">Tool call rounds kept: %d</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">Unlimited tool call rounds</string>
+  <string name="setting_provider_page_import_service_account_json">Import Service Account JSON</string>
+  <string name="reasoning_xhigh">XHigh</string>
+  <string name="reasoning_picker_title">Adjust Model Thinking Depth</string>
+  <string name="reasoning_picker_hint">Not all models support depth adjustment. Refer to the model and provider documentation.</string>
 </resources>
