@@ -368,6 +368,7 @@ fun MarkdownBlock(
     headerLevelOffset: Int = 0,
     messageDepthFromEnd: Int? = null,
     animateContent: Boolean = true,
+    streaming: Boolean = false,
     onClickCitation: (String) -> Unit = {}
 ) {
     var (data, setData) = remember {
@@ -396,7 +397,7 @@ fun MarkdownBlock(
             }
     }
 
-    if (data.hasHtmlBlocks) {
+    if (shouldRenderMarkdownWithHtmlRenderer(data.hasHtmlBlocks, streaming)) {
         MarkdownNew(
             content = data.source,
             modifier = modifier,
@@ -422,6 +423,7 @@ fun MarkdownBlock(
                         headerLevelOffset = headerLevelOffset,
                         onClickCitation = onClickCitation,
                         messageDepthFromEnd = messageDepthFromEnd,
+                        streaming = streaming,
                     )
                 }
             }
@@ -517,6 +519,7 @@ private fun MarkdownNode(
     onClickCitation: (String) -> Unit = {},
     listLevel: Int = 0,
     messageDepthFromEnd: Int? = null,
+    streaming: Boolean = false,
 ) {
     when (node.type) {
         // 文件根节点
@@ -529,6 +532,7 @@ private fun MarkdownNode(
                     headerLevelOffset = headerLevelOffset,
                     onClickCitation = onClickCitation,
                     messageDepthFromEnd = messageDepthFromEnd,
+                    streaming = streaming,
                 )
             }
         }
@@ -542,6 +546,7 @@ private fun MarkdownNode(
                 headerLevelOffset = headerLevelOffset,
                 onClickCitation = onClickCitation,
                 messageDepthFromEnd = messageDepthFromEnd,
+                streaming = streaming,
             )
         }
 
@@ -570,6 +575,7 @@ private fun MarkdownNode(
                                 modifier = modifier.padding(vertical = headingPadding),
                                 trim = true,
                                 messageDepthFromEnd = messageDepthFromEnd,
+                                streaming = streaming,
                             )
                         }
                     }
@@ -587,6 +593,7 @@ private fun MarkdownNode(
                 onClickCitation = onClickCitation,
                 level = listLevel,
                 messageDepthFromEnd = messageDepthFromEnd,
+                streaming = streaming,
             )
         }
 
@@ -599,6 +606,7 @@ private fun MarkdownNode(
                 onClickCitation = onClickCitation,
                 level = listLevel,
                 messageDepthFromEnd = messageDepthFromEnd,
+                streaming = streaming,
             )
         }
 
@@ -651,6 +659,7 @@ private fun MarkdownNode(
                             headerLevelOffset = headerLevelOffset,
                             onClickCitation = onClickCitation,
                             messageDepthFromEnd = messageDepthFromEnd,
+                            streaming = streaming,
                         )
                     }
                 }
@@ -686,6 +695,7 @@ private fun MarkdownNode(
                         headerLevelOffset = headerLevelOffset,
                         onClickCitation = onClickCitation,
                         messageDepthFromEnd = messageDepthFromEnd,
+                        streaming = streaming,
                     )
                 }
             }
@@ -701,6 +711,7 @@ private fun MarkdownNode(
                         headerLevelOffset = headerLevelOffset,
                         onClickCitation = onClickCitation,
                         messageDepthFromEnd = messageDepthFromEnd,
+                        streaming = streaming,
                     )
                 }
             }
@@ -714,7 +725,7 @@ private fun MarkdownNode(
         }
 
         GFMElementTypes.TABLE -> {
-            TableNode(node = node, content = content, modifier = modifier)
+            TableNode(node = node, content = content, modifier = modifier, streaming = streaming)
         }
 
         MarkdownTokenTypes.HORIZONTAL_RULE -> {
@@ -790,9 +801,15 @@ private fun MarkdownNode(
 
         MarkdownElementTypes.CODE_BLOCK -> {
             val code = node.getTextInNode(content)
-            Text(
-                text = code,
-                modifier = modifier,
+            HighlightCodeBlock(
+                code = code,
+                language = "plaintext",
+                modifier = modifier
+                    .padding(bottom = 4.dp)
+                    .fillMaxWidth(),
+                renderMermaidRichly = false,
+                highlightCode = !streaming,
+                previewEnabled = false,
             )
         }
 
@@ -812,7 +829,13 @@ private fun MarkdownNode(
                 shouldRenderCodeBlock,
                 displaySetting.enableCodeBlockRichRender,
             ) {
-                if (hasEnd && shouldRenderCodeBlock && displaySetting.enableCodeBlockRichRender) {
+                if (
+                    shouldRenderRichCodeBlock(
+                        hasEnd = hasEnd,
+                        shouldRenderCodeBlock = shouldRenderCodeBlock,
+                        richRenderingEnabled = displaySetting.enableCodeBlockRichRender,
+                    )
+                ) {
                     CodeBlockRenderResolver.resolve(language = language, code = code)
                 } else {
                     null
@@ -849,6 +872,8 @@ private fun MarkdownNode(
                         .fillMaxWidth(),
                     completeCodeBlock = hasEnd,
                     renderMermaidRichly = shouldRenderCodeBlock,
+                    highlightCode = !streaming,
+                    previewEnabled = hasEnd,
                 )
             }
         }
@@ -863,9 +888,23 @@ private fun MarkdownNode(
 
         MarkdownElementTypes.HTML_BLOCK -> {
             val text = node.getTextInNode(content)
-            SimpleHtmlBlock(
-                html = text, modifier = modifier
-            )
+            if (streaming) {
+                HighlightCodeBlock(
+                    code = text,
+                    language = streamingHtmlBlockLanguage(text),
+                    modifier = modifier
+                        .padding(bottom = 4.dp)
+                        .fillMaxWidth(),
+                    completeCodeBlock = false,
+                    renderMermaidRichly = false,
+                    highlightCode = false,
+                    previewEnabled = false,
+                )
+            } else {
+                SimpleHtmlBlock(
+                    html = text, modifier = modifier
+                )
+            }
         }
 
         // 其他类型的节点，递归处理子节点
@@ -879,6 +918,7 @@ private fun MarkdownNode(
                     headerLevelOffset = headerLevelOffset,
                     onClickCitation = onClickCitation,
                     messageDepthFromEnd = messageDepthFromEnd,
+                    streaming = streaming,
                 )
             }
         }
@@ -894,6 +934,7 @@ private fun UnorderedListNode(
     onClickCitation: (String) -> Unit = {},
     level: Int = 0,
     messageDepthFromEnd: Int? = null,
+    streaming: Boolean = false,
 ) {
     val bulletStyle = when (level % 3) {
         0 -> "• "
@@ -914,6 +955,7 @@ private fun UnorderedListNode(
                     onClickCitation = onClickCitation,
                     level = level,
                     messageDepthFromEnd = messageDepthFromEnd,
+                    streaming = streaming,
                 )
             }
         }
@@ -929,6 +971,7 @@ private fun OrderedListNode(
     onClickCitation: (String) -> Unit = {},
     level: Int = 0,
     messageDepthFromEnd: Int? = null,
+    streaming: Boolean = false,
 ) {
     Column(modifier.padding(start = (level * 8).dp)) {
         var index = 1
@@ -944,6 +987,7 @@ private fun OrderedListNode(
                     onClickCitation = onClickCitation,
                     level = level,
                     messageDepthFromEnd = messageDepthFromEnd,
+                    streaming = streaming,
                 )
                 index++
             }
@@ -960,6 +1004,7 @@ private fun ListItemNode(
     onClickCitation: (String) -> Unit = {},
     level: Int,
     messageDepthFromEnd: Int? = null,
+    streaming: Boolean = false,
 ) {
     Column {
         // 分离列表项的直接内容和嵌套列表
@@ -984,6 +1029,7 @@ private fun ListItemNode(
                             onClickCitation = onClickCitation,
                             listLevel = level,
                             messageDepthFromEnd = messageDepthFromEnd,
+                            streaming = streaming,
                         )
                     }
                 }
@@ -998,6 +1044,7 @@ private fun ListItemNode(
                 onClickCitation = onClickCitation,
                 listLevel = level + 1,
                 messageDepthFromEnd = messageDepthFromEnd,
+                streaming = streaming,
             )
         }
     }
@@ -1030,6 +1077,7 @@ private fun Paragraph(
     onClickCitation: (String) -> Unit = {},
     modifier: Modifier,
     messageDepthFromEnd: Int? = null,
+    streaming: Boolean = false,
 ) {
     // dumpAst(node, content)
     if (node.findChildOfTypeRecursive(MarkdownElementTypes.IMAGE, GFMElementTypes.BLOCK_MATH) != null) {
@@ -1041,6 +1089,7 @@ private fun Paragraph(
                     headerLevelOffset = headerLevelOffset,
                     onClickCitation = onClickCitation,
                     messageDepthFromEnd = messageDepthFromEnd,
+                    streaming = streaming,
                 )
             }
         }
@@ -1052,7 +1101,7 @@ private fun Paragraph(
         else Modifier
     )
 
-    if (remember(node) { shouldRenderParagraphWithSimpleHtml(node) }) {
+    if (!streaming && remember(node) { shouldRenderParagraphWithSimpleHtml(node) }) {
         SimpleHtmlBlock(
             html = node.getTextInNode(content),
             modifier = paragraphModifier
@@ -1118,8 +1167,35 @@ internal fun shouldRenderParagraphWithSimpleHtml(node: ASTNode): Boolean {
     return hasHtmlTag && !hasMarkdownInlineSyntax
 }
 
+internal fun shouldRenderMarkdownWithHtmlRenderer(
+    hasHtmlBlocks: Boolean,
+    streaming: Boolean,
+): Boolean = hasHtmlBlocks && !streaming
+
+internal fun shouldRenderRichCodeBlock(
+    hasEnd: Boolean,
+    shouldRenderCodeBlock: Boolean,
+    richRenderingEnabled: Boolean,
+): Boolean = hasEnd && shouldRenderCodeBlock && richRenderingEnabled
+
+internal fun streamingHtmlBlockLanguage(content: String): String {
+    val trimmed = content.trimStart()
+    return if (trimmed.startsWith("<svg", ignoreCase = true) ||
+        trimmed.startsWith("<?xml", ignoreCase = true) && trimmed.contains("<svg", ignoreCase = true)
+    ) {
+        "svg"
+    } else {
+        "html"
+    }
+}
+
 @Composable
-private fun TableNode(node: ASTNode, content: String, modifier: Modifier = Modifier) {
+private fun TableNode(
+    node: ASTNode,
+    content: String,
+    modifier: Modifier = Modifier,
+    streaming: Boolean = false,
+) {
     // 提取表格的标题行和数据行
     val headerNode = node.children.find { it.type == GFMElementTypes.HEADER }
     val rowNodes = node.children.filter { it.type == GFMElementTypes.ROW }
@@ -1145,6 +1221,7 @@ private fun TableNode(node: ASTNode, content: String, modifier: Modifier = Modif
         @Composable {
             MarkdownBlock(
                 content = if (columnIndex < headerCells.size) headerCells[columnIndex] else "",
+                streaming = streaming,
             )
         }
     }
@@ -1155,6 +1232,7 @@ private fun TableNode(node: ASTNode, content: String, modifier: Modifier = Modif
             @Composable {
                 MarkdownBlock(
                     content = if (columnIndex < rowData.size) rowData[columnIndex] else "",
+                    streaming = streaming,
                 )
             }
         }

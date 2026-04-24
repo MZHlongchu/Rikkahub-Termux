@@ -125,6 +125,8 @@ private fun StreamingAwareMarkdownBlock(
             content = content,
             modifier = modifier,
             messageDepthFromEnd = messageDepthFromEnd,
+            animateContent = !loading,
+            streaming = loading,
             onClickCitation = onClickCitation,
         )
     }

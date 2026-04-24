@@ -37,4 +37,37 @@ class HighlightCodeBlockTest {
             )
         )
     }
+
+    @Test
+    fun rich_code_block_rendering_is_enabled_while_streaming_after_fence_closes() {
+        assertTrue(
+            shouldRenderRichCodeBlock(
+                hasEnd = true,
+                shouldRenderCodeBlock = true,
+                richRenderingEnabled = true,
+            )
+        )
+    }
+
+    @Test
+    fun rich_code_block_rendering_requires_complete_block() {
+        assertFalse(
+            shouldRenderRichCodeBlock(
+                hasEnd = false,
+                shouldRenderCodeBlock = true,
+                richRenderingEnabled = true,
+            )
+        )
+    }
+
+    @Test
+    fun rich_code_block_rendering_is_enabled_after_streaming_for_complete_block() {
+        assertTrue(
+            shouldRenderRichCodeBlock(
+                hasEnd = true,
+                shouldRenderCodeBlock = true,
+                richRenderingEnabled = true,
+            )
+        )
+    }
 }
