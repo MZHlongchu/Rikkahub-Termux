@@ -77,6 +77,7 @@ import me.rerere.rikkahub.ui.theme.LocalThemeTokenOverrides
 import me.rerere.rikkahub.ui.theme.ThemeTokenParseResult
 import me.rerere.rikkahub.ui.theme.ThemeTokenTextScaleGroup
 import me.rerere.rikkahub.ui.theme.applyThemeTokenTextScale
+import me.rerere.rikkahub.ui.theme.luneSizeSpring
 import me.rerere.rikkahub.utils.base64Encode
 import me.rerere.rikkahub.utils.toDp
 import kotlin.time.Clock
@@ -116,6 +117,8 @@ fun HighlightCodeBlock(
     completeCodeBlock: Boolean = true,
     style: TextStyle? = null,
     renderMermaidRichly: Boolean = true,
+    highlightCode: Boolean = completeCodeBlock,
+    previewEnabled: Boolean = completeCodeBlock,
 ) {
     val darkMode = LocalDarkMode.current
     val colorPalette = if (darkMode) AtomOneDarkPalette else AtomOneLightPalette
@@ -175,6 +178,7 @@ fun HighlightCodeBlock(
                 createDocumentLauncher = createDocumentLauncher,
                 navController = navController,
                 themeTokens = themeTokens,
+                previewEnabled = previewEnabled,
             )
         }
         Column(
@@ -214,6 +218,7 @@ fun HighlightCodeBlock(
                                 language = language,
                                 textStyle = textStyle,
                                 colorPalette = colorPalette,
+                                highlightCode = highlightCode,
                             )
                         }
                         else -> {
@@ -226,6 +231,7 @@ fun HighlightCodeBlock(
                                 autoWrap = autoWrap,
                                 showLineNumbers = showLineNumbers,
                                 scrollState = scrollState,
+                                highlightCode = highlightCode,
                             )
                         }
                     }
@@ -277,6 +283,7 @@ private fun CodeBlockWithLineNumbersWrapped(
     language: String,
     textStyle: TextStyle,
     colorPalette: HighlightTextColorPalette,
+    highlightCode: Boolean,
 ) {
     val lineNumberWidth = remember(displayLines.size) {
         displayLines.size.toString().length
@@ -296,17 +303,29 @@ private fun CodeBlockWithLineNumbersWrapped(
                         softWrap = false,
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    HighlightText(
-                        code = line,
-                        language = language,
-                        fontSize = textStyle.fontSize,
-                        lineHeight = textStyle.lineHeight,
-                        colors = colorPalette,
-                        overflow = TextOverflow.Visible,
-                        softWrap = true,
-                        fontFamily = JetbrainsMono,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (highlightCode) {
+                        HighlightText(
+                            code = line,
+                            language = language,
+                            fontSize = textStyle.fontSize,
+                            lineHeight = textStyle.lineHeight,
+                            colors = colorPalette,
+                            overflow = TextOverflow.Visible,
+                            softWrap = true,
+                            fontFamily = JetbrainsMono,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Text(
+                            text = line,
+                            fontSize = textStyle.fontSize,
+                            lineHeight = textStyle.lineHeight,
+                            fontFamily = JetbrainsMono,
+                            overflow = TextOverflow.Visible,
+                            softWrap = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -323,6 +342,7 @@ private fun CodeBlockDefault(
     autoWrap: Boolean,
     showLineNumbers: Boolean,
     scrollState: ScrollState,
+    highlightCode: Boolean,
 ) {
     Row(
         modifier = Modifier.then(
@@ -356,17 +376,28 @@ private fun CodeBlockDefault(
 
         // 代码列
         SelectionContainer {
-            HighlightText(
-                code = displayCode,
-                language = language,
-                modifier = Modifier.animateContentSize(),
-                fontSize = textStyle.fontSize,
-                lineHeight = textStyle.lineHeight,
-                colors = colorPalette,
-                overflow = TextOverflow.Visible,
-                softWrap = autoWrap,
-                fontFamily = JetbrainsMono
-            )
+            if (highlightCode) {
+                HighlightText(
+                    code = displayCode,
+                    language = language,
+                    modifier = Modifier.animateContentSize(animationSpec = luneSizeSpring()),
+                    fontSize = textStyle.fontSize,
+                    lineHeight = textStyle.lineHeight,
+                    colors = colorPalette,
+                    overflow = TextOverflow.Visible,
+                    softWrap = autoWrap,
+                    fontFamily = JetbrainsMono
+                )
+            } else {
+                Text(
+                    text = displayCode,
+                    fontSize = textStyle.fontSize,
+                    lineHeight = textStyle.lineHeight,
+                    overflow = TextOverflow.Visible,
+                    softWrap = autoWrap,
+                    fontFamily = JetbrainsMono
+                )
+            }
         }
     }
 }
@@ -380,9 +411,14 @@ private fun HighlightCodeActions(
     createDocumentLauncher: ManagedActivityResultLauncher<String, Uri?>,
     navController: Navigator,
     themeTokens: ThemeTokenParseResult,
+    previewEnabled: Boolean,
 ) {
-    val previewTarget = remember(language, code) {
-        CodeBlockRenderResolver.resolve(language = language, code = code)
+    val previewTarget = remember(language, code, previewEnabled) {
+        if (previewEnabled) {
+            CodeBlockRenderResolver.resolve(language = language, code = code)
+        } else {
+            null
+        }
     }
     val actionTextStyle = remember(themeTokens) {
         themeTokens.applyThemeTokenTextScale(

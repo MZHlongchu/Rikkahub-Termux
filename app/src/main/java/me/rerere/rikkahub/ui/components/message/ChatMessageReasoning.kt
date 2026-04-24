@@ -125,6 +125,7 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
 private fun ReasoningContent(
     reasoning: UIMessagePart.Reasoning,
     assistant: Assistant?,
+    loading: Boolean,
     expandState: ReasoningCardState,
     scrollState: ScrollState,
     fadeHeight: Float,
@@ -165,20 +166,30 @@ private fun ReasoningContent(
                 }
             }
     ) {
-        SelectionContainer {
+        val content = reasoning.reasoning.replaceRegexes(
+            assistant = assistant,
+            settings = LocalSettings.current,
+            scope = AssistantAffectScope.ASSISTANT,
+            phase = AssistantRegexApplyPhase.VISUAL_ONLY,
+            messageDepthFromEnd = messageDepthFromEnd,
+            placement = AssistantRegexPlacement.REASONING,
+        )
+        val block: @Composable () -> Unit = {
             MarkdownBlock(
-                content = reasoning.reasoning.replaceRegexes(
-                    assistant = assistant,
-                    settings = LocalSettings.current,
-                    scope = AssistantAffectScope.ASSISTANT,
-                    phase = AssistantRegexApplyPhase.VISUAL_ONLY,
-                    messageDepthFromEnd = messageDepthFromEnd,
-                    placement = AssistantRegexPlacement.REASONING,
-                ),
+                content = content,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxSize(),
                 messageDepthFromEnd = messageDepthFromEnd,
+                animateContent = !loading,
+                streaming = loading,
             )
+        }
+        if (loading) {
+            block()
+        } else {
+            SelectionContainer {
+                block()
+            }
         }
     }
 }
@@ -209,7 +220,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
         },
         label = {
             if (showThinkingTitle) {
-                ReasoningTitle(title = thinkingTitle!!)
+                ReasoningTitle(title = thinkingTitle)
             } else {
                 Text(
                     text = stringResource(
@@ -238,6 +249,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
             ReasoningContent(
                 reasoning = reasoning,
                 assistant = assistant,
+                loading = loading,
                 expandState = state.expandState,
                 scrollState = state.scrollState,
                 fadeHeight = fadeHeight,
