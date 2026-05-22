@@ -171,7 +171,7 @@ class MessageTest {
     }
 
     @Test
-    fun `limitToolCallRounds should keep only the latest executed tool rounds`() {
+    fun `limitToolCallsByRecentMessages should keep tool calls only in recent messages`() {
         val messages = listOf(
             UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("User 1"))),
             UIMessage(
@@ -204,7 +204,7 @@ class MessageTest {
             UIMessage(role = MessageRole.ASSISTANT, parts = listOf(UIMessagePart.Text("Final answer")))
         )
 
-        val result = messages.limitToolCallRounds(1)
+        val result = messages.limitToolCallsByRecentMessages(2)
 
         assertEquals(5, result.size)
         assertEquals(listOf(UIMessagePart.Text("Before tool 1"), UIMessagePart.Text("After tool 1")), result[1].parts)
@@ -213,7 +213,7 @@ class MessageTest {
     }
 
     @Test
-    fun `limitToolCallRounds should keep non-tool content between multiple rounds in one message`() {
+    fun `limitToolCallsByRecentMessages should keep non-tool content in older messages`() {
         val message = UIMessage(
             role = MessageRole.ASSISTANT,
             parts = listOf(
@@ -235,27 +235,24 @@ class MessageTest {
             )
         )
 
-        val result = listOf(message).limitToolCallRounds(1)
+        val result = listOf(
+            message,
+            UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("Latest message"))),
+        ).limitToolCallsByRecentMessages(1)
 
-        assertEquals(1, result.size)
+        assertEquals(2, result.size)
         assertEquals(
             listOf(
                 UIMessagePart.Text("Round 1 intro"),
                 UIMessagePart.Text("Between rounds"),
-                UIMessagePart.Tool(
-                    toolCallId = "call2",
-                    toolName = "search",
-                    input = "{}",
-                    output = listOf(UIMessagePart.Text("result 2"))
-                ),
                 UIMessagePart.Text("Round 2 outro")
             ),
-            result.single().parts
+            result.first().parts
         )
     }
 
     @Test
-    fun `limitToolCallRounds should remove all executed tool rounds when limited to zero`() {
+    fun `limitToolCallsByRecentMessages should remove all tool calls when limited to zero`() {
         val result = listOf(
             UIMessage(
                 role = MessageRole.ASSISTANT,
@@ -280,7 +277,7 @@ class MessageTest {
                     )
                 )
             )
-        ).limitToolCallRounds(0)
+        ).limitToolCallsByRecentMessages(0)
 
         assertEquals(1, result.size)
         assertEquals(listOf(UIMessagePart.Text("Keep me")), result.single().parts)

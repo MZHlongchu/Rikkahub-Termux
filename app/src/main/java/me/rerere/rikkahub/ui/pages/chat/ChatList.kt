@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -82,6 +83,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -101,8 +103,10 @@ import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowDownDouble
 import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.ArrowUpDouble
+import me.rerere.hugeicons.stroke.BubbleChatTemporary
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.CursorPointer01
+import me.rerere.hugeicons.stroke.MessageBlocked
 import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.rikkahub.R
@@ -120,6 +124,7 @@ import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.components.ui.luneGlassBorderColor
 import me.rerere.rikkahub.ui.components.ui.luneGlassContainerColor
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
+import me.rerere.rikkahub.ui.theme.ChatFontProvider
 import me.rerere.rikkahub.ui.theme.preferredContentColor
 import me.rerere.rikkahub.utils.plus
 import kotlin.math.roundToInt
@@ -375,29 +380,30 @@ private fun ChatListNormal(
             }
         }
 
-        LazyColumn(
-            state = state,
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                top = 12.dp + innerPadding.calculateTopPadding(),
-                end = 16.dp,
-                bottom = 18.dp + innerPadding.calculateBottomPadding(),
-            ),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxSize()
-                .chatFadingEdges(
-                    topEdgeHeight = topFadeHeight,
-                    bottomEdgeHeight = bottomFadeHeight,
-                )
-                .then(
-                    if (enableGlassBlur) {
-                        Modifier.hazeSource(state = hazeState)
-                    } else {
-                        Modifier
-                    }
-                )
-        ) {
+        ChatFontProvider(displaySetting = settings.displaySetting) {
+            LazyColumn(
+                state = state,
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = 12.dp + innerPadding.calculateTopPadding(),
+                    end = 16.dp,
+                    bottom = 18.dp + innerPadding.calculateBottomPadding(),
+                ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .chatFadingEdges(
+                        topEdgeHeight = topFadeHeight,
+                        bottomEdgeHeight = bottomFadeHeight,
+                    )
+                    .then(
+                        if (enableGlassBlur) {
+                            Modifier.hazeSource(state = hazeState)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
             itemsIndexed(
                 items = conversation.messageNodes,
                 key = { index, item -> item.id },
@@ -519,6 +525,7 @@ private fun ChatListNormal(
                         .height(5.dp)
                 )
             }
+            }
         }
 
         ChatListChromeScrims(
@@ -531,6 +538,11 @@ private fun ChatListNormal(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            TemporaryConversationEmptyState(
+                visible = conversation.isTemporaryConversation && conversation.messageNodes.isEmpty(),
+                modifier = Modifier.align(Alignment.Center),
+            )
+
             // 错误消息卡片
             ErrorCardsDisplay(
                 errors = errors,
@@ -638,6 +650,106 @@ private fun ChatListNormal(
                 onClickSuggestion = onClickSuggestion,
             )
         }
+    }
+}
+
+@Composable
+private fun TemporaryConversationEmptyState(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp),
+        enter = fadeIn(),
+        exit = fadeOut(),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier.widthIn(max = 340.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.size(76.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.26f),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                    ),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = HugeIcons.BubbleChatTemporary,
+                            contentDescription = null,
+                            modifier = Modifier.size(38.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "临时对话已开启",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "本次聊天不会保存到历史记录。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.widthIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TemporaryConversationTip(
+                        icon = HugeIcons.MessageBlocked,
+                        text = "不会出现在会话列表中",
+                    )
+                    TemporaryConversationTip(
+                        icon = HugeIcons.Tick01,
+                        text = "适合一次性提问和测试",
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemporaryConversationTip(
+    icon: ImageVector,
+    text: String,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

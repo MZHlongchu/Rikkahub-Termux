@@ -38,7 +38,7 @@ import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.findProvider
-import me.rerere.rikkahub.data.model.ASSISTANT_TOOL_CALL_KEEP_ROUNDS_SLIDER_MAX
+import me.rerere.rikkahub.data.model.ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
 import me.rerere.rikkahub.ui.components.ai.ReasoningButton
@@ -356,40 +356,44 @@ internal fun AssistantBasicContent(
                     Text(stringResource(R.string.assistant_page_tool_call_keep_rounds_desc))
                 }
             ) {
-                val toolCallKeepRoundsSliderState = rememberCommitOnFinishSliderState(
-                    assistant.toolCallKeepRounds.toFloat()
+                val toolCallKeepMessagesSliderState = rememberCommitOnFinishSliderState(
+                    assistant.toolCallKeepMessages
+                        .coerceIn(1, ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX)
+                        .toFloat()
                 )
                 Slider(
-                    value = toolCallKeepRoundsSliderState.value,
-                    onValueChange = toolCallKeepRoundsSliderState::onValueChange,
+                    value = toolCallKeepMessagesSliderState.value,
+                    onValueChange = toolCallKeepMessagesSliderState::onValueChange,
                     onValueChangeFinished = {
-                        toolCallKeepRoundsSliderState.onValueChangeFinished(
-                            externalValue = assistant.toolCallKeepRounds.toFloat(),
+                        toolCallKeepMessagesSliderState.onValueChangeFinished(
+                            externalValue = assistant.toolCallKeepMessages
+                                .coerceIn(1, ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX)
+                                .toFloat(),
                             onValueCommitted = {
                                 onUpdate(
                                     assistant.copy(
-                                        toolCallKeepRounds = it.toInt()
+                                        toolCallKeepMessages = it.toInt()
                                     )
                                 )
                             },
                             normalize = {
-                                it.roundToInt().coerceIn(0, ASSISTANT_TOOL_CALL_KEEP_ROUNDS_SLIDER_MAX).toFloat()
+                                it.roundToInt().coerceIn(1, ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX).toFloat()
                             }
                         )
                     },
-                    valueRange = 0f..ASSISTANT_TOOL_CALL_KEEP_ROUNDS_SLIDER_MAX.toFloat(),
+                    valueRange = 1f..ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX.toFloat(),
                     steps = 0,
                     modifier = Modifier.fillMaxWidth()
                 )
-                val toolCallKeepRounds = toolCallKeepRoundsSliderState.value.roundToInt()
+                val toolCallKeepMessages = toolCallKeepMessagesSliderState.value.roundToInt()
 
                 Text(
-                    text = if (toolCallKeepRounds >= ASSISTANT_TOOL_CALL_KEEP_ROUNDS_SLIDER_MAX) {
+                    text = if (toolCallKeepMessages >= ASSISTANT_TOOL_CALL_KEEP_MESSAGES_SLIDER_MAX) {
                         stringResource(R.string.assistant_page_tool_call_keep_rounds_unlimited)
                     } else {
                         stringResource(
                             R.string.assistant_page_tool_call_keep_rounds_count,
-                            toolCallKeepRounds
+                            toolCallKeepMessages
                         )
                     },
                     style = MaterialTheme.typography.labelSmall,

@@ -31,7 +31,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.ui.limitContext
-import me.rerere.ai.ui.limitToolCallRounds
+import me.rerere.ai.ui.limitToolCallsByRecentMessages
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
@@ -47,7 +47,7 @@ import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
-import me.rerere.rikkahub.data.model.resolveToolCallKeepRoundsLimit
+import me.rerere.rikkahub.data.model.resolveToolCallKeepMessagesLimit
 import me.rerere.rikkahub.data.skills.SkillsRepository
 import me.rerere.rikkahub.data.skills.buildSkillsCatalogPrompt
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -73,17 +73,17 @@ sealed interface GenerationChunk {
 
 internal fun List<UIMessage>.prepareMessagesForGeneration(
     contextMessageSize: Int,
-    toolCallKeepRoundsLimit: Int?,
+    toolCallKeepMessagesLimit: Int?,
 ): List<UIMessage> {
     val contextLimitedMessages = limitContext(contextMessageSize)
-    if (toolCallKeepRoundsLimit == null || contextLimitedMessages.isEmpty()) {
+    if (toolCallKeepMessagesLimit == null || contextLimitedMessages.isEmpty()) {
         return contextLimitedMessages
     }
 
     val lastMessage = contextLimitedMessages.last()
     val isActiveToolChain = lastMessage.role == MessageRole.ASSISTANT && lastMessage.getTools().isNotEmpty()
     if (!isActiveToolChain) {
-        return contextLimitedMessages.limitToolCallRounds(toolCallKeepRoundsLimit)
+        return contextLimitedMessages.limitToolCallsByRecentMessages(toolCallKeepMessagesLimit)
     }
 
     val currentTurnStartIndex = contextLimitedMessages.indexOfLast { it.role == MessageRole.USER }
@@ -92,9 +92,11 @@ internal fun List<UIMessage>.prepareMessagesForGeneration(
     }
 
     // Keep the in-flight tool turn intact so the next model step still sees earlier tool outputs.
+    val currentTurnMessages = contextLimitedMessages.subList(currentTurnStartIndex, contextLimitedMessages.size)
+    val historyToolKeepMessages = (toolCallKeepMessagesLimit - currentTurnMessages.size).coerceAtLeast(0)
     return contextLimitedMessages.subList(0, currentTurnStartIndex)
-        .limitToolCallRounds(toolCallKeepRoundsLimit) +
-        contextLimitedMessages.subList(currentTurnStartIndex, contextLimitedMessages.size)
+        .limitToolCallsByRecentMessages(historyToolKeepMessages) +
+        currentTurnMessages
 }
 
 class GenerationHandler(
@@ -543,7 +545,7 @@ class GenerationHandler(
     ): List<UIMessage> {
         val preparedMessages = messages.prepareMessagesForGeneration(
             contextMessageSize = assistant.contextMessageSize,
-            toolCallKeepRoundsLimit = assistant.resolveToolCallKeepRoundsLimit(),
+            toolCallKeepMessagesLimit = assistant.resolveToolCallKeepMessagesLimit(),
         )
 
         return buildList {

@@ -422,6 +422,7 @@
   <string name="setting_display_page_amoled_dark_mode_title">AMOLED 暗色模式</string>
   <string name="setting_display_page_auto_collapse_thinking_desc">思考完成自动折叠思考内容</string>
   <string name="setting_display_page_auto_collapse_thinking_title">自动折叠思考</string>
+  <string name="setting_display_page_chat_font_family_custom">自定义</string>
   <string name="setting_display_page_chat_list_model_icon_desc">是否在聊天列表消息中显示模型图标</string>
   <string name="setting_display_page_chat_list_model_icon_title">聊天列表模型图标</string>
   <string name="setting_display_page_code_block_auto_collapse_desc">默认自动折叠代码块</string>
@@ -432,6 +433,12 @@
   <string name="setting_display_page_create_new_conversation_on_start_title">启动时新建对话</string>
   <string name="setting_display_page_developer_mode">开发者模式</string>
   <string name="setting_display_page_developer_mode_desc">显示更多调试功能,不建议普通用户使用。</string>
+  <string name="setting_display_page_custom_font_import">导入自定义字体</string>
+  <string name="setting_display_page_custom_font_import_failed">导入字体失败：%1$s</string>
+  <string name="setting_display_page_custom_font_import_success">自定义字体已导入</string>
+  <string name="setting_display_page_custom_font_not_imported">未导入自定义字体。支持 .ttf、.otf 和 .ttc 文件。</string>
+  <string name="setting_display_page_custom_font_remove">移除自定义字体</string>
+  <string name="setting_display_page_custom_font_title">自定义字体</string>
   <string name="setting_display_page_enable_message_generation_haptic_effect_desc">消息生成时启用触觉反馈效果</string>
   <string name="setting_display_page_enable_message_generation_haptic_effect_title">消息生成触觉反馈</string>
   <string name="setting_display_page_font_size_preview">凌晨四点钟，看到海棠花未眠。我常常这样，在无人的夜里独自醒着，想，若有人此刻也在想我，那就好了。</string>
@@ -895,6 +902,26 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_files_page_no_files">无文件</string>
   <string name="setting_files_page_folder_upload">上传</string>
   <string name="setting_files_page_delete_content_description">删除</string>
+  <string name="setting_files_page_open_failed_toast">无法打开文件</string>
+  <string name="setting_files_page_storage_overview">存储概览</string>
+  <string name="setting_files_page_total_size">总占用</string>
+  <string name="setting_files_page_total_files">文件数</string>
+  <string name="setting_files_page_largest_file">最大文件</string>
+  <string name="setting_files_page_missing_files">缺失文件</string>
+  <string name="setting_files_page_distribution">按类型占用</string>
+  <string name="setting_files_page_category_all">全部</string>
+  <string name="setting_files_page_category_images">图片</string>
+  <string name="setting_files_page_category_videos">视频</string>
+  <string name="setting_files_page_category_audio">音频</string>
+  <string name="setting_files_page_category_documents">文档</string>
+  <string name="setting_files_page_category_other">其他</string>
+  <string name="setting_files_page_sort_newest">最新</string>
+  <string name="setting_files_page_sort_largest">最大</string>
+  <string name="setting_files_page_sort_name">名称</string>
+  <string name="setting_files_page_table_file">文件</string>
+  <string name="setting_files_page_table_size">大小</string>
+  <string name="setting_files_page_missing">磁盘文件缺失</string>
+  <string name="setting_files_page_no_matching_files">此分类下暂无文件</string>
   <string name="setting_page_web_server_enable">启用嵌入式网络服务器</string>
   <string name="setting_display_page_enable_latex_rendering_title">启用 LaTeX 渲染</string>
   <string name="setting_display_page_enable_latex_rendering_desc">使用 LaTeX 语法渲染数学表达式和公式</string>
@@ -1720,10 +1747,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_sampling_desc_google">作为 generationConfig 的一部分发送到 Gemini 或兼容 Vertex 的后端。</string>
   <string name="assistant_page_sampling_desc_claude">作为 Anthropic Messages API 字段发送。</string>
   <string name="assistant_page_sampling_desc_compat">仅使用所选后端支持的字段。</string>
-  <string name="assistant_page_tool_call_keep_rounds">工具调用保留轮次</string>
-  <string name="assistant_page_tool_call_keep_rounds_desc">控制最近多少轮已执行的工具调用及其结果会保留在上下文中。更早的工具调用轨迹会被移除，但普通聊天消息会保留。</string>
-  <string name="assistant_page_tool_call_keep_rounds_count">已保留工具调用轮次: %d</string>
-  <string name="assistant_page_tool_call_keep_rounds_unlimited">工具调用轮次无限制</string>
+  <string name="assistant_page_tool_call_keep_rounds">保留消息内工具调用</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">控制最近多少条消息内的工具调用及结果会保留在上下文中。更早消息中的工具调用轨迹会被移除，但普通聊天内容会保留。</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">保留最近 %d 条消息内的工具调用</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">所有消息内的工具调用均保留</string>
   <string name="setting_provider_page_import_service_account_json">导入服务账号 JSON</string>
   <string name="reasoning_xhigh">超高</string>
   <string name="reasoning_picker_title">调整模型思考深度</string>
@@ -1839,7 +1866,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="skills_page_skill_content_label">SKILL.md内容</string>
   <string name="skills_page_skill_name">技能名称：%s</string>
   <string name="skills_page_title">代理技能</string>
-
   <string name="assistant_page_allow_conversation_prompt_injection">独立对话提示词注入</string>
   <string name="assistant_page_allow_conversation_prompt_injection_desc">允许每个对话单独绑定提示词注入和世界书</string>
   <string name="setting_page_theme_setting_desc">自定义应用配色方案</string>
@@ -1862,3 +1888,4 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_theme_page_delete_theme_title">删除主题</string>
   <string name="setting_theme_page_delete_theme_message">确定要删除此主题吗？</string>
 </resources>
+

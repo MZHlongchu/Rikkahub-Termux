@@ -1713,10 +1713,10 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_mcp_page_stdio_env_value">변수값</string>
   <string name="setting_mcp_page_stdio_env_value_placeholder">예: sk-***</string>
   <string name="setting_mcp_page_stdio_add_env">변수 추가</string>
-  <string name="assistant_page_tool_call_keep_rounds">유지할 도구 호출 라운드</string>
-  <string name="assistant_page_tool_call_keep_rounds_desc">최근 실행된 도구 호출과 그 결과를 컨텍스트에 몇 라운드 유지할지 제어합니다. 더 오래된 도구 실행 기록은 제거되지만 일반 채팅 메시지는 유지됩니다.</string>
-  <string name="assistant_page_tool_call_keep_rounds_count">유지되는 도구 호출 라운드: %d</string>
-  <string name="assistant_page_tool_call_keep_rounds_unlimited">도구 호출 라운드 무제한</string>
+  <string name="assistant_page_tool_call_keep_rounds">최근 메시지의 도구 호출</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">최근 몇 개 메시지 안의 도구 호출과 결과를 컨텍스트에 유지할지 제어합니다. 그보다 오래된 도구 기록은 제거되지만 일반 채팅 내용은 유지됩니다.</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">최근 %d개 메시지의 도구 호출 유지</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">모든 메시지의 도구 호출 유지</string>
   <string name="setting_provider_page_import_service_account_json">서비스 계정 JSON 가져오기</string>
   <string name="reasoning_xhigh">XHigh</string>
   <string name="reasoning_picker_title">모델 사고 깊이 조정</string>
@@ -1839,7 +1839,6 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="skills_page_skill_content_label">SKILL.md 콘텐츠</string>
   <string name="skills_page_skill_name">스킬 이름: %s</string>
   <string name="skills_page_title">에이전트 스킬</string>
-
   <string name="assistant_page_allow_conversation_prompt_injection">대화별 프롬프트 주입</string>
   <string name="assistant_page_allow_conversation_prompt_injection_desc">각 대화가 자체 프롬프트 주입 및 로어북을 바인딩할 수 있도록 허용</string>
   <string name="setting_page_theme_setting_desc">앱 색상 구성 사용자 지정</string>
@@ -1861,4 +1860,11 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_theme_page_import_success">테마를 가져왔습니다</string>
   <string name="setting_theme_page_delete_theme_title">테마 삭제</string>
   <string name="setting_theme_page_delete_theme_message">이 테마를 삭제하시겠습니까?</string>
+  <string name="setting_display_page_chat_font_family_custom">사용자 지정</string>
+  <string name="setting_display_page_custom_font_import">사용자 지정 글꼴 가져오기</string>
+  <string name="setting_display_page_custom_font_import_failed">폰트 가져오기 실패: %1$s</string>
+  <string name="setting_display_page_custom_font_import_success">사용자 지정 글꼴이 가져와졌습니다</string>
+  <string name="setting_display_page_custom_font_not_imported">사용자 지정 글꼴이 가져와지지 않았습니다. .ttf, .otf, .ttc 파일을 지원합니다.</string>
+  <string name="setting_display_page_custom_font_remove">사용자 지정 글꼴 제거</string>
+  <string name="setting_display_page_custom_font_title">사용자 지정 글꼴</string>
 </resources>

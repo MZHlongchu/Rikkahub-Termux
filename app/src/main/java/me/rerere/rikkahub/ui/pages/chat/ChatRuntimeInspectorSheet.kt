@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,21 +24,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -50,7 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -114,38 +111,45 @@ internal fun ChatRuntimeInspectorSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        dragHandle = null,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
-                .padding(horizontal = 16.dp),
+                .fillMaxHeight(0.95f)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             InspectorHeader(
                 state = state,
                 onRefresh = onRefresh,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             InspectorTabs(
                 activeTab = activeTab,
                 onSelect = { activeTab = it },
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            when (activeTab) {
-                ChatRuntimeInspectorTab.PROMPTS -> PromptInspectorContent(
-                    state = state,
-                    onRefresh = onRefresh,
-                )
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                when (activeTab) {
+                    ChatRuntimeInspectorTab.PROMPTS -> PromptInspectorContent(
+                        state = state,
+                        onRefresh = onRefresh,
+                    )
 
-                ChatRuntimeInspectorTab.VARIABLES -> VariableInspectorContent(
-                    state = state,
-                    onRefresh = onRefresh,
-                )
+                    ChatRuntimeInspectorTab.VARIABLES -> VariableInspectorContent(
+                        state = state,
+                        onRefresh = onRefresh,
+                    )
 
-                ChatRuntimeInspectorTab.PAYLOAD -> PayloadInspectorContent(
-                    state = state,
-                    onRefresh = onRefresh,
-                )
+                    ChatRuntimeInspectorTab.PAYLOAD -> PayloadInspectorContent(
+                        state = state,
+                        onRefresh = onRefresh,
+                    )
+                }
             }
         }
     }
@@ -158,56 +162,37 @@ private fun InspectorHeader(
 ) {
     val summary = (state as? UiState.Success)?.data
 
-    LuneSection(
+    Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = "运行时检查",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = summary?.let {
-                            "${it.assistantName} · ${it.characterName}"
-                        } ?: "Dry-run 当前会话，不会发出真实请求。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                InspectorIconAction(
-                    icon = HugeIcons.Refresh01,
-                    contentDescription = "刷新运行时预览",
-                    onClick = onRefresh,
-                )
-            }
-
-            summary?.let {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    InspectorMetricPill(label = "Model", value = it.modelName)
-                    InspectorMetricPill(label = "Preset", value = it.presetName)
-                    InspectorMetricPill(label = "Mode", value = it.generationType)
-                    InspectorMetricPill(label = "Msgs", value = it.promptMessages.size.toString())
-                    InspectorMetricPill(label = "Tokens", value = it.promptTokenEstimate.toString())
-                }
-            }
+            Text(
+                text = "运行时检查",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = summary?.let {
+                    "${it.assistantName} · ${it.characterName} · ${it.modelName}"
+                } ?: "Dry-run 当前会话，不会发出真实请求。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+        InspectorIconAction(
+            icon = HugeIcons.Refresh01,
+            contentDescription = "刷新运行时预览",
+            onClick = onRefresh,
+        )
     }
 }
 
@@ -216,25 +201,151 @@ private fun InspectorTabs(
     activeTab: ChatRuntimeInspectorTab,
     onSelect: (ChatRuntimeInspectorTab) -> Unit,
 ) {
-    SecondaryScrollableTabRow(
-        selectedTabIndex = activeTab.ordinal,
-        containerColor = Color.Transparent,
-        edgePadding = 0.dp,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ChatRuntimeInspectorTab.entries.forEach { tab ->
-            Tab(
+            InspectorTabChip(
                 selected = activeTab == tab,
                 onClick = { onSelect(tab) },
-                text = {
-                    Text(
-                        text = when (tab) {
-                            ChatRuntimeInspectorTab.PROMPTS -> "Prompts"
-                            ChatRuntimeInspectorTab.VARIABLES -> "Variables"
-                            ChatRuntimeInspectorTab.PAYLOAD -> "Payload"
-                        }
-                    )
+                label = when (tab) {
+                    ChatRuntimeInspectorTab.PROMPTS -> "Prompts"
+                    ChatRuntimeInspectorTab.VARIABLES -> "Variables"
+                    ChatRuntimeInspectorTab.PAYLOAD -> "Payload"
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun InspectorTabChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+) {
+    InspectorSegmentChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        selectedContainerAlpha = 0.16f,
+    )
+}
+
+@Composable
+private fun InspectorSegmentChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    selectedContainerAlpha: Float = 0.12f,
+) {
+    val tint = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = selectedContainerAlpha)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
+    } else {
+        luneGlassBorderColor().copy(alpha = 0.7f)
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+    ) {
+        Box(
+            modifier = Modifier
+                .clickable(
+                    role = Role.Button,
+                    onClick = onClick,
+                )
+                .heightIn(min = 32.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = tint,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun InspectorSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, luneGlassBorderColor().copy(alpha = 0.7f)),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = HugeIcons.Search01,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(
+                modifier = Modifier.weight(1f),
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                )
+                if (value.isBlank()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (value.isNotBlank()) {
+                InspectorInlineIcon(
+                    icon = HugeIcons.Cancel01,
+                    contentDescription = "清空搜索",
+                    onClick = onClear,
+                )
+            }
         }
     }
 }
@@ -279,92 +390,60 @@ private fun PromptInspectorLoaded(
     Column(
         modifier = Modifier.fillMaxSize(),
     ) {
-        LuneSection(
+        Column(
             modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "Prompt Stack",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "可读提示词视图，不含思维链字段；精确请求看 Payload · 约 ${inspection.promptTokenEstimate} tokens · ${filteredMessages.size}/${inspection.promptMessages.size} 条消息",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    InspectorIconAction(
-                        icon = HugeIcons.Copy01,
-                        contentDescription = "复制提示词",
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(
-                                    ClipEntry(
-                                        ClipData.newPlainText(
-                                            "prompt_preview",
-                                            promptMessagesToClipboardText(filteredMessages),
-                                        )
+                    Text(
+                        text = "Prompt Stack",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "约 ${inspection.promptTokenEstimate} tokens · ${filteredMessages.size}/${inspection.promptMessages.size} 条消息",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                InspectorIconAction(
+                    icon = HugeIcons.Copy01,
+                    contentDescription = "复制提示词",
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(
+                                    ClipData.newPlainText(
+                                        "prompt_preview",
+                                        promptMessagesToClipboardText(filteredMessages),
                                     )
                                 )
-                                toaster.show("已复制提示词", type = ToastType.Success)
-                            }
-                        },
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f),
-                    border = BorderStroke(1.dp, luneGlassBorderColor().copy(alpha = 0.7f)),
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp,
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text("搜索角色或正文")
-                        },
-                        singleLine = true,
-                        shape = CircleShape,
-                        leadingIcon = {
-                            Icon(HugeIcons.Search01, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                InspectorInlineIcon(
-                                    icon = HugeIcons.Cancel01,
-                                    contentDescription = "清空搜索",
-                                    onClick = { searchQuery = "" },
-                                )
-                            }
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                        ),
-                    )
-                }
+                            )
+                            toaster.show("已复制提示词", type = ToastType.Success)
+                        }
+                    },
+                )
             }
+
+            InspectorSearchField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = "搜索角色或正文",
+                onClear = { searchQuery = "" },
+            )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         if (filteredMessages.isEmpty()) {
             InspectorEmptyState(
@@ -378,7 +457,7 @@ private fun PromptInspectorLoaded(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             itemsIndexed(
                 items = filteredMessages,
@@ -510,78 +589,72 @@ private fun VariableInspectorLoaded(
     Column(
         modifier = Modifier.fillMaxSize(),
     ) {
-        LuneSection(
+        Column(
             modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "Variable Snapshot",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Local ${inspection.localVariables.size} · Global ${inspection.globalVariables.size} · Context dry-run",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    InspectorIconAction(
-                        icon = HugeIcons.Copy01,
-                        contentDescription = "复制变量 JSON",
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(
-                                    ClipEntry(
-                                        ClipData.newPlainText(
-                                            "variables",
-                                            JsonInstantPretty.encodeToString(currentJson),
-                                        )
-                                    )
-                                )
-                                toaster.show("已复制 JSON", type = ToastType.Success)
-                            }
-                        },
+                    Text(
+                        text = "Variable Snapshot",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Local ${inspection.localVariables.size} · Global ${inspection.globalVariables.size} · Context dry-run",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ChatVariableInspectorTab.entries.forEach { tab ->
-                        FilterChip(
-                            selected = activeTab == tab,
-                            onClick = { activeTab = tab },
-                            label = {
-                                Text(
-                                    when (tab) {
-                                        ChatVariableInspectorTab.LOCAL -> "Local"
-                                        ChatVariableInspectorTab.GLOBAL -> "Global"
-                                        ChatVariableInspectorTab.CONTEXT -> "Context"
-                                    }
+                InspectorIconAction(
+                    icon = HugeIcons.Copy01,
+                    contentDescription = "复制变量 JSON",
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(
+                                    ClipData.newPlainText(
+                                        "variables",
+                                        JsonInstantPretty.encodeToString(currentJson),
+                                    )
                                 )
-                            },
-                            shape = CircleShape,
-                        )
-                    }
+                            )
+                            toaster.show("已复制 JSON", type = ToastType.Success)
+                        }
+                    },
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ChatVariableInspectorTab.entries.forEach { tab ->
+                    InspectorSegmentChip(
+                        selected = activeTab == tab,
+                        onClick = { activeTab = tab },
+                        label = when (tab) {
+                            ChatVariableInspectorTab.LOCAL -> "Local"
+                            ChatVariableInspectorTab.GLOBAL -> "Global"
+                            ChatVariableInspectorTab.CONTEXT -> "Context"
+                        },
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         if (currentJson.isEmpty()) {
             InspectorEmptyState(
@@ -643,71 +716,54 @@ private fun PayloadInspectorLoaded(
     Column(
         modifier = Modifier.fillMaxSize(),
     ) {
-        LuneSection(
+        Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "Provider Payload",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "${payload.providerName} · ${payload.apiName}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    InspectorIconAction(
-                        icon = HugeIcons.Copy01,
-                        contentDescription = "复制完整请求",
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(
-                                    ClipEntry(
-                                        ClipData.newPlainText(
-                                            "provider_payload",
-                                            payloadToClipboardText(payload),
-                                        )
-                                    )
-                                )
-                                toaster.show("已复制请求预览", type = ToastType.Success)
-                            }
-                        },
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    InspectorMetricPill(label = "Method", value = payload.method)
-                    InspectorMetricPill(label = "Stream", value = if (payload.stream) "on" else "off")
-                    InspectorMetricPill(label = "Headers", value = payload.headers.size.toString())
-                }
+                Text(
+                    text = "Provider Payload",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "${payload.providerName} · ${payload.apiName} · ${payload.method} · ${if (payload.stream) "Stream on" else "Stream off"} · ${payload.headers.size} headers",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+            InspectorIconAction(
+                icon = HugeIcons.Copy01,
+                contentDescription = "复制完整请求",
+                onClick = {
+                    scope.launch {
+                        clipboard.setClipEntry(
+                            ClipEntry(
+                                ClipData.newPlainText(
+                                    "provider_payload",
+                                    payloadToClipboardText(payload),
+                                )
+                            )
+                        )
+                        toaster.show("已复制请求预览", type = ToastType.Success)
+                    }
+                },
+            )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             PayloadEndpointSection(payload = payload)
             PayloadHeadersSection(payload = payload)
@@ -948,27 +1004,6 @@ private fun InspectorStatePanel(
 }
 
 @Composable
-private fun InspectorMetricPill(
-    label: String,
-    value: String,
-) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, luneGlassBorderColor().copy(alpha = 0.7f)),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
-        Text(
-            text = "$label  $value",
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelMedium,
-            fontFamily = JetbrainsMono,
-        )
-    }
-}
-
-@Composable
 private fun InspectorIconAction(
     icon: ImageVector,
     contentDescription: String,
@@ -988,7 +1023,7 @@ private fun InspectorIconAction(
                     onClickLabel = contentDescription,
                     onClick = onClick,
                 )
-                .padding(10.dp),
+                .padding(8.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

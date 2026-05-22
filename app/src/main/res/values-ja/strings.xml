@@ -1713,10 +1713,10 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_mcp_page_stdio_env_value">変数値</string>
   <string name="setting_mcp_page_stdio_env_value_placeholder">例：sk-***</string>
   <string name="setting_mcp_page_stdio_add_env">変数を追加</string>
-  <string name="assistant_page_tool_call_keep_rounds">保持するツール呼び出しラウンド</string>
-  <string name="assistant_page_tool_call_keep_rounds_desc">最近実行されたツール呼び出しとその結果をコンテキストに何ラウンド残すかを制御します。古いツール実行の履歴は削除されますが、通常のチャットメッセージは残ります。</string>
-  <string name="assistant_page_tool_call_keep_rounds_count">保持するツール呼び出しラウンド: %d</string>
-  <string name="assistant_page_tool_call_keep_rounds_unlimited">ツール呼び出しラウンドは無制限</string>
+  <string name="assistant_page_tool_call_keep_rounds">最近のメッセージ内のツール呼び出し</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">直近何件のメッセージ内のツール呼び出しと結果をコンテキストに残すかを制御します。それより古いツール履歴は削除されますが、通常のチャット内容は残ります。</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">直近 %d 件のメッセージ内のツール呼び出しを保持</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">すべてのメッセージのツール呼び出しを保持</string>
   <string name="setting_provider_page_import_service_account_json">サービスアカウントJSONをインポート</string>
   <string name="reasoning_xhigh">XHigh</string>
   <string name="reasoning_picker_title">モデルの思考深度を調整</string>
@@ -1839,7 +1839,6 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="skills_page_skill_content_label">SKILL.mdコンテンツ</string>
   <string name="skills_page_skill_name">スキル名: %s</string>
   <string name="skills_page_title">エージェントスキル</string>
-
   <string name="assistant_page_allow_conversation_prompt_injection">会話別プロンプトインジェクション</string>
   <string name="assistant_page_allow_conversation_prompt_injection_desc">会話ごとにプロンプトインジェクションとロアブックを個別にバインド可能にする</string>
   <string name="setting_page_theme_setting_desc">アプリの配色をカスタマイズ</string>
@@ -1861,4 +1860,11 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_theme_page_import_success">テーマが正常にインポートされました</string>
   <string name="setting_theme_page_delete_theme_title">テーマを削除</string>
   <string name="setting_theme_page_delete_theme_message">このテーマを削除してもよろしいですか？</string>
+  <string name="setting_display_page_chat_font_family_custom">カスタム</string>
+  <string name="setting_display_page_custom_font_import">カスタムフォントをインポート</string>
+  <string name="setting_display_page_custom_font_import_failed">フォントのインポートに失敗しました: %1$s</string>
+  <string name="setting_display_page_custom_font_import_success">カスタムフォントをインポートしました</string>
+  <string name="setting_display_page_custom_font_not_imported">カスタムフォントがインポートされていません。.ttf、.otf、.ttcファイルに対応しています。</string>
+  <string name="setting_display_page_custom_font_remove">カスタムフォントを削除</string>
+  <string name="setting_display_page_custom_font_title">カスタムフォント</string>
 </resources>
