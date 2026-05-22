@@ -11,7 +11,7 @@ import org.junit.Test
 class GenerationHandlerMessageRetentionTest {
 
     @Test
-    fun `prepareMessagesForGeneration should preserve current tool chain while pruning earlier rounds`() {
+    fun `prepareMessagesForGeneration should preserve current tool chain while pruning older tool calls`() {
         val messages = listOf(
             UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("First turn"))),
             UIMessage(
@@ -45,7 +45,7 @@ class GenerationHandlerMessageRetentionTest {
 
         val result = messages.prepareMessagesForGeneration(
             contextMessageSize = 4,
-            toolCallKeepRoundsLimit = 0,
+            toolCallKeepMessagesLimit = 1,
         )
 
         assertEquals(4, result.size)
@@ -54,7 +54,7 @@ class GenerationHandlerMessageRetentionTest {
     }
 
     @Test
-    fun `prepareMessagesForGeneration should backtrack context before pruning tool rounds`() {
+    fun `prepareMessagesForGeneration should backtrack context before pruning tool calls by message count`() {
         val messages = listOf(
             UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("First turn"))),
             UIMessage(
@@ -76,7 +76,7 @@ class GenerationHandlerMessageRetentionTest {
 
         val result = messages.prepareMessagesForGeneration(
             contextMessageSize = 3,
-            toolCallKeepRoundsLimit = 0,
+            toolCallKeepMessagesLimit = 1,
         )
 
         assertEquals(4, result.size)

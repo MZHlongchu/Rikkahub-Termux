@@ -1747,10 +1747,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_sampling_desc_google">作为 generationConfig 的一部分发送到 Gemini 或兼容 Vertex 的后端。</string>
   <string name="assistant_page_sampling_desc_claude">作为 Anthropic Messages API 字段发送。</string>
   <string name="assistant_page_sampling_desc_compat">仅使用所选后端支持的字段。</string>
-  <string name="assistant_page_tool_call_keep_rounds">工具调用保留轮次</string>
-  <string name="assistant_page_tool_call_keep_rounds_desc">控制最近多少轮已执行的工具调用及其结果会保留在上下文中。更早的工具调用轨迹会被移除，但普通聊天消息会保留。</string>
-  <string name="assistant_page_tool_call_keep_rounds_count">已保留工具调用轮次: %d</string>
-  <string name="assistant_page_tool_call_keep_rounds_unlimited">工具调用轮次无限制</string>
+  <string name="assistant_page_tool_call_keep_rounds">保留消息内工具调用</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">控制最近多少条消息内的工具调用及结果会保留在上下文中。更早消息中的工具调用轨迹会被移除，但普通聊天内容会保留。</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">保留最近 %d 条消息内的工具调用</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">所有消息内的工具调用均保留</string>
   <string name="setting_provider_page_import_service_account_json">导入服务账号 JSON</string>
   <string name="reasoning_xhigh">超高</string>
   <string name="reasoning_picker_title">调整模型思考深度</string>

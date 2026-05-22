@@ -80,6 +80,12 @@ object SettingsJsonMigrator {
                 }
             }
 
+            // V5: 将工具调用保留设置从“轮次”改为“最近消息数”
+            root["assistants"]?.let { element ->
+                val migrated = migrateAssistantToolCallKeepMessages(JsonInstant.encodeToString(element))
+                root["assistants"] = JsonInstant.parseToJsonElement(migrated)
+            }
+
             JsonInstant.encodeToString(JsonObject(root))
         }.onFailure {
             Log.e(TAG, "migrate: Failed to migrate settings JSON, using original", it)

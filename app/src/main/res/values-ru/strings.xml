@@ -1713,10 +1713,10 @@
   <string name="setting_mcp_page_stdio_env_value">Значение переменной</string>
   <string name="setting_mcp_page_stdio_env_value_placeholder">например: sk-***</string>
   <string name="setting_mcp_page_stdio_add_env">Добавить переменную</string>
-  <string name="assistant_page_tool_call_keep_rounds">Раунды вызова инструментов для сохранения</string>
-  <string name="assistant_page_tool_call_keep_rounds_desc">Определяет, сколько последних раундов выполненных вызовов инструментов и их результатов сохраняется в контексте. Более старые следы вызовов удаляются, но обычные сообщения чата остаются.</string>
-  <string name="assistant_page_tool_call_keep_rounds_count">Сохранено раундов вызова инструментов: %d</string>
-  <string name="assistant_page_tool_call_keep_rounds_unlimited">Раунды вызова инструментов без ограничений</string>
+  <string name="assistant_page_tool_call_keep_rounds">Вызовы инструментов в недавних сообщениях</string>
+  <string name="assistant_page_tool_call_keep_rounds_desc">Определяет, в скольких недавних сообщениях вызовы инструментов и их результаты остаются в контексте. Более старые следы инструментов удаляются, а обычный текст чата сохраняется.</string>
+  <string name="assistant_page_tool_call_keep_rounds_count">Вызовы инструментов сохраняются в недавних сообщениях: %d</string>
+  <string name="assistant_page_tool_call_keep_rounds_unlimited">Вызовы инструментов сохраняются для всех сообщений</string>
   <string name="setting_provider_page_import_service_account_json">Импорт JSON-файла служебной учётной записи</string>
   <string name="reasoning_xhigh">Очень высокий</string>
   <string name="reasoning_picker_title">Настроить глубину мышления модели</string>
@@ -1839,7 +1839,6 @@
   <string name="skills_page_skill_content_label">Содержимое SKILL.md</string>
   <string name="skills_page_skill_name">Название навыка: %s</string>
   <string name="skills_page_title">Навыки агента</string>
-
   <string name="assistant_page_allow_conversation_prompt_injection">Промпт-инъекции для каждой беседы</string>
   <string name="assistant_page_allow_conversation_prompt_injection_desc">Разрешить каждой беседе привязывать собственные промпт-инъекции и лорбуки</string>
   <string name="setting_page_theme_setting_desc">Настроить цветовую схему приложения</string>
