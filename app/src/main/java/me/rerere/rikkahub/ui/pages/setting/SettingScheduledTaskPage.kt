@@ -70,6 +70,7 @@ import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Trash2
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.LocalToolCatalog
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getAssistantById
@@ -84,6 +85,7 @@ import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionNotification
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
+import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.utils.toLocalDateTime
 import me.rerere.search.SearchServiceOptions
 import java.time.DayOfWeek
@@ -110,6 +112,7 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val navController = LocalNavController.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var editingTask by remember { mutableStateOf<ScheduledPromptTask?>(null) }
     var exactAlarmGranted by remember { mutableStateOf(context.canScheduleExactAlarmsCompat()) }
@@ -307,6 +310,20 @@ fun SettingScheduledTaskPage(vm: SettingVM = org.koin.androidx.compose.koinViewM
                         supportingContent = {
                             val enabledCount = settings.scheduledTasks.count { it.enabled }
                             Text(stringResource(R.string.assistant_schedule_summary_desc, enabledCount))
+                        }
+                    )
+                }
+            }
+
+            item {
+                Card(
+                    onClick = { navController.navigate(Screen.ScheduledTaskRuns) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.scheduled_task_runs_title)) },
+                        leadingContent = {
+                            Icon(Lucide.Clock, contentDescription = null)
                         }
                     )
                 }
