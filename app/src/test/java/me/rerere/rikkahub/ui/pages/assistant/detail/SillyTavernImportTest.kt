@@ -28,7 +28,7 @@ class SillyTavernImportTest {
         assertEquals(MessageRole.ASSISTANT, payload.assistant.presetMessages.single().role)
         assertEquals("Hello there", payload.assistant.presetMessages.single().toText())
         assertEquals(
-            "Stay concise\n\nA careful assistant\n\nKind\n\nLibrary",
+            upstreamCharacterPrompt(),
             payload.assistant.systemPrompt,
         )
 
@@ -54,8 +54,33 @@ class SillyTavernImportTest {
         )
 
         assertEquals(
-            "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}." +
-                "\n\nA careful assistant\n\nKind\n\nLibrary",
+            upstreamCharacterPrompt(systemPrompt = null),
+            payload.assistant.systemPrompt,
+        )
+    }
+
+    @Test
+    fun `character card without definition fields should use upstream empty sections`() {
+        val payload = parseAssistantImportFromJson(
+            jsonString = """
+                {
+                  "spec": "chara_card_v2",
+                  "spec_version": "2.0",
+                  "data": {
+                    "name": "Alice"
+                  }
+                }
+            """.trimIndent(),
+            sourceName = "alice-card",
+        )
+
+        assertEquals(
+            upstreamCharacterPrompt(
+                systemPrompt = null,
+                description = null,
+                personality = null,
+                scenario = null,
+            ),
             payload.assistant.systemPrompt,
         )
     }
@@ -163,7 +188,7 @@ class SillyTavernImportTest {
 
         assertEquals(current.id, skippedRegexes.id)
         assertEquals("Alice", skippedRegexes.name)
-        assertEquals("Stay concise\n\nA careful assistant\n\nKind\n\nLibrary", skippedRegexes.systemPrompt)
+        assertEquals(upstreamCharacterPrompt(), skippedRegexes.systemPrompt)
         assertNotNull(skippedRegexes.stCharacterData)
         assertEquals(1, skippedRegexes.regexes.size)
         assertEquals("Existing", skippedRegexes.regexes.single().name)
@@ -231,5 +256,29 @@ class SillyTavernImportTest {
               }
             }
         """.trimIndent()
+    }
+
+    private fun upstreamCharacterPrompt(
+        systemPrompt: String? = "Stay concise",
+        description: String? = "A careful assistant",
+        personality: String? = "Kind",
+        scenario: String? = "Library",
+    ): String {
+        return buildString {
+            appendLine("You are roleplaying as Alice.")
+            appendLine()
+            if (!systemPrompt.isNullOrBlank()) {
+                appendLine(systemPrompt)
+                appendLine()
+            }
+            appendLine("## Description of the character")
+            appendLine(description ?: "Empty")
+            appendLine()
+            appendLine("## Personality of the character")
+            appendLine(personality ?: "Empty")
+            appendLine()
+            appendLine("## Scenario")
+            append(scenario ?: "Empty")
+        }
     }
 }

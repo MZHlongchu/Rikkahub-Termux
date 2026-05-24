@@ -20,6 +20,10 @@ internal fun parseCharacterCardImport(
     val data = json["data"]?.jsonObject ?: error("Missing card data")
     val name = data["name"]?.jsonPrimitiveOrNull?.contentOrNull ?: error("Missing card name")
     val firstMessage = data["first_mes"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
+    val system = data["system_prompt"]?.jsonPrimitiveOrNull?.contentOrNull
+    val description = data["description"]?.jsonPrimitiveOrNull?.contentOrNull
+    val personality = data["personality"]?.jsonPrimitiveOrNull?.contentOrNull
+    val scenario = data["scenario"]?.jsonPrimitiveOrNull?.contentOrNull
     val characterData = parseCharacterData(data, sourceName)
     val regexes = parseRegexScripts(
         element = data["extensions"]?.jsonObjectOrNull()?.get("regex_scripts"),
@@ -32,7 +36,13 @@ internal fun parseCharacterCardImport(
         assistant = Assistant(
             name = name,
             avatar = Avatar.Dummy,
-            systemPrompt = characterData.toAssistantSystemPrompt(),
+            systemPrompt = buildAssistantSystemPrompt(
+                name = name,
+                system = system,
+                description = description,
+                personality = personality,
+                scenario = scenario,
+            ),
             presetMessages = firstMessage
                 .takeIf { it.isNotBlank() }
                 ?.let { listOf(UIMessage.assistant(it)) }
@@ -44,26 +54,29 @@ internal fun parseCharacterCardImport(
     )
 }
 
-private const val DEFAULT_CHARACTER_SYSTEM_PROMPT =
-    "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}."
-
-private fun SillyTavernCharacterData.toAssistantSystemPrompt(): String {
-    val characterDefinitionBlocks = listOf(
-        description,
-        personality,
-        scenario,
-    ).mapNotNull { value ->
-        value.trim().takeIf { it.isNotBlank() }
-    }
-    val mainPrompt = systemPromptOverride
-        .trim()
-        .ifBlank {
-            DEFAULT_CHARACTER_SYSTEM_PROMPT.takeIf { characterDefinitionBlocks.isNotEmpty() }.orEmpty()
+private fun buildAssistantSystemPrompt(
+    name: String,
+    system: String?,
+    description: String?,
+    personality: String?,
+    scenario: String?,
+): String {
+    return buildString {
+        appendLine("You are roleplaying as $name.")
+        appendLine()
+        if (!system.isNullOrBlank()) {
+            appendLine(system)
+            appendLine()
         }
-
-    return (listOf(mainPrompt) + characterDefinitionBlocks)
-        .filter { it.isNotBlank() }
-        .joinToString("\n\n")
+        appendLine("## Description of the character")
+        appendLine(description ?: "Empty")
+        appendLine()
+        appendLine("## Personality of the character")
+        appendLine(personality ?: "Empty")
+        appendLine()
+        appendLine("## Scenario")
+        append(scenario ?: "Empty")
+    }
 }
 
 private fun parseCharacterData(
