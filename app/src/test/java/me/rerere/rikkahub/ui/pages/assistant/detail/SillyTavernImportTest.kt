@@ -27,6 +27,10 @@ class SillyTavernImportTest {
         assertEquals("content://avatar", payload.avatarImportSourceUri)
         assertEquals(MessageRole.ASSISTANT, payload.assistant.presetMessages.single().role)
         assertEquals("Hello there", payload.assistant.presetMessages.single().toText())
+        assertEquals(
+            "Stay concise\n\nA careful assistant\n\nKind\n\nLibrary",
+            payload.assistant.systemPrompt,
+        )
 
         val character = payload.assistant.stCharacterData
         assertNotNull(character)
@@ -40,6 +44,20 @@ class SillyTavernImportTest {
         assertEquals(listOf("Alt 1", "Alt 2"), character?.alternateGreetings)
         assertEquals("assistant", character?.depthPrompt?.role?.name?.lowercase())
         assertEquals(3, character?.depthPrompt?.depth)
+    }
+
+    @Test
+    fun `character card without system prompt should still create an active assistant prompt`() {
+        val payload = parseAssistantImportFromJson(
+            jsonString = characterCardJson(systemPrompt = null),
+            sourceName = "alice-card",
+        )
+
+        assertEquals(
+            "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}." +
+                "\n\nA careful assistant\n\nKind\n\nLibrary",
+            payload.assistant.systemPrompt,
+        )
     }
 
     @Test
@@ -116,6 +134,7 @@ class SillyTavernImportTest {
         val current = Assistant(
             id = Uuid.random(),
             name = "Old",
+            systemPrompt = "Old prompt",
             regexes = listOf(
                 AssistantRegex(
                     id = Uuid.random(),
@@ -144,6 +163,7 @@ class SillyTavernImportTest {
 
         assertEquals(current.id, skippedRegexes.id)
         assertEquals("Alice", skippedRegexes.name)
+        assertEquals("Stay concise\n\nA careful assistant\n\nKind\n\nLibrary", skippedRegexes.systemPrompt)
         assertNotNull(skippedRegexes.stCharacterData)
         assertEquals(1, skippedRegexes.regexes.size)
         assertEquals("Existing", skippedRegexes.regexes.single().name)
@@ -170,7 +190,11 @@ class SillyTavernImportTest {
         )
     }
 
-    private fun characterCardJson(extraData: String = ""): String {
+    private fun characterCardJson(
+        extraData: String = "",
+        systemPrompt: String? = "Stay concise",
+    ): String {
+        val systemPromptField = systemPrompt?.let { """"system_prompt": "$it",""" }.orEmpty()
         return """
             {
               "spec": "chara_card_v2",
@@ -183,7 +207,7 @@ class SillyTavernImportTest {
                 "first_mes": "Hello there",
                 "mes_example": "<START>\nAlice: Hi",
                 "creator_notes": "Imported note",
-                "system_prompt": "Stay concise",
+                $systemPromptField
                 "post_history_instructions": "Remember context",
                 "alternate_greetings": ["Alt 1", "Alt 2"],
                 "character_version": "1.2",

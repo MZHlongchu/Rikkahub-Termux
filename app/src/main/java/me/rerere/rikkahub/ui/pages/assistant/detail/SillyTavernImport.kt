@@ -133,6 +133,7 @@ internal fun applyImportedAssistantForCreate(
     val assistant = currentAssistant.copy(
         name = payload.assistant.name.ifBlank { currentAssistant.name },
         avatar = (payload.assistant.avatar as? Avatar.Image) ?: currentAssistant.avatar,
+        systemPrompt = payload.assistant.systemPrompt.ifBlank { currentAssistant.systemPrompt },
         presetMessages = payload.assistant.presetMessages.ifEmpty { currentAssistant.presetMessages },
         stCharacterData = payload.assistant.stCharacterData ?: currentAssistant.stCharacterData,
         regexes = mergeImportedRegexes(
@@ -157,6 +158,7 @@ internal fun applyImportedAssistantToExisting(
     val nextAssistant = currentAssistant.copy(
         name = payload.assistant.name.ifBlank { currentAssistant.name },
         avatar = (payload.assistant.avatar as? Avatar.Image) ?: currentAssistant.avatar,
+        systemPrompt = payload.assistant.systemPrompt.ifBlank { currentAssistant.systemPrompt },
         presetMessages = payload.assistant.presetMessages.ifEmpty { currentAssistant.presetMessages },
         stCharacterData = payload.assistant.stCharacterData ?: currentAssistant.stCharacterData,
         regexes = mergeImportedRegexes(

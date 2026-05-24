@@ -32,12 +32,38 @@ internal fun parseCharacterCardImport(
         assistant = Assistant(
             name = name,
             avatar = Avatar.Dummy,
-            presetMessages = firstMessage.takeIf { it.isNotBlank() }?.let { listOf(UIMessage.assistant(it)) } ?: emptyList(),
+            systemPrompt = characterData.toAssistantSystemPrompt(),
+            presetMessages = firstMessage
+                .takeIf { it.isNotBlank() }
+                ?.let { listOf(UIMessage.assistant(it)) }
+                ?: emptyList(),
             stCharacterData = characterData,
         ),
         regexes = regexes,
         avatarImportSourceUri = avatarImportSourceUri,
     )
+}
+
+private const val DEFAULT_CHARACTER_SYSTEM_PROMPT =
+    "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}."
+
+private fun SillyTavernCharacterData.toAssistantSystemPrompt(): String {
+    val characterDefinitionBlocks = listOf(
+        description,
+        personality,
+        scenario,
+    ).mapNotNull { value ->
+        value.trim().takeIf { it.isNotBlank() }
+    }
+    val mainPrompt = systemPromptOverride
+        .trim()
+        .ifBlank {
+            DEFAULT_CHARACTER_SYSTEM_PROMPT.takeIf { characterDefinitionBlocks.isNotEmpty() }.orEmpty()
+        }
+
+    return (listOf(mainPrompt) + characterDefinitionBlocks)
+        .filter { it.isNotBlank() }
+        .joinToString("\n\n")
 }
 
 private fun parseCharacterData(
