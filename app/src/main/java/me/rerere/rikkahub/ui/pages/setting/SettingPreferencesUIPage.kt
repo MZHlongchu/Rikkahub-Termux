@@ -53,11 +53,15 @@ import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.context.LocalToaster
+import me.rerere.rikkahub.ui.hooks.rememberCommitOnFinishSliderState
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 import java.io.File
+import kotlin.math.roundToInt
+
+private const val MAX_CODE_BLOCK_RENDER_DEPTH = 100
 
 @Composable
 fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
@@ -381,6 +385,59 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                                     updateDisplaySetting(displaySetting.copy(showLineNumbers = it))
                                 }
                             )
+                        },
+                    )
+                    item(
+                        headlineContent = {
+                            Text(stringResource(R.string.setting_display_page_code_block_render_depth_title))
+                        },
+                        supportingContent = {
+                            Column {
+                                Text(stringResource(R.string.setting_display_page_code_block_render_depth_desc))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    val renderDepthSliderState = rememberCommitOnFinishSliderState(
+                                        displaySetting.codeBlockRenderMaxDepth
+                                            .coerceIn(0, MAX_CODE_BLOCK_RENDER_DEPTH)
+                                            .toFloat()
+                                    )
+                                    Slider(
+                                        value = renderDepthSliderState.value,
+                                        onValueChange = renderDepthSliderState::onValueChange,
+                                        onValueChangeFinished = {
+                                            renderDepthSliderState.onValueChangeFinished(
+                                                externalValue = displaySetting.codeBlockRenderMaxDepth
+                                                    .coerceIn(0, MAX_CODE_BLOCK_RENDER_DEPTH)
+                                                    .toFloat(),
+                                                onValueCommitted = {
+                                                    updateDisplaySetting(
+                                                        displaySetting.copy(codeBlockRenderMaxDepth = it.toInt())
+                                                    )
+                                                },
+                                                normalize = {
+                                                    it.roundToInt()
+                                                        .coerceIn(0, MAX_CODE_BLOCK_RENDER_DEPTH)
+                                                        .toFloat()
+                                                }
+                                            )
+                                        },
+                                        valueRange = 0f..MAX_CODE_BLOCK_RENDER_DEPTH.toFloat(),
+                                        steps = MAX_CODE_BLOCK_RENDER_DEPTH - 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    val renderDepthValue = renderDepthSliderState.value.toInt()
+                                    Text(
+                                        text = if (renderDepthValue > 0) {
+                                            renderDepthValue.toString()
+                                        } else {
+                                            stringResource(R.string.setting_common_no_limit)
+                                        },
+                                    )
+                                }
+                            }
                         },
                     )
                 }
