@@ -1629,7 +1629,7 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_theme_page_tertiary_color">세 번째 색상</string>
   <string name="setting_theme_page_preview">미리보기</string>
   <string name="setting_theme_page_save">저장</string>
-  <string name="setting_theme_page_dynamic_color_hint">동적 색상이 활성화되어 있습니다. 사용자 지정 테마를 사용하려면 디스플레이 설정에서 비활성화하세요.</string>
+  <string name="setting_theme_page_dynamic_color_hint">동적 색상이 활성화되어 있습니다. 사용자 지정 테마를 사용하려면 기본 설정 &gt; 테마에서 비활성화하세요.</string>
   <string name="setting_theme_page_import_theme">가져오기</string>
   <string name="setting_theme_page_export_success">테마 JSON이 클립보드에 복사되었습니다</string>
   <string name="setting_theme_page_import_success">테마를 가져왔습니다</string>
@@ -1642,4 +1642,14 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_display_page_custom_font_not_imported">사용자 지정 글꼴이 가져와지지 않았습니다. .ttf, .otf, .ttc 파일을 지원합니다.</string>
   <string name="setting_display_page_custom_font_remove">사용자 지정 글꼴 제거</string>
   <string name="setting_display_page_custom_font_title">사용자 지정 글꼴</string>
+  <string name="setting_page_preferences">기본 설정</string>
+  <string name="setting_page_preferences_desc">테마, 알림, UI 및 일반 설정</string>
+  <string name="setting_page_preferences_theme">테마</string>
+  <string name="setting_page_preferences_theme_desc">다이나믹 색상, 테마, AMOLED 다크 모드</string>
+  <string name="setting_page_preferences_notification">알림</string>
+  <string name="setting_page_preferences_notification_desc">업데이트 알림, 메시지 생성 알림</string>
+  <string name="setting_page_preferences_general">일반</string>
+  <string name="setting_page_preferences_general_desc">상호작용 방식, 스크롤, 입력 설정</string>
+  <string name="setting_page_preferences_ui">UI 환경설정</string>
+  <string name="setting_page_preferences_ui_desc">메시지 표시, 글꼴, 코드 블록</string>
 </resources>
