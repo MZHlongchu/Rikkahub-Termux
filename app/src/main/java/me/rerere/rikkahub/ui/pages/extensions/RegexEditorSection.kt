@@ -59,7 +59,6 @@ private val regexPlacementOptions = listOf(
     AssistantRegexPlacement.USER_INPUT,
     AssistantRegexPlacement.AI_OUTPUT,
     AssistantRegexPlacement.SLASH_COMMAND,
-    AssistantRegexPlacement.WORLD_INFO,
     AssistantRegexPlacement.REASONING,
 )
 
@@ -128,7 +127,7 @@ fun RegexEditorSection(
                     )
                     RegexFeatureGuideRow(
                         title = "生效位置",
-                        body = "可挂到用户输入、AI 输出、Slash Command、世界书或推理内容。来自 ST 的规则建议优先设置 ST placement 来保持原始触发时机。"
+                        body = "可挂到用户输入、AI 输出、Slash Command 或推理内容。来自 ST 的规则建议优先设置 ST placement 来保持原始触发时机。"
                     )
                     RegexFeatureGuideRow(
                         title = "替换策略与范围",
@@ -542,7 +541,6 @@ private fun regexPlacementLabelRes(placement: Int): Int {
         AssistantRegexPlacement.USER_INPUT -> R.string.assistant_page_regex_st_placement_user_input
         AssistantRegexPlacement.AI_OUTPUT -> R.string.assistant_page_regex_st_placement_ai_output
         AssistantRegexPlacement.SLASH_COMMAND -> R.string.assistant_page_regex_st_placement_slash_command
-        AssistantRegexPlacement.WORLD_INFO -> R.string.assistant_page_regex_st_placement_world_info
         AssistantRegexPlacement.REASONING -> R.string.assistant_page_regex_st_placement_reasoning
         else -> R.string.assistant_page_regex_st_placement_ai_output
     }

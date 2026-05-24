@@ -68,7 +68,6 @@ data class Assistant(
     val backgroundOpacity: Float = 1.0f,
     val backgroundBlur: Float = 0f,
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
-    val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
     val openAIReasoningEffort: String = "",
     val reasoningSummary: String = "",
@@ -245,7 +244,6 @@ object AssistantRegexPlacement {
     const val USER_INPUT = 1
     const val AI_OUTPUT = 2
     const val SLASH_COMMAND = 3
-    const val WORLD_INFO = 5
     const val REASONING = 6
 }
 
@@ -333,11 +331,10 @@ fun String.replaceRegexes(
 }
 
 fun Settings.effectiveRegexes(assistant: Assistant?): List<AssistantRegex> {
-    val orderedRegexes = runtimeRegexes() +
-        assistant
-            ?.takeIf { it.regexEnabled }
-            ?.regexes
-            .orEmpty()
+    val orderedRegexes = assistant
+        ?.takeIf { it.regexEnabled }
+        ?.regexes
+        .orEmpty()
 
     // Later scopes should be able to override earlier duplicates with the same runtime behavior.
     return orderedRegexes
@@ -612,12 +609,19 @@ private fun substituteRegexMacros(
     val userName = settings?.effectiveUserName()
         ?.takeIf { it.isNotBlank() }
         ?: "user"
+    val persona = settings?.effectiveUserPersona(assistant)
+        ?.takeIf { it.isNotBlank() }
+        ?: assistant?.userPersona
+            ?.takeIf { it.isNotBlank() }
+            .orEmpty()
     val replacements = mapOf(
         "char" to characterName,
         "bot" to characterName,
         "name2" to characterName,
         "user" to userName,
         "name1" to userName,
+        "persona" to persona,
+        "personaDescription" to persona,
     ).mapValues { (_, value) ->
         if (escapeReplacement) Regex.escape(value) else value
     }
@@ -634,41 +638,38 @@ private fun substituteRegexMacros(
 @Serializable
 enum class InjectionPosition {
     @SerialName("before_system_prompt")
-    BEFORE_SYSTEM_PROMPT,   // 兼容命名：ST 语义更接近角色定义区块之前
+    BEFORE_SYSTEM_PROMPT,
 
     @SerialName("after_system_prompt")
-    AFTER_SYSTEM_PROMPT,    // 兼容命名：ST 语义更接近角色定义区块之后（最常用）
+    AFTER_SYSTEM_PROMPT,
 
     @SerialName("author_note_top")
-    AUTHOR_NOTE_TOP,        // Author's Note 之前（ST 对齐）
+    AUTHOR_NOTE_TOP,
 
     @SerialName("author_note_bottom")
-    AUTHOR_NOTE_BOTTOM,     // Author's Note 之后（ST 对齐）
+    AUTHOR_NOTE_BOTTOM,
 
     @SerialName("top_of_chat")
-    TOP_OF_CHAT,            // 旧版兼容：对话最开头（第一条用户消息之前）
+    TOP_OF_CHAT,
 
     @SerialName("bottom_of_chat")
-    BOTTOM_OF_CHAT,         // 旧版兼容：最新消息之前（当前用户输入之前）
+    BOTTOM_OF_CHAT,
 
     @SerialName("at_depth")
-    AT_DEPTH,               // 在指定深度位置插入（从最新消息往前数）
+    AT_DEPTH,
 
     @SerialName("example_messages_top")
-    EXAMPLE_MESSAGES_TOP,   // 示例消息之前（ST 对齐）
+    EXAMPLE_MESSAGES_TOP,
 
     @SerialName("example_messages_bottom")
-    EXAMPLE_MESSAGES_BOTTOM, // 示例消息之后（ST 对齐）
+    EXAMPLE_MESSAGES_BOTTOM,
 
     @SerialName("outlet")
-    OUTLET,                  // ST Outlet，仅通过 {{outlet::name}} 等宏显式引用
+    OUTLET,
 }
 
 /**
  * 提示词注入
- *
- * - ModeInjection: 基于模式开关的注入（如学习模式）
- * - RegexInjection: 基于正则匹配的注入（Lorebook）
  */
 @Serializable
 sealed class PromptInjection {
@@ -678,8 +679,8 @@ sealed class PromptInjection {
     abstract val priority: Int
     abstract val position: InjectionPosition
     abstract val content: String
-    abstract val injectDepth: Int  // 当 position 为 AT_DEPTH 时使用，表示从最新消息往前数的位置
-    abstract val role: MessageRole  // 注入角色：SYSTEM / USER / ASSISTANT
+    abstract val injectDepth: Int
+    abstract val role: MessageRole
 
     /**
      * 模式注入 - 基于开关状态触发，作为系统提示词补充
@@ -695,39 +696,6 @@ sealed class PromptInjection {
         override val content: String = "",
         override val injectDepth: Int = 4,
         override val role: MessageRole = MessageRole.SYSTEM,
-    ) : PromptInjection()
-
-    /**
-     * 正则注入 - 基于内容匹配触发（世界书）
-     */
-    @Serializable
-    @SerialName("regex")
-    data class RegexInjection(
-        override val id: Uuid = Uuid.random(),
-        override val name: String = "",
-        override val enabled: Boolean = true,
-        override val priority: Int = 0,
-        override val position: InjectionPosition = InjectionPosition.AFTER_SYSTEM_PROMPT,
-        override val content: String = "",
-        override val injectDepth: Int = 4,
-        override val role: MessageRole = MessageRole.SYSTEM,
-        val keywords: List<String> = emptyList(),  // 触发关键词
-        val secondaryKeywords: List<String> = emptyList(),
-        val selective: Boolean = false,
-        val selectiveLogic: Int = 0,
-        val useRegex: Boolean = false,             // 是否使用正则匹配
-        val caseSensitive: Boolean = false,        // 大小写敏感
-        val matchWholeWords: Boolean = false,
-        val probability: Int? = null,
-        val scanDepth: Int = 4,                    // 扫描最近N条消息
-        val constantActive: Boolean = false,       // 常驻激活（无需匹配）
-        val matchCharacterDescription: Boolean = false,
-        val matchCharacterPersonality: Boolean = false,
-        val matchPersonaDescription: Boolean = false,
-        val matchScenario: Boolean = false,
-        val matchCreatorNotes: Boolean = false,
-        val matchCharacterDepthPrompt: Boolean = false,
-        val stMetadata: Map<String, String> = emptyMap(),
     ) : PromptInjection()
 }
 
@@ -750,289 +718,3 @@ fun PromptInjection.ModeInjection.normalizedForSystemPromptSupplement(): PromptI
     injectDepth = 4,
     role = MessageRole.SYSTEM,
 )
-
-/**
- * Lorebook - 组织管理多个 RegexInjection
- */
-@Serializable
-data class Lorebook(
-    val id: Uuid = Uuid.random(),
-    val name: String = "",
-    val description: String = "",
-    val enabled: Boolean = true,
-    val entries: List<PromptInjection.RegexInjection> = emptyList(),
-)
-
-/**
- * 检查 RegexInjection 是否被触发
- *
- * @param context 要扫描的上下文文本
- * @return 是否触发
- */
-fun PromptInjection.RegexInjection.isTriggered(
-    context: String,
-    triggerContext: LorebookTriggerContext = LorebookTriggerContext(recentMessagesText = context),
-    globalSettings: LorebookGlobalSettings? = null,
-): Boolean {
-    if (!matchesTriggerKeywords(context, triggerContext, globalSettings)) return false
-    return passesProbabilityCheck()
-}
-
-fun PromptInjection.RegexInjection.matchesTriggerKeywords(
-    context: String,
-    triggerContext: LorebookTriggerContext = LorebookTriggerContext(recentMessagesText = context),
-    globalSettings: LorebookGlobalSettings? = null,
-): Boolean {
-    if (!enabled) return false
-    if (constantActive) return true
-    if (keywords.isEmpty()) return false
-    val caseSensitive = effectiveCaseSensitive(globalSettings)
-    val matchWholeWords = effectiveMatchWholeWords(globalSettings)
-
-    val haystacks = buildList {
-        if (triggerContext.recentMessagesText.isNotBlank()) add(triggerContext.recentMessagesText)
-        if (matchCharacterDescription && triggerContext.characterDescription.isNotBlank()) add(triggerContext.characterDescription)
-        if (matchCharacterPersonality && triggerContext.characterPersonality.isNotBlank()) add(triggerContext.characterPersonality)
-        if (matchPersonaDescription && triggerContext.personaDescription.isNotBlank()) add(triggerContext.personaDescription)
-        if (matchScenario && triggerContext.scenario.isNotBlank()) add(triggerContext.scenario)
-        if (matchCreatorNotes && triggerContext.creatorNotes.isNotBlank()) add(triggerContext.creatorNotes)
-        if (matchCharacterDepthPrompt && triggerContext.characterDepthPrompt.isNotBlank()) add(triggerContext.characterDepthPrompt)
-    }.ifEmpty { listOf(context) }
-
-    val hasPrimaryMatch = keywords.any { keyword ->
-        haystacks.any { haystack ->
-            keywordMatches(
-                keyword = keyword,
-                context = haystack,
-                useRegex = useRegex,
-                caseSensitive = caseSensitive,
-                matchWholeWords = matchWholeWords,
-            )
-        }
-    }
-    if (!hasPrimaryMatch) return false
-
-    if (!selective || secondaryKeywords.isEmpty()) {
-        return true
-    }
-
-    val secondaryMatches = secondaryKeywords.map { keyword ->
-        haystacks.any { haystack ->
-            keywordMatches(
-                keyword = keyword,
-                context = haystack,
-                useRegex = useRegex,
-                caseSensitive = caseSensitive,
-                matchWholeWords = matchWholeWords,
-            )
-        }
-    }
-
-    val selectiveMatched = when (selectiveLogic) {
-        1 -> !secondaryMatches.all { it } // NOT_ALL
-        2 -> secondaryMatches.none { it } // NOT_ANY
-        3 -> secondaryMatches.all { it } // AND_ALL
-        else -> secondaryMatches.any { it } // AND_ANY
-    }
-
-    return selectiveMatched
-}
-
-fun PromptInjection.RegexInjection.matchScore(
-    context: String,
-    triggerContext: LorebookTriggerContext = LorebookTriggerContext(recentMessagesText = context),
-    globalSettings: LorebookGlobalSettings? = null,
-): Int {
-    if (!enabled || keywords.isEmpty()) {
-        return 0
-    }
-    val caseSensitive = effectiveCaseSensitive(globalSettings)
-    val matchWholeWords = effectiveMatchWholeWords(globalSettings)
-
-    val haystacks = buildList {
-        if (triggerContext.recentMessagesText.isNotBlank()) add(triggerContext.recentMessagesText)
-        if (matchCharacterDescription && triggerContext.characterDescription.isNotBlank()) add(triggerContext.characterDescription)
-        if (matchCharacterPersonality && triggerContext.characterPersonality.isNotBlank()) add(triggerContext.characterPersonality)
-        if (matchPersonaDescription && triggerContext.personaDescription.isNotBlank()) add(triggerContext.personaDescription)
-        if (matchScenario && triggerContext.scenario.isNotBlank()) add(triggerContext.scenario)
-        if (matchCreatorNotes && triggerContext.creatorNotes.isNotBlank()) add(triggerContext.creatorNotes)
-        if (matchCharacterDepthPrompt && triggerContext.characterDepthPrompt.isNotBlank()) add(triggerContext.characterDepthPrompt)
-    }.ifEmpty { listOf(context) }
-
-    val primaryScore = keywords.count { keyword ->
-        haystacks.any { haystack ->
-            keywordMatches(
-                keyword = keyword,
-                context = haystack,
-                useRegex = useRegex,
-                caseSensitive = caseSensitive,
-                matchWholeWords = matchWholeWords,
-            )
-        }
-    }
-    if (primaryScore == 0) return 0
-
-    val secondaryScore = secondaryKeywords.count { keyword ->
-        haystacks.any { haystack ->
-            keywordMatches(
-                keyword = keyword,
-                context = haystack,
-                useRegex = useRegex,
-                caseSensitive = caseSensitive,
-                matchWholeWords = matchWholeWords,
-            )
-        }
-    }
-    if (secondaryKeywords.isEmpty()) return primaryScore
-
-    return when (selectiveLogic) {
-        0 -> primaryScore + secondaryScore
-        3 -> if (secondaryScore == secondaryKeywords.size) primaryScore + secondaryScore else primaryScore
-        else -> primaryScore
-    }
-}
-
-fun PromptInjection.RegexInjection.passesProbabilityCheck(forceSuccess: Boolean = false): Boolean {
-    if (forceSuccess) return true
-    val extension = stExtension()
-    val useProbability = extension.useProbability ?: true
-    if (!useProbability) return true
-    val chance = probability ?: return true
-    if (chance >= 100) return true
-    if (chance <= 0) return false
-    return kotlin.random.Random.nextInt(100) < chance
-}
-
-fun PromptInjection.RegexInjection.matchesGenerationType(generationType: String): Boolean {
-    val normalizedType = generationType.trim().lowercase().ifBlank { "normal" }
-    val triggers = stExtension().triggers
-        .mapNotNull { trigger ->
-            trigger.trim().lowercase().takeIf { it.isNotBlank() }
-        }
-        .distinct()
-    return triggers.isEmpty() || normalizedType in triggers
-}
-
-private fun keywordMatches(
-    keyword: String,
-    context: String,
-    useRegex: Boolean,
-    caseSensitive: Boolean,
-    matchWholeWords: Boolean,
-): Boolean {
-    if (keyword.isBlank() || context.isBlank()) return false
-
-    val regexFromSlash = parseSlashRegex(keyword, caseSensitive)
-    if (useRegex || regexFromSlash != null) {
-        return runCatching {
-            val regex = regexFromSlash ?: Regex(
-                keyword,
-                if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-            )
-            regex.containsMatchIn(context)
-        }.getOrDefault(false)
-    }
-
-    return if (matchWholeWords) {
-        val escaped = Regex.escape(keyword)
-        val options = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-        Regex("""(?:^|[^\p{L}\p{N}_])$escaped(?:$|[^\p{L}\p{N}_])""", options).containsMatchIn(context)
-    } else {
-        context.contains(keyword, ignoreCase = !caseSensitive)
-    }
-}
-
-private fun parseSlashRegex(input: String, caseSensitive: Boolean): Regex? {
-    if (!input.startsWith('/') || input.length < 2) return null
-
-    var escaped = false
-    var closingSlashIndex = -1
-    for (index in 1 until input.length) {
-        val char = input[index]
-        if (escaped) {
-            escaped = false
-            continue
-        }
-        if (char == '\\') {
-            escaped = true
-            continue
-        }
-        if (char == '/') {
-            closingSlashIndex = index
-        }
-    }
-
-    if (closingSlashIndex <= 0) return null
-
-    val pattern = input.substring(1, closingSlashIndex)
-    val flags = input.substring(closingSlashIndex + 1)
-    val options = mutableSetOf<RegexOption>()
-    if (!caseSensitive && 'i' !in flags) {
-        options += RegexOption.IGNORE_CASE
-    }
-    if ('i' in flags) options += RegexOption.IGNORE_CASE
-    if ('m' in flags) options += RegexOption.MULTILINE
-    if ('s' in flags) options += RegexOption.DOT_MATCHES_ALL
-    return runCatching { Regex(pattern, options) }.getOrNull()
-}
-
-private fun PromptInjection.RegexInjection.effectiveCaseSensitive(
-    globalSettings: LorebookGlobalSettings?,
-): Boolean {
-    return caseSensitive || globalSettings?.caseSensitive == true
-}
-
-private fun PromptInjection.RegexInjection.effectiveMatchWholeWords(
-    globalSettings: LorebookGlobalSettings?,
-): Boolean {
-    return matchWholeWords || globalSettings?.matchWholeWords == true
-}
-
-/**
- * 从消息列表中提取用于匹配的上下文文本
- *
- * @param messages 消息列表
- * @param scanDepth 扫描深度（最近N条消息）
- * @return 拼接的文本内容
- */
-fun extractContextForMatching(
-    messages: List<UIMessage>,
-    scanDepth: Int,
-    includeNames: Boolean = false,
-    userName: String = "User",
-    assistantName: String = "Assistant",
-): String {
-    return messages
-        .takeLast(scanDepth.coerceAtLeast(0))
-        .joinToString("\n") { message ->
-            if (!includeNames) {
-                return@joinToString message.toText()
-            }
-            val speaker = when (message.role) {
-                MessageRole.USER -> userName
-                MessageRole.ASSISTANT -> assistantName
-                else -> null
-            }
-            if (speaker == null) {
-                message.toText()
-            } else {
-                "$speaker: ${message.toText()}"
-            }
-        }
-}
-
-/**
- * 获取所有被触发的注入，按优先级排序
- *
- * @param injections 所有注入规则
- * @param context 上下文文本
- * @return 被触发的注入列表，按优先级降序排列
- */
-fun getTriggeredInjections(
-    injections: List<PromptInjection.RegexInjection>,
-    context: String
-): List<PromptInjection.RegexInjection> {
-    return injections
-        .filter { it.isTriggered(context) }
-        .sortedByDescending { it.priority }
-}

@@ -14,6 +14,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.effectiveUserName
+import me.rerere.rikkahub.data.model.effectiveUserPersona
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import java.time.LocalDate
@@ -111,6 +112,14 @@ object DefaultPlaceholderProvider : PlaceholderProvider {
 
         placeholder("user", { Text(stringResource(R.string.placeholder_user)) }) {
             it.settingsStore.settingsFlow.value.effectiveUserName().ifBlank { "user" }
+        }
+
+        placeholder("persona", { Text("Persona") }) {
+            it.settingsStore.settingsFlow.value.effectiveUserPersona(it.assistant)
+        }
+
+        placeholder("personaDescription", { Text("Persona Description") }) {
+            it.settingsStore.settingsFlow.value.effectiveUserPersona(it.assistant)
         }
     }
 

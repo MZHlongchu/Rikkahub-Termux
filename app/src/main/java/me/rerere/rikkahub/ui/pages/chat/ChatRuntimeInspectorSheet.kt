@@ -87,12 +87,6 @@ internal enum class ChatRuntimeInspectorTab {
     PAYLOAD,
 }
 
-private enum class ChatVariableInspectorTab {
-    LOCAL,
-    GLOBAL,
-    CONTEXT,
-}
-
 @Composable
 internal fun ChatRuntimeInspectorSheet(
     state: UiState<ChatRuntimeInspection>,
@@ -376,7 +370,7 @@ private fun PromptInspectorLoaded(
     val clipboard = LocalClipboard.current
     val toaster = LocalToaster.current
     val scope = rememberCoroutineScope()
-    var searchQuery by rememberSaveable(inspection.promptMessages, inspection.generationType) {
+    var searchQuery by rememberSaveable(inspection.promptMessages) {
         mutableStateOf("")
     }
     val filteredMessages = remember(inspection.promptMessages, searchQuery) {
@@ -577,13 +571,8 @@ private fun VariableInspectorLoaded(
     val clipboard = LocalClipboard.current
     val toaster = LocalToaster.current
     val scope = rememberCoroutineScope()
-    var activeTab by rememberSaveable { mutableStateOf(ChatVariableInspectorTab.LOCAL) }
-    val currentJson = remember(activeTab, inspection) {
-        when (activeTab) {
-            ChatVariableInspectorTab.LOCAL -> inspection.localVariables.toJsonObject()
-            ChatVariableInspectorTab.GLOBAL -> inspection.globalVariables.toJsonObject()
-            ChatVariableInspectorTab.CONTEXT -> inspection.contextVariables
-        }
+    val currentJson = remember(inspection) {
+        inspection.contextVariables
     }
 
     Column(
@@ -603,12 +592,12 @@ private fun VariableInspectorLoaded(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
-                        text = "Variable Snapshot",
+                        text = "Context Snapshot",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Local ${inspection.localVariables.size} · Global ${inspection.globalVariables.size} · Context dry-run",
+                        text = "Dry-run context metadata",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -634,24 +623,6 @@ private fun VariableInspectorLoaded(
                 )
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ChatVariableInspectorTab.entries.forEach { tab ->
-                    InspectorSegmentChip(
-                        selected = activeTab == tab,
-                        onClick = { activeTab = tab },
-                        label = when (tab) {
-                            ChatVariableInspectorTab.LOCAL -> "Local"
-                            ChatVariableInspectorTab.GLOBAL -> "Global"
-                            ChatVariableInspectorTab.CONTEXT -> "Context"
-                        },
-                    )
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -660,7 +631,7 @@ private fun VariableInspectorLoaded(
             InspectorEmptyState(
                 modifier = Modifier.fillMaxSize(),
                 title = "当前没有可显示的数据",
-                subtitle = "这个 scope 还没有变量，切到其他 scope 看看。",
+                subtitle = "当前 dry-run 没有产生上下文元数据。",
             )
             return
         }
@@ -677,7 +648,7 @@ private fun VariableInspectorLoaded(
                 JsonTree(
                     json = currentJson,
                     modifier = Modifier.fillMaxWidth(),
-                    initialExpandLevel = if (activeTab == ChatVariableInspectorTab.CONTEXT) 2 else 1,
+                    initialExpandLevel = 2,
                 )
                 Spacer(modifier = Modifier.navigationBarsPadding())
             }
@@ -1180,14 +1151,6 @@ private fun MessageRole.toPromptRoleLabel(): String {
         MessageRole.USER -> "user"
         MessageRole.ASSISTANT -> "assistant"
         MessageRole.TOOL -> "tool"
-    }
-}
-
-private fun Map<String, String>.toJsonObject(): JsonObject {
-    return buildJsonObject {
-        this@toJsonObject.forEach { (key, value) ->
-            put(key, JsonPrimitive(value))
-        }
     }
 }
 

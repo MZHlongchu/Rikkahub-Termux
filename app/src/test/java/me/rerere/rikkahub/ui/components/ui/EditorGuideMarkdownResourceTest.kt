@@ -10,10 +10,6 @@ class EditorGuideMarkdownResourceTest {
         "assistant_page_regex_help_body_markdown",
         "prompt_page_help_body_markdown",
         "prompt_page_mode_injection_help_body_markdown",
-        "prompt_page_lorebook_help_body_markdown",
-        "prompt_page_lorebook_editor_help_body_markdown",
-        "prompt_page_lorebook_entry_help_body_markdown",
-        "prompt_page_st_preset_help_body_markdown",
     )
 
     private val resourceDirectories = listOf(

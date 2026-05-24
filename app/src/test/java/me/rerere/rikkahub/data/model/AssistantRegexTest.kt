@@ -99,196 +99,6 @@ class AssistantRegexTest {
     }
 
     @Test
-    fun `preset and assistant regexes should be applied together in order`() {
-        val presetRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = true,
-            findRegex = "foo",
-            replaceString = "bar",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val preset = SillyTavernPreset(
-            regexes = listOf(presetRegex),
-        )
-        val settings = Settings(
-            stPresets = listOf(preset),
-            selectedStPresetId = preset.id,
-        )
-        val assistant = Assistant(
-            regexes = listOf(
-                AssistantRegex(
-                    id = Uuid.random(),
-                    enabled = true,
-                    findRegex = "bar",
-                    replaceString = "baz",
-                    affectingScope = setOf(AssistantAffectScope.USER),
-                )
-            )
-        )
-
-        assertEquals(
-            "baz",
-            "foo".replaceRegexes(
-                assistant = assistant,
-                settings = settings,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-    }
-
-    @Test
-    fun `group toggles should gate preset and assistant regexes independently`() {
-        val presetRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = true,
-            findRegex = "foo",
-            replaceString = "bar",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val assistantRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = true,
-            findRegex = "bar",
-            replaceString = "qux",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val preset = SillyTavernPreset(
-            regexEnabled = false,
-            regexes = listOf(presetRegex),
-        )
-        val assistant = Assistant(
-            regexEnabled = false,
-            regexes = listOf(assistantRegex),
-        )
-        val settings = Settings(
-            stPresets = listOf(preset),
-            selectedStPresetId = preset.id,
-        )
-
-        assertEquals(
-            "foo",
-            "foo".replaceRegexes(
-                assistant = assistant,
-                settings = settings,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-
-        val presetEnabled = settings.copy(
-            stPresets = listOf(preset.copy(regexEnabled = true)),
-        )
-        assertEquals(
-            "bar",
-            "foo".replaceRegexes(
-                assistant = assistant,
-                settings = presetEnabled,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-
-        val allEnabled = presetEnabled
-        val assistantEnabled = assistant.copy(regexEnabled = true)
-        assertEquals(
-            "qux",
-            "foo".replaceRegexes(
-                assistant = assistantEnabled,
-                settings = allEnabled,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-    }
-
-    @Test
-    fun `effective regexes should resolve active st preset regexes instead of raw compatibility cache`() {
-        val presetRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = true,
-            findRegex = "foo",
-            replaceString = "bar",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val staleCacheRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = true,
-            findRegex = "foo",
-            replaceString = "stale",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val preset = SillyTavernPreset(regexes = listOf(presetRegex))
-        val settings = Settings(
-            stPresets = listOf(preset),
-            selectedStPresetId = preset.id,
-            regexes = listOf(staleCacheRegex),
-        )
-        val assistant = Assistant(
-            regexes = listOf(
-                AssistantRegex(
-                    id = Uuid.random(),
-                    enabled = true,
-                    findRegex = "bar",
-                    replaceString = "baz",
-                    affectingScope = setOf(AssistantAffectScope.USER),
-                )
-            )
-        )
-
-        assertEquals(
-            "baz",
-            "foo".replaceRegexes(
-                assistant = assistant,
-                settings = settings,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-    }
-
-    @Test
-    fun `assistant regex should override same preset regex from earlier scopes`() {
-        val presetId = Uuid.random()
-        val presetRegex = AssistantRegex(
-            id = Uuid.random(),
-            enabled = false,
-            findRegex = "foo",
-            replaceString = "bar",
-            affectingScope = setOf(AssistantAffectScope.USER),
-        )
-        val assistantRegex = presetRegex.copy(
-            id = Uuid.random(),
-            enabled = true,
-        )
-        val settings = Settings(
-            stPresets = listOf(
-                SillyTavernPreset(
-                    id = presetId,
-                    regexEnabled = true,
-                    regexes = listOf(presetRegex),
-                )
-            ),
-            selectedStPresetId = presetId,
-        )
-        val assistant = Assistant(
-            regexEnabled = true,
-            regexes = listOf(assistantRegex),
-        )
-
-        assertEquals(listOf(assistantRegex), settings.effectiveRegexes(assistant))
-        assertEquals(
-            "bar",
-            "foo".replaceRegexes(
-                assistant = assistant,
-                settings = settings,
-                scope = AssistantAffectScope.USER,
-                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
-            )
-        )
-    }
-
-    @Test
     fun `st placement should filter imported regex scripts by target`() {
         val assistant = Assistant(
             regexes = listOf(
@@ -379,6 +189,40 @@ class AssistantRegexTest {
                 scope = AssistantAffectScope.ASSISTANT,
                 phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
                 placement = AssistantRegexPlacement.AI_OUTPUT,
+            )
+        )
+    }
+
+    @Test
+    fun `substitute regex should resolve selected persona macros`() {
+        val profile = UserPersonaProfile(
+            name = "Alice",
+            content = "A careful reader",
+        )
+        val assistant = Assistant(
+            regexes = listOf(
+                AssistantRegex(
+                    id = Uuid.random(),
+                    enabled = true,
+                    findRegex = "{{personaDescription}}",
+                    replaceString = "persona matched",
+                    affectingScope = setOf(AssistantAffectScope.USER),
+                    substituteRegex = AssistantRegexSubstituteStrategy.ESCAPED,
+                )
+            ),
+        )
+        val settings = Settings(
+            userPersonaProfiles = listOf(profile),
+            selectedUserPersonaProfileId = profile.id,
+        )
+
+        assertEquals(
+            "persona matched",
+            "A careful reader".replaceRegexes(
+                assistant = assistant,
+                settings = settings,
+                scope = AssistantAffectScope.USER,
+                phase = AssistantRegexApplyPhase.ACTUAL_MESSAGE,
             )
         )
     }

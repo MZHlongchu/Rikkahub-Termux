@@ -6,7 +6,7 @@ You can use them to:
 - clean imported SillyTavern formatting
 - normalize names or punctuation before sending to the model
 - hide noisy text only in the UI
-- target ST-style placements such as user input, AI output, world info, slash commands, or reasoning
+- target ST-style placements such as user input, AI output, slash commands, or reasoning
 
 ## Quick start
 

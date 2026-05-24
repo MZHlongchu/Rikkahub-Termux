@@ -50,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,22 +69,11 @@ import me.rerere.rikkahub.data.export.rememberExporter
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.AssistantRegex
-import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.data.model.SillyTavernPromptItem
-import me.rerere.rikkahub.data.model.SillyTavernPromptOrderItem
-import me.rerere.rikkahub.data.model.SillyTavernPromptTemplate
-import me.rerere.rikkahub.data.model.activeStPresetRegexes
-import me.rerere.rikkahub.data.model.selectedStPreset
-import me.rerere.rikkahub.data.model.StPromptInjectionPosition
 import me.rerere.rikkahub.data.model.effectiveUserPersona
 import me.rerere.rikkahub.data.model.editableFindRegex
-import me.rerere.rikkahub.data.model.findPrompt
-import me.rerere.rikkahub.data.model.hasExplicitPromptOrder
-import me.rerere.rikkahub.data.model.resolvePromptOrder
 import me.rerere.rikkahub.data.model.sourceLabel
 import me.rerere.rikkahub.data.model.selectedUserPersonaProfile
 import me.rerere.rikkahub.data.model.withFindRegexInput
-import me.rerere.rikkahub.data.model.withPromptOrder
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.ExportDialog
 import me.rerere.rikkahub.ui.components.ui.FormItem
@@ -134,16 +122,6 @@ fun AssistantPromptPage(id: String) {
             assistant = assistant,
             settings = settings,
             onUpdate = { vm.update(it) },
-            onUpdateSettings = { updatedSettings, oldAssistant, newAssistant ->
-                vm.updateSettings(
-                    settings = updatedSettings,
-                    oldAssistant = oldAssistant,
-                    newAssistant = newAssistant,
-                )
-            },
-            onUpdateWithLorebooks = { updatedAssistant, lorebooks ->
-                vm.updateWithLorebooks(updatedAssistant, lorebooks)
-            },
         )
     }
 }
@@ -154,26 +132,16 @@ private fun AssistantPromptContent(
     assistant: Assistant,
     settings: Settings,
     onUpdate: (Assistant) -> Unit,
-    onUpdateSettings: (Settings, Assistant?, Assistant?) -> Unit,
-    onUpdateWithLorebooks: (Assistant, List<me.rerere.rikkahub.data.model.Lorebook>) -> Unit,
 ) {
-    val context = LocalContext.current
     val latestAssistant by rememberUpdatedState(assistant)
     val latestOnUpdate by rememberUpdatedState(onUpdate)
-    val latestSettings by rememberUpdatedState(settings)
-    val latestOnUpdateSettings by rememberUpdatedState(onUpdateSettings)
-    val latestOnUpdateWithLorebooks by rememberUpdatedState(onUpdateWithLorebooks)
     val selectedPersonaProfile = settings.selectedUserPersonaProfile()
     val effectiveUserPersona = settings.effectiveUserPersona(assistant)
-    val activePreset = settings.selectedStPreset()
-    val linkedLorebooks = settings.lorebooks.filter { assistant.lorebookIds.contains(it.id) }
     var showCharacterExportDialog by remember { mutableStateOf(false) }
     var showCharacterPngExportDialog by remember { mutableStateOf(false) }
-    var pendingCharacterCardImport by remember { mutableStateOf<PendingCharacterCardImport?>(null) }
-    val characterCardExportData = remember(assistant, linkedLorebooks) {
+    val characterCardExportData = remember(assistant) {
         SillyTavernCharacterCardExportData(
             assistant = assistant,
-            lorebooks = linkedLorebooks,
         )
     }
     val characterCardExporter = rememberExporter(
@@ -184,36 +152,6 @@ private fun AssistantPromptContent(
         data = characterCardExportData,
         serializer = SillyTavernCharacterCardPngSerializer,
     )
-
-    fun applyCharacterCardImport(
-        pendingImport: PendingCharacterCardImport,
-        enableRuntime: Boolean,
-    ) {
-        val importedLorebooks = pendingImport.application.lorebooks.filter { imported ->
-            latestSettings.lorebooks.none { it.id == imported.id }
-        }
-        val nextAssistant = pendingImport.application.assistant
-        val runtimeSettings = if (enableRuntime) {
-            latestSettings.enableCharacterCardRuntime(pendingImport.runtimeTemplate)
-        } else {
-            latestSettings
-        }
-        pendingCharacterCardImport = null
-        latestOnUpdateSettings(
-            runtimeSettings.copy(
-                lorebooks = runtimeSettings.lorebooks + importedLorebooks,
-                assistants = runtimeSettings.assistants.map { existing ->
-                    if (existing.id == nextAssistant.id) {
-                        nextAssistant
-                    } else {
-                        existing
-                    }
-                },
-            ),
-            latestAssistant,
-            nextAssistant,
-        )
-    }
 
     Column(
         modifier = modifier
@@ -242,10 +180,10 @@ private fun AssistantPromptContent(
                         Text("PNG / JSON")
                     }
                     Tag(type = TagType.SUCCESS) {
-                        Text("角色卡 + 世界书")
+                        Text("助手资料")
                     }
                     Tag(type = TagType.WARNING) {
-                        Text("可合并 Regex / 预设")
+                        Text("可合并 Regex")
                     }
                 }
                 Column(
@@ -253,61 +191,42 @@ private fun AssistantPromptContent(
                 ) {
                     PromptFeatureGuideRow(
                         title = "导入内容",
-                        body = "支持 Tavern 角色卡 PNG / JSON，也会读取卡片里内嵌的世界书条目。",
+                        body = "支持 Tavern 角色卡 PNG / JSON，基础信息会写入当前助手。",
                     )
                     PromptFeatureGuideRow(
                         title = "自动合并",
-                        body = "导入得到的 lorebook 和 regex 会并入当前助手环境；若当前 ST 运行时未启用，导入时会先提示你是否要开启，不开启的话角色卡会先保存但不会参与生成。",
+                        body = "角色卡 Regex 可按导入时选择并入当前助手。",
                     )
                     PromptFeatureGuideRow(
                         title = "后续编辑",
-                        body = "角色卡基础信息留在当前助手下维护；共享 ST 预设与通用 Lorebook 仍在扩展页集中管理，角色卡 regex 则继续归当前助手维护。",
+                        body = "角色卡基础信息和 Regex 都留在当前助手下维护。",
                     )
                 }
                 AssistantImporter(
                     allowedKinds = setOf(AssistantImportKind.CHARACTER_CARD),
                     onImport = { payload, includeRegexes ->
-                        val pendingImport = PendingCharacterCardImport(
-                            application = applyImportedAssistantToExisting(
-                                currentAssistant = assistant,
-                                payload = payload,
-                                existingLorebooks = settings.lorebooks,
-                                includeRegexes = includeRegexes,
-                            ),
-                            runtimeTemplate = payload.characterRuntimeTemplate(),
-                        )
-                        if (latestSettings.needsCharacterCardRuntimeActivation()) {
-                            pendingCharacterCardImport = pendingImport
-                        } else {
-                            applyCharacterCardImport(
-                                pendingImport = pendingImport,
-                                enableRuntime = false,
-                            )
-                        }
+                        val updatedAssistant = applyImportedAssistantToExisting(
+                            currentAssistant = latestAssistant,
+                            payload = payload,
+                            includeRegexes = includeRegexes,
+                        ).assistant
+                        latestOnUpdate(updatedAssistant)
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (
-                    activePreset != null ||
                     assistant.stCharacterData != null ||
                     assistant.name.isNotBlank() ||
                     assistant.systemPrompt.isNotBlank() ||
-                    linkedLorebooks.isNotEmpty() ||
                     assistant.regexes.isNotEmpty()
                 ) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "当前运行时映射",
+                            text = "当前角色卡信息",
                             style = MaterialTheme.typography.labelLarge
                         )
-                        activePreset?.let { preset ->
-                            Text(
-                                text = "活动预设: ${preset.template.sourceName.ifBlank { "SillyTavern" }}${if (settings.stPresetEnabled) "" else "（提示词模板已关闭）"}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
                         assistant.stCharacterData?.let { character ->
                             Text(
                                 text = "角色卡: ${character.sourceName.ifBlank { character.name.ifBlank { "SillyTavern" } }}",
@@ -326,7 +245,7 @@ private fun AssistantPromptContent(
                             )
                         }
                         Text(
-                            text = "当前预设 Regex ${settings.activeStPresetRegexes().size} 条，助手 Regex ${assistant.regexes.size} 条，关联世界书 ${linkedLorebooks.size} 本。",
+                            text = "助手 Regex ${assistant.regexes.size} 条。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -496,56 +415,9 @@ private fun AssistantPromptContent(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PromptFeatureGuideRow(
-                        title = "常驻可用宏",
-                        body = "{{user}}、{{char}}、{{persona}}、{{input}}、{{lastUserMessage}}、{{if}}、{{setvar}}、{{getvar}} 等不依赖 ST 开关。",
+                        title = "可用变量",
+                        body = "下方变量会在发送前替换为当前环境里的实际值。",
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        listOf(
-                            "{{user}}",
-                            "{{char}}",
-                            "{{persona}}",
-                            "{{input}}",
-                            "{{lastUserMessage}}",
-                            "{{if persona::...}}",
-                            "{{setvar::style::calm}}",
-                            "{{getvar::style}}",
-                        ).forEach { macro ->
-                            Tag(
-                                type = TagType.SUCCESS,
-                                onClick = {
-                                    systemPromptValue.insertAtCursor(macro)
-                                }
-                            ) {
-                                Text(macro)
-                            }
-                        }
-                    }
-                    PromptFeatureGuideRow(
-                        title = "仅 ST 运行时",
-                        body = "{{chatStart}}、{{instructSystemPrompt}}、{{outlet::name}} 等需要启用 ST 预设或加载角色卡后才会生效。",
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        listOf(
-                            "{{chatStart}}",
-                            "{{instructSystemPrompt}}",
-                            "{{outlet::memory}}",
-                        ).forEach { macro ->
-                            Tag(
-                                type = TagType.WARNING,
-                                onClick = {
-                                    systemPromptValue.insertAtCursor(macro)
-                                }
-                            ) {
-                                Text(macro)
-                            }
-                        }
-                    }
                 }
 
                 Column {
@@ -718,23 +590,6 @@ private fun AssistantPromptContent(
             },
             title = "助手级 Regex",
             description = "仅对当前助手生效。适合角色卡自带的格式化、美化和卡片专属规则。",
-        )
-    }
-
-    pendingCharacterCardImport?.let { pendingImport ->
-        CharacterCardRuntimeActivationDialog(
-            onConfirm = {
-                applyCharacterCardImport(
-                    pendingImport = pendingImport,
-                    enableRuntime = true,
-                )
-            },
-            onDismiss = {
-                applyCharacterCardImport(
-                    pendingImport = pendingImport,
-                    enableRuntime = false,
-                )
-            },
         )
     }
 

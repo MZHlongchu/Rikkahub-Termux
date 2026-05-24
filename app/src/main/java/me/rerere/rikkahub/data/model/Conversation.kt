@@ -18,7 +18,6 @@ data class Conversation(
     val assistantId: Uuid,
     val title: String = "",
     val messageNodes: List<MessageNode>,
-    val stLocalVariables: Map<String, String> = emptyMap(),
     val chatSuggestions: List<String> = emptyList(),
     val isPinned: Boolean = false,
     @Serializable(with = InstantSerializer::class)
@@ -27,7 +26,6 @@ data class Conversation(
     val updateAt: Instant = Instant.now(),
     val customSystemPrompt: String? = null,
     val modeInjectionIds: Set<Uuid> = emptySet(),
-    val lorebookIds: Set<Uuid> = emptySet(),
     @Transient
     val newConversation: Boolean = false,
     @Transient
@@ -100,7 +98,6 @@ data class Conversation(
             id = id,
             assistantId = assistantId,
             messageNodes = messages,
-            stLocalVariables = emptyMap(),
             newConversation = newConversation,
             isTemporaryConversation = isTemporaryConversation,
         )

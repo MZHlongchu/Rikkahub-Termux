@@ -1050,11 +1050,11 @@ private fun FilesPicker(
         )
 
         // Prompt Injections
-        if (settings.modeInjections.isNotEmpty() || settings.lorebooks.isNotEmpty()) {
+        if (settings.modeInjections.isNotEmpty()) {
             val activeCount = if (assistant.allowConversationPromptInjection) {
-                conversation.modeInjectionIds.size + conversation.lorebookIds.size
+                conversation.modeInjectionIds.size
             } else {
-                assistant.modeInjectionIds.size + assistant.lorebookIds.size
+                assistant.modeInjectionIds.size
             }
             ListItem(
                 leadingContent = {
