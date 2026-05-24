@@ -413,64 +413,62 @@ private fun dumpAst(node: ASTNode, text: String, indent: String = "") {
     }
 }
 
-@Composable
-private fun markdownHeaderStyle(type: IElementType): TextStyle {
-    return when (type) {
-        MarkdownElementTypes.ATX_1 -> TextStyle(
+object HeaderStyle {
+    private const val LINE_HEIGHT_RATIO = 1.25f
+
+    fun fromLevel(level: Int, fontSizeRatio: Float): TextStyle {
+        val fontSize = when (level) {
+            1 -> 24.sp
+            2 -> 22.sp
+            3 -> 20.sp
+            4 -> 18.sp
+            5 -> 16.sp
+            else -> 14.sp
+        } * fontSizeRatio
+
+        return TextStyle(
             fontStyle = FontStyle.Normal,
             fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
+            fontSize = fontSize,
+            lineHeight = fontSize * LINE_HEIGHT_RATIO,
         )
-
-        MarkdownElementTypes.ATX_2 -> TextStyle(
-            fontStyle = FontStyle.Normal,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-        )
-
-        MarkdownElementTypes.ATX_3 -> TextStyle(
-            fontStyle = FontStyle.Normal,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp,
-        )
-
-        MarkdownElementTypes.ATX_4 -> TextStyle(
-            fontStyle = FontStyle.Normal,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-        )
-
-        MarkdownElementTypes.ATX_5 -> TextStyle(
-            fontStyle = FontStyle.Normal,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-        )
-
-        MarkdownElementTypes.ATX_6 -> TextStyle(
-            fontStyle = FontStyle.Normal,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-        )
-
-        else -> error("Unknown header type: $type")
     }
+
+    fun verticalPadding(level: Int) = when (level) {
+        1 -> 16.dp
+        2 -> 14.dp
+        3 -> 12.dp
+        4 -> 10.dp
+        5 -> 8.dp
+        else -> 6.dp
+    }
+
+    fun fromMarkdownType(type: IElementType, fontSizeRatio: Float): TextStyle = fromLevel(
+        level = headerLevel(type) ?: 6,
+        fontSizeRatio = fontSizeRatio,
+    )
+
+    fun verticalPadding(type: IElementType) = verticalPadding(
+        level = headerLevel(type) ?: 6
+    )
+}
+
+private fun headerLevel(type: IElementType): Int? = when (type) {
+    MarkdownElementTypes.ATX_1 -> 1
+    MarkdownElementTypes.ATX_2 -> 2
+    MarkdownElementTypes.ATX_3 -> 3
+    MarkdownElementTypes.ATX_4 -> 4
+    MarkdownElementTypes.ATX_5 -> 5
+    MarkdownElementTypes.ATX_6 -> 6
+    else -> null
 }
 
 private fun demotedHeaderType(
     type: IElementType,
     levelOffset: Int,
 ): IElementType {
+    val originalLevel = headerLevel(type) ?: return type
     if (levelOffset <= 0) return type
-
-    val originalLevel = when (type) {
-        MarkdownElementTypes.ATX_1 -> 1
-        MarkdownElementTypes.ATX_2 -> 2
-        MarkdownElementTypes.ATX_3 -> 3
-        MarkdownElementTypes.ATX_4 -> 4
-        MarkdownElementTypes.ATX_5 -> 5
-        MarkdownElementTypes.ATX_6 -> 6
-        else -> return type
-    }
 
     return when ((originalLevel + levelOffset).coerceAtMost(6)) {
         1 -> MarkdownElementTypes.ATX_1
@@ -525,17 +523,12 @@ private fun MarkdownNode(
         // 标题
         MarkdownElementTypes.ATX_1, MarkdownElementTypes.ATX_2, MarkdownElementTypes.ATX_3, MarkdownElementTypes.ATX_4, MarkdownElementTypes.ATX_5, MarkdownElementTypes.ATX_6 -> {
             val effectiveHeaderType = demotedHeaderType(node.type, headerLevelOffset)
-            val style = markdownHeaderStyle(effectiveHeaderType)
-            val headingPadding = when (effectiveHeaderType) {
-                MarkdownElementTypes.ATX_1 -> 16.dp
-                MarkdownElementTypes.ATX_2 -> 14.dp
-                MarkdownElementTypes.ATX_3 -> 12.dp
-                MarkdownElementTypes.ATX_4 -> 10.dp
-                MarkdownElementTypes.ATX_5 -> 8.dp
-                MarkdownElementTypes.ATX_6 -> 6.dp
-                else -> 8.dp
-            }
-            ProvideTextStyle(value = style) {
+            val style = HeaderStyle.fromMarkdownType(
+                type = effectiveHeaderType,
+                fontSizeRatio = LocalSettings.current.displaySetting.fontSizeRatio,
+            )
+            val headingPadding = HeaderStyle.verticalPadding(effectiveHeaderType)
+            ProvideTextStyle(value = LocalTextStyle.current.merge(style)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     node.children.fastForEach { node ->
                         if (node.type == MarkdownTokenTypes.ATX_CONTENT) {
