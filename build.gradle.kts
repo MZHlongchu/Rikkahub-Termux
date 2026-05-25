@@ -45,8 +45,6 @@ subprojects {
                 "io.netty:netty-resolver" -> useVersion("4.1.133.Final")
                 "io.netty:netty-transport" -> useVersion("4.1.133.Final")
                 "io.netty:netty-transport-native-unix-common" -> useVersion("4.1.133.Final")
-                "com.squareup.wire:wire-runtime" -> useVersion("6.3.0")
-                "com.squareup.wire:wire-runtime-jvm" -> useVersion("6.3.0")
                 "org.apache.commons:commons-lang3" -> useVersion("3.20.0")
                 "org.apache.httpcomponents:httpclient" -> useVersion("4.5.14")
                 "org.bouncycastle:bcpkix-jdk18on" -> useVersion("1.84")
