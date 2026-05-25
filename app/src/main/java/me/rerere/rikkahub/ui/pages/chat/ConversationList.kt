@@ -8,7 +8,6 @@ import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Delete01
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -52,7 +51,6 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.ui.components.ui.luneGlassBorderColor
 import me.rerere.rikkahub.ui.components.ui.luneGlassContainerColor
 import me.rerere.rikkahub.ui.theme.extendColors
 import me.rerere.rikkahub.utils.toLocalDateTime
@@ -254,22 +252,12 @@ private fun ConversationItem(
     val interactionSource = remember { MutableInteractionSource() }
     val itemShape = RoundedCornerShape(22.dp)
     val backgroundColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.74f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
     } else {
         luneGlassContainerColor().copy(alpha = 0.72f)
     }
-    val selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val titleColor = if (selected) selectedContentColor else MaterialTheme.colorScheme.onSurface
-    val metadataColor = if (selected) {
-        selectedContentColor.copy(alpha = 0.78f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
-    }
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.78f)
-    } else {
-        luneGlassBorderColor().copy(alpha = 0.34f)
-    }
+    val titleColor = MaterialTheme.colorScheme.onSurface
+    val metadataColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
     var showDropdownMenu by remember {
         mutableStateOf(false)
     }
@@ -285,7 +273,17 @@ private fun ConversationItem(
                 }
             )
             .background(backgroundColor)
-            .border(BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor), itemShape),
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                        shape = itemShape
+                    )
+                } else {
+                    Modifier
+                }
+            ),
     ) {
         Row(
             modifier = Modifier
@@ -295,11 +293,11 @@ private fun ConversationItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 4.dp, height = 36.dp)
+                    .size(width = 4.dp, height = 34.dp)
                     .clip(CircleShape)
                     .background(
                         if (selected) {
-                            MaterialTheme.colorScheme.primary
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
                         } else {
                             Color.Transparent
                         }
@@ -312,7 +310,6 @@ private fun ConversationItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     color = titleColor,
                 )
                 Text(
