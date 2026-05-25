@@ -73,6 +73,7 @@ import me.rerere.rikkahub.data.skills.SkillInvalidReason
 import me.rerere.rikkahub.data.skills.SkillsCatalogState
 import me.rerere.rikkahub.data.skills.SkillsRepository
 import me.rerere.rikkahub.data.skills.sanitizeSkillDirectoryName
+import me.rerere.rikkahub.ui.components.marketplace.SkillsMarketplaceSheet
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -215,6 +216,7 @@ fun SkillsPicker(
     var isSavingEditor by remember { mutableStateOf(false) }
     var deleteEntry by remember { mutableStateOf<SkillCatalogEntry?>(null) }
     var isDeleting by remember { mutableStateOf(false) }
+    var showMarketplace by remember { mutableStateOf(false) }
     var showInvalidEntries by remember(skillsState.invalidEntries) {
         mutableStateOf(skillsState.invalidEntries.isNotEmpty())
     }
@@ -226,6 +228,34 @@ fun SkillsPicker(
         createDescription = ""
         createBody = ""
         createDirectoryEdited = false
+    }
+
+    fun installSkillFromUrl(url: String) {
+        scope.launch {
+            isImporting = true
+            try {
+                val imported = skillsRepository.downloadAndImportSkill(url)
+                val message = if (imported.directories.size == 1) {
+                    resources.getString(
+                        R.string.assistant_page_skills_import_success_single,
+                        imported.directories.single(),
+                    )
+                } else {
+                    resources.getString(
+                        R.string.assistant_page_skills_import_success_multiple,
+                        imported.directories.size,
+                    )
+                }
+                toaster.show(message, type = ToastType.Success)
+            } catch (error: Throwable) {
+                toaster.show(
+                    error.message ?: resources.getString(R.string.assistant_page_skills_import_failed),
+                    type = ToastType.Error,
+                )
+            } finally {
+                isImporting = false
+            }
+        }
     }
 
     val zipImportLauncher = rememberLauncherForActivityResult(
@@ -358,6 +388,18 @@ fun SkillsPicker(
                                 }
                             )
                         }
+                    }
+
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !actionInProgress,
+                        onClick = {
+                            showMarketplace = true
+                        },
+                    ) {
+                        Icon(HugeIcons.Puzzle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Box(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.assistant_page_skills_market))
                     }
 
                     OutlinedButton(
@@ -581,6 +623,18 @@ fun SkillsPicker(
                 InvalidSkillEntryCard(entry = entry)
             }
         }
+    }
+
+    if (showMarketplace) {
+        SkillsMarketplaceSheet(
+            isInstalling = isImporting,
+            onDismiss = {
+                if (!isImporting) {
+                    showMarketplace = false
+                }
+            },
+            onInstall = ::installSkillFromUrl,
+        )
     }
 
     if (showCreateDialog) {

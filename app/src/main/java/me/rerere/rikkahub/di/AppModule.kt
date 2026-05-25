@@ -88,6 +88,7 @@ val appModule = module {
             appScope = get(),
             settingsStore = get(),
             termuxCommandManager = get(),
+            okHttpClient = get(),
         )
     }
 

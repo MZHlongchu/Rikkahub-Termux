@@ -28,6 +28,9 @@ import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxRunCommandRequest
 import me.rerere.rikkahub.data.ai.tools.termux.isSuccessful
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 private const val TAG = "SkillsRepository"
 private const val TERMUX_BASH_PATH = "/data/data/com.termux/files/usr/bin/bash"
@@ -49,6 +52,7 @@ private const val SKILL_ARCHIVE_ENTRY_COUNT_LIMIT = 1024
 private const val SKILL_ARCHIVE_FILE_COUNT_LIMIT = 512
 private const val SKILL_ARCHIVE_PATH_LENGTH_LIMIT = 512
 private const val SKILL_ARCHIVE_PATH_SEGMENT_LIMIT = 16
+private const val SKILL_MARKDOWN_BYTES_LIMIT = 512L * 1024
 
 data class SkillCatalogEntry(
     val directoryName: String,
@@ -201,6 +205,7 @@ class SkillsRepository(
     private val appScope: AppScope,
     private val settingsStore: SettingsStore,
     private val termuxCommandManager: TermuxCommandManager,
+    private val okHttpClient: OkHttpClient,
 ) {
     private val refreshMutex = Mutex()
     private val _state = MutableStateFlow(SkillsCatalogState())
@@ -408,6 +413,64 @@ class SkillsRepository(
                 importedFiles = importPlan.files.size,
             )
         }
+    }
+
+    suspend fun importSkillMarkdown(
+        markdown: String,
+        sourceName: String? = null,
+    ): SkillImportResult {
+        val normalizedMarkdown = markdown.trimStart()
+        val document = parseSkillMarkdownDocument(normalizedMarkdown)
+
+        return runCatalogMutation { workdir, rootPath ->
+            ensureSkillsRootDirectory(rootPath = rootPath, workdir = workdir)
+            val existingDirectoryNames = listSkillDirectories(rootPath, workdir)
+                .mapTo(linkedSetOf()) { it.directoryName }
+            val sourceBaseName = sourceName
+                ?.substringBeforeLast('.', sourceName)
+                ?.takeIf { it.isNotBlank() }
+            val desiredDirectoryName = sanitizeSkillDirectoryName(
+                input = sourceBaseName
+                    ?.takeUnless { it.equals(SKILL_PACKAGE_FILE_NAME.substringBeforeLast('.'), ignoreCase = true) }
+                    ?: document.frontmatter.name,
+                fallback = DEFAULT_IMPORTED_SKILL_DIRECTORY,
+            )
+            val finalDirectoryName = resolveUniqueDirectoryNames(
+                desired = listOf(desiredDirectoryName),
+                existing = existingDirectoryNames,
+            ).getValue(desiredDirectoryName)
+
+            runSkillScript(
+                script = buildCreateSkillScript(
+                    rootPath = rootPath,
+                    directoryName = finalDirectoryName,
+                ),
+                workdir = workdir,
+                label = "RikkaHub import remote skill",
+                stdin = normalizedMarkdown.ensureTrailingNewline(),
+                timeoutMs = SKILL_WRITE_TIMEOUT_MS,
+            )
+
+            SkillImportResult(
+                directories = listOf(finalDirectoryName),
+                importedFiles = 1,
+            )
+        }
+    }
+
+    suspend fun downloadAndImportSkill(url: String): SkillImportResult {
+        val candidates = resolveSkillDownloadUrlCandidates(url)
+        var lastError: Throwable? = null
+        for (candidate in candidates) {
+            val result = runCatching {
+                downloadAndImportSkillCandidate(candidate)
+            }
+            if (result.isSuccess) {
+                return result.getOrThrow()
+            }
+            lastError = result.exceptionOrNull()
+        }
+        throw lastError ?: IllegalArgumentException("Invalid skill URL")
     }
 
     suspend fun loadSkillForUse(
@@ -1025,6 +1088,49 @@ class SkillsRepository(
         )
     }
 
+    private suspend fun downloadAndImportSkillCandidate(url: String): SkillImportResult {
+        return withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    error("Download failed (${response.code}): $url")
+                }
+                val body = response.body
+                val contentLength = body.contentLength()
+                val finalUrl = response.request.url.toString()
+                val fileName = finalUrl.substringBefore('?')
+                    .trimEnd('/')
+                    .substringAfterLast('/')
+                    .ifBlank { url.substringBefore('?').trimEnd('/').substringAfterLast('/') }
+                val contentType = body.contentType()?.toString().orEmpty()
+                val bytes = readSkillDownloadBytes(
+                    inputStream = body.byteStream(),
+                    limit = if (looksLikeSkillZip(contentType = contentType, fileName = fileName)) {
+                        SKILL_ARCHIVE_TOTAL_BYTES_LIMIT
+                    } else {
+                        SKILL_MARKDOWN_BYTES_LIMIT
+                    },
+                    contentLength = contentLength,
+                )
+
+                if (looksLikeSkillZip(contentType = contentType, fileName = fileName, bytes = bytes)) {
+                    importSkillZip(
+                        inputStream = bytes.inputStream(),
+                        archiveName = fileName,
+                    )
+                } else {
+                    importSkillMarkdown(
+                        markdown = bytes.toString(Charsets.UTF_8),
+                        sourceName = fileName,
+                    )
+                }
+            }
+        }
+    }
+
     private suspend fun runSkillScript(
         script: String,
         workdir: String,
@@ -1627,6 +1733,99 @@ internal fun replaceWorkdirLeafName(
     val validatedName = validateWorkdirEntryName(newName)
     val parent = normalizedRelativePath.substringBeforeLast('/', "")
     return if (parent.isBlank()) validatedName else "$parent/$validatedName"
+}
+
+internal fun resolveSkillDownloadUrlCandidates(input: String): List<String> {
+    val rawUrl = input.trim()
+    require(rawUrl.isNotBlank()) { "Skill URL cannot be empty" }
+    val url = rawUrl.toHttpUrlOrNull() ?: error("Invalid URL: $rawUrl")
+    require(url.scheme == "https" || url.scheme == "http") { "Only http(s) URLs are supported" }
+
+    val host = url.host.lowercase()
+    if (host != "github.com" && host != "www.github.com") {
+        return listOf(rawUrl)
+    }
+
+    val segments = url.pathSegments.filter { it.isNotBlank() }
+    if (segments.size < 2) {
+        return listOf(rawUrl)
+    }
+
+    val owner = segments[0]
+    val repo = segments[1].removeSuffix(".git")
+    val marker = segments.getOrNull(2)
+    return when (marker) {
+        "blob", "raw" -> {
+            val branch = segments.getOrNull(3).orEmpty()
+            val path = segments.drop(4).joinToString("/")
+            if (branch.isBlank() || path.isBlank()) {
+                listOf(rawUrl)
+            } else {
+                listOf("https://raw.githubusercontent.com/$owner/$repo/$branch/$path")
+            }
+        }
+
+        "tree" -> {
+            val branch = segments.getOrNull(3).orEmpty()
+            val path = segments.drop(4).joinToString("/")
+            if (branch.isBlank()) {
+                listOf(rawUrl)
+            } else if (path.isBlank()) {
+                listOf("https://codeload.github.com/$owner/$repo/zip/refs/heads/$branch")
+            } else {
+                listOf("https://raw.githubusercontent.com/$owner/$repo/$branch/$path/$SKILL_PACKAGE_FILE_NAME")
+            }
+        }
+
+        "archive" -> listOf(rawUrl)
+
+        else -> listOf(
+            "https://codeload.github.com/$owner/$repo/zip/refs/heads/main",
+            "https://codeload.github.com/$owner/$repo/zip/refs/heads/master",
+        )
+    }
+}
+
+private fun readSkillDownloadBytes(
+    inputStream: InputStream,
+    limit: Long,
+    contentLength: Long,
+): ByteArray {
+    if (contentLength > limit) {
+        error("Download is too large (${limit} bytes max)")
+    }
+    val output = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var totalBytes = 0L
+    inputStream.use { source ->
+        while (true) {
+            val read = source.read(buffer)
+            if (read < 0) break
+            totalBytes += read
+            if (totalBytes > limit) {
+                error("Download is too large (${limit} bytes max)")
+            }
+            output.write(buffer, 0, read)
+        }
+    }
+    return output.toByteArray()
+}
+
+private fun looksLikeSkillZip(
+    contentType: String,
+    fileName: String,
+    bytes: ByteArray = byteArrayOf(),
+): Boolean {
+    val normalizedContentType = contentType.lowercase()
+    val normalizedFileName = fileName.lowercase()
+    return normalizedContentType.contains("application/zip") ||
+        normalizedContentType.contains("application/x-zip-compressed") ||
+        normalizedFileName.endsWith(".zip") ||
+        (bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte())
+}
+
+private fun String.ensureTrailingNewline(): String {
+    return if (endsWith("\n")) this else "$this\n"
 }
 
 private fun String.escapeForSingleQuotedShell(): String = replace("'", "'\"'\"'")

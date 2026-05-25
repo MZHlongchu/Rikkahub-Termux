@@ -338,6 +338,33 @@ class SkillsRepositoryTest {
     }
 
     @Test
+    fun `resolveSkillDownloadUrlCandidates should convert github blob urls to raw urls`() {
+        assertEquals(
+            listOf("https://raw.githubusercontent.com/example/demo/main/tools/SKILL.md"),
+            resolveSkillDownloadUrlCandidates("https://github.com/example/demo/blob/main/tools/SKILL.md"),
+        )
+    }
+
+    @Test
+    fun `resolveSkillDownloadUrlCandidates should convert github tree urls to skill markdown urls`() {
+        assertEquals(
+            listOf("https://raw.githubusercontent.com/example/demo/main/skills/demo/SKILL.md"),
+            resolveSkillDownloadUrlCandidates("https://github.com/example/demo/tree/main/skills/demo"),
+        )
+    }
+
+    @Test
+    fun `resolveSkillDownloadUrlCandidates should offer default branch archives for github repository urls`() {
+        assertEquals(
+            listOf(
+                "https://codeload.github.com/example/demo/zip/refs/heads/main",
+                "https://codeload.github.com/example/demo/zip/refs/heads/master",
+            ),
+            resolveSkillDownloadUrlCandidates("https://github.com/example/demo"),
+        )
+    }
+
+    @Test
     fun `resolveSkillForUse should match enabled directory or skill name only`() {
         val entries = listOf(
             SkillCatalogEntry(
