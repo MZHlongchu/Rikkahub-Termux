@@ -65,7 +65,6 @@ import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.skills.SkillCatalogEntry
 import me.rerere.rikkahub.data.skills.SkillEditorDocument
@@ -187,7 +186,6 @@ fun SkillsPicker(
     val toaster = LocalToaster.current
     val navController = LocalNavController.current
     val skillsRepository = koinInject<SkillsRepository>()
-    val termuxToolEnabled = assistant.localTools.contains(LocalToolOption.TermuxExec)
     val missingSelections = remember(assistant.selectedSkills, skillsState.entryNames) {
         assistant.selectedSkills
             .filterNot { it in skillsState.entryNames }
@@ -395,16 +393,6 @@ fun SkillsPicker(
                         }
                     }
                 }
-            }
-        }
-
-        if (!termuxToolEnabled) {
-            item("termux-warning") {
-                SkillsInfoCard(
-                    title = stringResource(R.string.assistant_page_skills_termux_required_title),
-                    text = stringResource(R.string.assistant_page_skills_termux_required_desc),
-                    isError = true,
-                )
             }
         }
 

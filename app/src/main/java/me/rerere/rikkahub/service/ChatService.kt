@@ -435,6 +435,7 @@ class ChatService(
             if (settings.enableWebSearch) {
                 addAll(createSearchTools(settings))
             }
+            addAll(localTools.getSkillTools(assistant))
             addAll(localTools.getTools(assistant.localTools))
             addAll(buildMcpTools(mcpTools))
         }
@@ -846,6 +847,7 @@ class ChatService(
                 if (effectiveSettings.enableWebSearch) {
                     addAll(createSearchTools(effectiveSettings))
                 }
+                addAll(localTools.getSkillTools(effectiveAssistant))
                 addAll(
                     localTools.getTools(
                         options = effectiveAssistant.localTools,

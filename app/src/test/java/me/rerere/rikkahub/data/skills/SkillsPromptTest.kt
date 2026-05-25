@@ -90,6 +90,37 @@ class SkillsPromptTest {
     }
 
     @Test
+    fun `buildSkillsCatalogPrompt should not require exposing general Termux tool`() {
+        val assistant = Assistant(
+            skillsEnabled = true,
+            selectedSkills = setOf("find-hugeicons"),
+            localTools = listOf(LocalToolOption.TimeInfo),
+        )
+        val model = Model(abilities = listOf(ModelAbility.TOOL))
+        val catalog = SkillsCatalogState(
+            rootPath = "/data/data/com.termux/files/home/skills",
+            entries = listOf(
+                SkillCatalogEntry(
+                    directoryName = "find-hugeicons",
+                    path = "/data/data/com.termux/files/home/skills/find-hugeicons",
+                    name = "find-hugeicons",
+                    description = "Search the HugeIcons library before using an icon.",
+                )
+            ),
+        )
+
+        val prompt = buildSkillsCatalogPrompt(
+            assistant = assistant,
+            model = model,
+            catalog = catalog,
+        )
+
+        assertNotNull(prompt)
+        assertTrue(shouldInjectSkillsCatalog(assistant = assistant, model = model))
+        assertTrue(prompt!!.contains("call use_skill"))
+    }
+
+    @Test
     fun `buildSkillsCatalogPrompt should be disabled when model cannot use tools`() {
         val assistant = Assistant(
             skillsEnabled = true,

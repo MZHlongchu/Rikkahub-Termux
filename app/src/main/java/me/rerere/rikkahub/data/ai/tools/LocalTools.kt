@@ -39,6 +39,8 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.skills.SkillsRepository
 import me.rerere.rikkahub.utils.readClipboardText
 import me.rerere.rikkahub.utils.writeClipboardText
 import java.time.ZonedDateTime
@@ -84,6 +86,7 @@ class LocalTools(
     private val termuxPtySessionManager: TermuxPtySessionManager,
     private val eventBus: AppEventBus,
     private val filesManager: FilesManager,
+    private val skillsRepository: SkillsRepository,
 ) {
     val javascriptTool by lazy {
         Tool(
@@ -699,6 +702,81 @@ class LocalTools(
                 )
             }
         )
+    }
+
+    private fun useSkillTool(assistant: Assistant): Tool {
+        val selectedSkills = assistant.selectedSkills
+        val catalog = skillsRepository.state.value
+        val selectedEntries = catalog.entries
+            .filter { it.directoryName in selectedSkills }
+            .sortedBy { it.directoryName }
+        val availableSkills = selectedEntries.joinToString("; ") { entry ->
+            "${entry.directoryName} (${entry.name}): ${entry.description}"
+        }.ifBlank {
+            selectedSkills.sorted().joinToString("; ")
+        }
+        return Tool(
+            name = "use_skill",
+            description = """
+                Load one enabled local skill package by name or directory.
+                Use this when the user's request matches an available skill before following that skill's workflow.
+                Returns the skill's SKILL.md content and a bounded package file listing.
+                Enabled skills: $availableSkills
+            """.trimIndent().replace("\n", " "),
+            needsApproval = false,
+            parameters = {
+                InputSchema.Obj(
+                    properties = buildJsonObject {
+                        put("name", buildJsonObject {
+                            put("type", "string")
+                            put("description", "The enabled skill directory name or skill name to load")
+                        })
+                        put("reason", buildJsonObject {
+                            put("type", "string")
+                            put("description", "Brief reason this skill is relevant")
+                        })
+                    },
+                    required = listOf("name"),
+                )
+            },
+            execute = { input ->
+                val params = input.jsonObject
+                val requestedName = params["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: error("name is required")
+                val result = skillsRepository.loadSkillForUse(
+                    requestedName = requestedName,
+                    allowedDirectoryNames = selectedSkills,
+                )
+                val payload = buildJsonObject {
+                    put("activated", true)
+                    put("directory", result.directoryName)
+                    put("name", result.name)
+                    put("description", result.description)
+                    put("path", result.path)
+                    put("skill_md", result.skillMarkdown)
+                    put("files", buildJsonArray {
+                        result.files.forEach { file ->
+                            add(buildJsonObject {
+                                put("path", file.relativePath)
+                                put("kind", if (file.isDirectory) "directory" else "file")
+                                put("size_bytes", file.sizeBytes)
+                            })
+                        }
+                    })
+                    put(
+                        "instruction",
+                        "Follow skill_md for this conversation. The file listing is a summary; " +
+                            "do not assume listed files were read."
+                    )
+                }
+                listOf(UIMessagePart.Text(payload.toString()))
+            }
+        )
+    }
+
+    fun getSkillTools(assistant: Assistant): List<Tool> {
+        if (!assistant.skillsEnabled || assistant.selectedSkills.isEmpty()) return emptyList()
+        return listOf(useSkillTool(assistant))
     }
 
     fun getTools(

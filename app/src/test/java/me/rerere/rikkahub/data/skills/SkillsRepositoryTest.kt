@@ -303,4 +303,71 @@ class SkillsRepositoryTest {
         assertEquals(listOf("demo/SKILL.md"), parsed.files.map { it.path })
         assertEquals(setOf("demo"), parsed.directories)
     }
+
+    @Test
+    fun `parseSkillArchive should reject too many files`() {
+        val output = ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("demo/SKILL.md"))
+            zip.write(buildSkillMarkdown("Demo", "Imported", "").toByteArray())
+            zip.closeEntry()
+            repeat(512) { index ->
+                zip.putNextEntry(java.util.zip.ZipEntry("demo/assets/file-$index.txt"))
+                zip.closeEntry()
+            }
+        }
+
+        val result = runCatching {
+            parseSkillArchive(ByteArrayInputStream(output.toByteArray()))
+        }
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("too many files"))
+    }
+
+    @Test
+    fun `normalizeSkillArchiveEntryPath should reject deeply nested paths`() {
+        val result = runCatching {
+            normalizeSkillArchiveEntryPath(
+                List(17) { "level$it" }.joinToString("/") + "/SKILL.md"
+            )
+        }
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("too deeply nested"))
+    }
+
+    @Test
+    fun `resolveSkillForUse should match enabled directory or skill name only`() {
+        val entries = listOf(
+            SkillCatalogEntry(
+                directoryName = "demo-skill",
+                path = "/skills/demo-skill",
+                name = "Demo Skill",
+                description = "Demo",
+            ),
+            SkillCatalogEntry(
+                directoryName = "other-skill",
+                path = "/skills/other-skill",
+                name = "Other Skill",
+                description = "Other",
+            )
+        )
+
+        assertEquals(
+            "demo-skill",
+            resolveSkillForUse(
+                entries = entries,
+                allowedDirectoryNames = setOf("demo-skill"),
+                requestedName = "Demo Skill",
+            )?.directoryName,
+        )
+        assertNull(
+            resolveSkillForUse(
+                entries = entries,
+                allowedDirectoryNames = setOf("other-skill"),
+                requestedName = "Demo Skill",
+            )
+        )
+    }
 }
