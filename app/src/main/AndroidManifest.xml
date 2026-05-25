@@ -95,6 +95,7 @@
     <activity
       android:name=".ui.activity.TextSelectionActivity"
       android:exported="true"
+      android:icon="@mipmap/ic_launcher"
       android:label="@string/text_selection_menu_label"
       android:theme="@style/Theme.Rikkahub.Translucent"
       android:configChanges="keyboardHidden|orientation|screenSize"

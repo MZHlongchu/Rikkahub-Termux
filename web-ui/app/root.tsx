@@ -21,6 +21,7 @@ const queryClient = new QueryClient();
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "64x64" },
+  { rel: "apple-touch-icon", href: "/app-icon.png", sizes: "512x512" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
