@@ -3,7 +3,6 @@ package me.rerere.rikkahub.ui.pages.setting
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,11 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -39,11 +36,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,9 +64,11 @@ import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.McpServer
 import me.rerere.hugeicons.stroke.Megaphone01
 import me.rerere.hugeicons.stroke.Package
+import me.rerere.hugeicons.stroke.ServerStack01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share04
 import me.rerere.hugeicons.stroke.Sun01
+import me.rerere.hugeicons.stroke.TextSelection
 import me.rerere.hugeicons.stroke.TransactionHistory
 import me.rerere.rikkahub.APP_README_URL
 import me.rerere.rikkahub.R
@@ -385,7 +382,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                             if (showIntegration) {
                                 item(
                                     onClick = { navController.navigate(Screen.SettingAndroidIntegration) },
-                                    leadingContent = { SettingAppIcon() },
+                                    leadingContent = { Icon(HugeIcons.TextSelection, null) },
                                     supportingContent = { Text(integrationDesc) },
                                     headlineContent = { Text(integrationTitle) },
                                 )
@@ -393,7 +390,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                             if (showWeb) {
                                 item(
                                     onClick = { navController.navigate(Screen.SettingWeb) },
-                                    leadingContent = { SettingAppIcon() },
+                                    leadingContent = { Icon(HugeIcons.ServerStack01, null) },
                                     supportingContent = { Text(webDesc) },
                                     headlineContent = { Text(webTitle) },
                                 )
@@ -578,26 +575,6 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SettingAppIcon(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(24.dp)
-            .clip(RoundedCornerShape(7.dp))
-    ) {
-        Image(
-            painter = painterResource(id = R.mipmap.ic_launcher_background),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-        )
-        Image(
-            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-        )
     }
 }
 
