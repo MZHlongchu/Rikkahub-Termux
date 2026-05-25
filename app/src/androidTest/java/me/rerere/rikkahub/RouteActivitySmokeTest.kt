@@ -31,7 +31,7 @@ class RouteActivitySmokeTest {
         composeRule.onNodeWithContentDescription(settingsLabel).performClick()
 
         composeRule.onNodeWithText(
-            composeRule.activity.getString(R.string.setting_page_display_setting)
+            composeRule.activity.getString(R.string.setting_page_preferences)
         ).assertIsDisplayed()
     }
 }
