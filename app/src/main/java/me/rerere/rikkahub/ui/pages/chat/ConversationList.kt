@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -251,19 +252,30 @@ private fun ConversationItem(
     onClick: (Conversation) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val itemShape = RoundedCornerShape(22.dp)
     val backgroundColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.74f)
     } else {
         luneGlassContainerColor().copy(alpha = 0.72f)
     }
-    val titleColor = MaterialTheme.colorScheme.onSurface
-    val metadataColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+    val selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val titleColor = if (selected) selectedContentColor else MaterialTheme.colorScheme.onSurface
+    val metadataColor = if (selected) {
+        selectedContentColor.copy(alpha = 0.78f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.78f)
+    } else {
+        luneGlassBorderColor().copy(alpha = 0.34f)
+    }
     var showDropdownMenu by remember {
         mutableStateOf(false)
     }
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
+            .clip(itemShape)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
@@ -272,7 +284,8 @@ private fun ConversationItem(
                     showDropdownMenu = true
                 }
             )
-            .background(backgroundColor),
+            .background(backgroundColor)
+            .border(BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor), itemShape),
     ) {
         Row(
             modifier = Modifier
@@ -280,12 +293,26 @@ private fun ConversationItem(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Transparent
+                        }
+                    )
+            )
+            Spacer(Modifier.size(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = conversation.title.ifBlank { stringResource(id = R.string.chat_page_new_message) },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     color = titleColor,
                 )
                 Text(
