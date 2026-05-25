@@ -1,28 +1,6 @@
 name: Android Release Smoke
 
 on:
-  push:
-    branches:
-      - "**"
-    paths:
-      - "app/**"
-      - "ai/**"
-      - "common/**"
-      - "document/**"
-      - "highlight/**"
-      - "search/**"
-      - "tts/**"
-      - "web/**"
-      - "web-ui/**"
-      - "material3/**"
-      - "build.gradle.kts"
-      - "settings.gradle.kts"
-      - "gradle.properties"
-      - "gradle/**"
-      - "gradlew"
-      - "gradlew.bat"
-      - ".gitmodules"
-      - ".github/workflows/android-release-smoke.yml"
   pull_request:
     paths:
       - "app/**"
@@ -31,7 +9,7 @@ on:
       - "document/**"
       - "highlight/**"
       - "search/**"
-      - "tts/**"
+      - "speech/**"
       - "web/**"
       - "web-ui/**"
       - "material3/**"
@@ -43,7 +21,6 @@ on:
       - "gradlew.bat"
       - ".gitmodules"
       - ".github/workflows/android-release-smoke.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
