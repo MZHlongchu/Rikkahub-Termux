@@ -1110,11 +1110,11 @@ private fun BoxScope.MessageJumper(
                         state.scrollToItem(0)
                     }
                 },
-                modifier = Modifier.size(48.dp),
                 shape = CircleShape,
                 tonalElevation = 4.dp,
-                color = luneGlassContainerColor(),
-                border = BorderStroke(1.dp, luneGlassBorderColor())
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(
+                    4.dp
+                ).copy(alpha = 0.65f)
             ) {
                 Icon(
                     imageVector = HugeIcons.ArrowUpDouble,
@@ -1133,11 +1133,11 @@ private fun BoxScope.MessageJumper(
                         )
                     }
                 },
-                modifier = Modifier.size(48.dp),
                 shape = CircleShape,
                 tonalElevation = 4.dp,
-                color = luneGlassContainerColor(),
-                border = BorderStroke(1.dp, luneGlassBorderColor())
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(
+                    4.dp
+                ).copy(alpha = 0.65f)
             ) {
                 Icon(
                     imageVector = HugeIcons.ArrowUp01,
@@ -1152,10 +1152,10 @@ private fun BoxScope.MessageJumper(
                         state.animateScrollToItem(state.firstVisibleItemIndex + 1)
                     }
                 },
-                modifier = Modifier.size(48.dp),
                 shape = CircleShape,
-                color = luneGlassContainerColor(),
-                border = BorderStroke(1.dp, luneGlassBorderColor())
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(
+                    4.dp
+                ).copy(alpha = 0.65f)
             ) {
                 Icon(
                     imageVector = HugeIcons.ArrowDown01,
@@ -1170,10 +1170,10 @@ private fun BoxScope.MessageJumper(
                         state.scrollToItem(state.layoutInfo.totalItemsCount - 1)
                     }
                 },
-                modifier = Modifier.size(48.dp),
                 shape = CircleShape,
-                color = luneGlassContainerColor(),
-                border = BorderStroke(1.dp, luneGlassBorderColor()),
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(
+                    4.dp
+                ).copy(alpha = 0.65f),
             ) {
                 Icon(
                     imageVector = HugeIcons.ArrowDownDouble,
