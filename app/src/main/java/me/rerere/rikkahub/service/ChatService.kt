@@ -51,6 +51,7 @@ import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.canResumeToolExecution
+import me.rerere.ai.ui.finishPendingTools
 import me.rerere.ai.ui.finishReasoning
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.common.android.Logging
@@ -575,7 +576,8 @@ class ChatService(
         forceTermuxCommandMode: Boolean = false,
     ) {
         val session = getOrCreateSession(conversationId)
-        session.getJob()?.cancel()
+        val previousJob = session.getJob()
+        previousJob?.cancel()
         val currentSettings = settingsStore.settingsFlow.value
         val resolvedContent = when {
             forceTermuxCommandMode && content.isEmptyInputMessage() -> return
@@ -590,6 +592,9 @@ class ChatService(
 
         val job = appScope.launch {
             try {
+                runCatching { previousJob?.join() }
+                finishInterruptedPendingTools(conversationId)
+
                 val currentConversation = session.state.value
                 val assistant = currentSettings.getAssistantById(currentConversation.assistantId)
                     ?: currentSettings.getCurrentAssistant()
@@ -1222,6 +1227,36 @@ class ChatService(
         messagesNodes = messagesNodes.filter { it.messages.isNotEmpty() }
 
         updateConversation(conversationId, conversation.copy(messageNodes = messagesNodes))
+    }
+
+    private fun cancelToolByUser(tool: UIMessagePart.Tool): UIMessagePart.Tool {
+        return tool.copy(
+            output = listOf(
+                UIMessagePart.Text(
+                    """{"status":"cancelled","error":"Generation cancelled by user before tool execution completed."}"""
+                )
+            ),
+            approvalState = ToolApprovalState.Denied("Generation cancelled by user")
+        )
+    }
+
+    private suspend fun finishInterruptedPendingTools(conversationId: Uuid) {
+        val currentConversation = getConversationFlow(conversationId).value
+        val lastNode = currentConversation.messageNodes.lastOrNull() ?: return
+        val lastMessage = lastNode.currentMessage
+        val updatedMessage = lastMessage.finishPendingTools(::cancelToolByUser)
+        if (updatedMessage == lastMessage) {
+            return
+        }
+
+        val updatedConversation = currentConversation.copy(
+            messageNodes = currentConversation.messageNodes.dropLast(1) + lastNode.copy(
+                messages = lastNode.messages.map { message ->
+                    if (message.id == lastMessage.id) updatedMessage else message
+                }
+            )
+        )
+        saveConversation(conversationId, updatedConversation)
     }
 
     // ---- 生成标题 ----
@@ -1957,7 +1992,10 @@ class ChatService(
     }
 
     // 停止当前会话生成任务（不清理会话缓存）
-    fun stopGeneration(conversationId: Uuid) {
-        sessions[conversationId]?.getJob()?.cancel()
+    suspend fun stopGeneration(conversationId: Uuid) {
+        val job = sessions[conversationId]?.getJob() ?: return
+        job.cancel()
+        runCatching { job.join() }
+        finishInterruptedPendingTools(conversationId)
     }
 }

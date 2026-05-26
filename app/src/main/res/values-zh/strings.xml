@@ -447,8 +447,8 @@
   <string name="setting_display_page_show_message_jumper_title">消息导航按钮</string>
   <string name="setting_display_page_show_model_name_desc">是否在聊天消息中显示模型名称</string>
   <string name="setting_display_page_show_model_name_title">显示模型名称</string>
-  <string name="setting_display_page_show_date_below_name_desc">是否在昵称或模型名称下方显示消息日期</string>
-  <string name="setting_display_page_show_date_below_name_title">显示昵称下方日期</string>
+  <string name="setting_display_page_show_datetime_in_message_desc">在每条消息下方显示日期和时间</string>
+  <string name="setting_display_page_show_datetime_in_message_title">在消息中显示日期和时间</string>
   <string name="setting_display_page_show_token_usage_desc">显示token用量和消息数量</string>
   <string name="setting_display_page_show_token_usage_title">显示Token和上下文统计</string>
   <string name="setting_display_page_show_updates_desc">是否显示应用更新通知</string>

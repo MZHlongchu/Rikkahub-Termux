@@ -480,8 +480,8 @@
   <string name="setting_display_page_show_message_jumper_title">Show Message Jumper</string>
   <string name="setting_display_page_show_model_name_desc">Whether to display model names in chat messages</string>
   <string name="setting_display_page_show_model_name_title">Show Model Name</string>
-  <string name="setting_display_page_show_date_below_name_desc">Whether to show message date below nickname or model name</string>
-  <string name="setting_display_page_show_date_below_name_title">Show Date Below Name</string>
+  <string name="setting_display_page_show_datetime_in_message_desc">Show date and time below each message</string>
+  <string name="setting_display_page_show_datetime_in_message_title">Show Date and Time in Message</string>
   <string name="setting_display_page_show_token_usage_desc">Display token usage and message count</string>
   <string name="setting_display_page_show_token_usage_title">Show Token &amp; Context Stats</string>
   <string name="setting_display_page_show_updates_desc">Whether to display app update notifications</string>

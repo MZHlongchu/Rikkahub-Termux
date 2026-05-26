@@ -11,7 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.datetime.toJavaLocalDateTime
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
@@ -23,7 +22,6 @@ import me.rerere.rikkahub.data.model.effectiveUserName
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.ui.context.LocalSettings
-import me.rerere.rikkahub.utils.toLocalString
 
 internal data class ChatMessageHeaderState(
     val showAvatar: Boolean,
@@ -64,7 +62,7 @@ internal fun UIMessage.headerState(
 
     return ChatMessageHeaderState(
         showAvatar = showAvatar,
-        showIdentityLabel = (showName && hasName) || settings.displaySetting.showDateBelowName,
+        showIdentityLabel = showName && hasName,
     )
 }
 
@@ -76,7 +74,7 @@ fun ChatMessageUserAvatar(
 ) {
     UIAvatar(
         name = nickname.ifEmpty { stringResource(R.string.user_default_name) },
-        modifier = modifier.size(36.dp),
+        modifier = modifier.size(24.dp),
         value = avatar,
         loading = false,
     )
@@ -96,7 +94,7 @@ fun ChatMessageAssistantAvatar(
         assistant?.useAssistantAvatar == true -> {
             UIAvatar(
                 name = assistant.name.ifEmpty { stringResource(R.string.assistant_page_default_assistant) },
-                modifier = modifier.size(32.dp),
+                modifier = modifier.size(24.dp),
                 value = assistant.avatar,
                 loading = loading,
             )
@@ -105,7 +103,7 @@ fun ChatMessageAssistantAvatar(
         model != null -> {
             AutoAIIcon(
                 name = model.modelId,
-                modifier = modifier.size(32.dp),
+                modifier = modifier.size(24.dp),
                 loading = loading,
             )
         }
@@ -128,7 +126,6 @@ fun ChatMessageIdentityLabel(
     )
     val isUser = message.role == MessageRole.USER
     val showName = if (isUser) settings.displaySetting.showUserAvatar else settings.displaySetting.showModelName
-    val showDate = settings.displaySetting.showDateBelowName
 
     if (!headerState.showIdentityLabel) return
 
@@ -154,15 +151,6 @@ fun ChatMessageIdentityLabel(
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 color = LocalContentColor.current.copy(alpha = 0.72f),
-            )
-        }
-
-        if (showDate) {
-            Text(
-                text = message.createdAt.toJavaLocalDateTime().toLocalString(),
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                color = LocalContentColor.current.copy(alpha = 0.52f),
             )
         }
     }

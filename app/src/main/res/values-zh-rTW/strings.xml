@@ -1041,8 +1041,8 @@
   <string name="text_selection_action_model_desc">為該操作指定模型。未設定時使用助手或預設對話模型。</string>
   <string name="text_selection_reset_actions_desc">還原內建動作預設值</string>
   <string name="text_selection_no_actions_enabled">未啟用任何快速動作。</string>
-  <string name="setting_display_page_show_date_below_name_title">在名稱下方顯示日期</string>
-  <string name="setting_display_page_show_date_below_name_desc">是否在暱稱或模型名稱下方顯示訊息日期</string>
+  <string name="setting_display_page_show_datetime_in_message_title">在訊息中顯示日期和時間</string>
+  <string name="setting_display_page_show_datetime_in_message_desc">在每則訊息下方顯示日期與時間</string>
   <string name="assistant_page_local_tools_ask_user_title">詢問使用者</string>
   <string name="assistant_page_local_tools_ask_user_desc">允許 AI 向你提問以獲得更多資訊</string>
   <string name="chat_message_tool_ask_questions">詢問 %d 個問題</string>
