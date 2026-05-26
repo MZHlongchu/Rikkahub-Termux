@@ -180,6 +180,7 @@ fun SkillsPicker(
     onRefresh: () -> Unit,
     onUpdateAssistant: (Assistant) -> Unit,
     modifier: Modifier = Modifier,
+    showAssistantControls: Boolean = true,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -187,10 +188,14 @@ fun SkillsPicker(
     val toaster = LocalToaster.current
     val navController = LocalNavController.current
     val skillsRepository = koinInject<SkillsRepository>()
-    val missingSelections = remember(assistant.selectedSkills, skillsState.entryNames) {
-        assistant.selectedSkills
-            .filterNot { it in skillsState.entryNames }
-            .sorted()
+    val missingSelections = remember(assistant.selectedSkills, skillsState.entryNames, showAssistantControls) {
+        if (showAssistantControls) {
+            assistant.selectedSkills
+                .filterNot { it in skillsState.entryNames }
+                .sorted()
+        } else {
+            emptyList()
+        }
     }
     val resolvedRootPath = if (skillsState.rootPath.isBlank()) {
         stringResource(R.string.assistant_page_skills_root_unresolved)
@@ -309,34 +314,36 @@ fun SkillsPicker(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                    if (showAssistantControls) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text(
-                                text = stringResource(R.string.assistant_page_skills_enable_catalog_title),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                text = stringResource(
-                                    R.string.assistant_page_skills_enable_catalog_desc,
-                                    resolvedRootPath,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.assistant_page_skills_enable_catalog_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = stringResource(
+                                        R.string.assistant_page_skills_enable_catalog_desc,
+                                        resolvedRootPath,
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = assistant.skillsEnabled,
+                                onCheckedChange = {
+                                    onUpdateAssistant(assistant.copy(skillsEnabled = it))
+                                },
                             )
                         }
-                        Switch(
-                            checked = assistant.skillsEnabled,
-                            onCheckedChange = {
-                                onUpdateAssistant(assistant.copy(skillsEnabled = it))
-                            },
-                        )
                     }
 
                     Text(
@@ -418,14 +425,16 @@ fun SkillsPicker(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = stringResource(
-                                R.string.assistant_page_skills_selected_count,
-                                assistant.selectedSkills.size,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (showAssistantControls) {
+                            Text(
+                                text = stringResource(
+                                    R.string.assistant_page_skills_selected_count,
+                                    assistant.selectedSkills.size,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Box(modifier = Modifier.weight(1f))
                         TextButton(
                             enabled = !actionInProgress,
@@ -438,7 +447,7 @@ fun SkillsPicker(
             }
         }
 
-        if (!modelSupportsTools) {
+        if (showAssistantControls && !modelSupportsTools) {
             item("model-warning") {
                 SkillsInfoCard(
                     title = stringResource(R.string.assistant_page_skills_model_unsupported_title),
@@ -509,6 +518,7 @@ fun SkillsPicker(
                     entry = entry,
                     checked = entry.directoryName in assistant.selectedSkills,
                     enabled = !actionInProgress,
+                    showSelection = showAssistantControls,
                     onEdit = {
                         scope.launch {
                             isLoadingEditor = true
@@ -532,10 +542,12 @@ fun SkillsPicker(
                         }
                     },
                     onCheckedChange = { checked ->
-                        val nextSelection = assistant.selectedSkills.toMutableSet().apply {
-                            if (checked) add(entry.directoryName) else remove(entry.directoryName)
+                        if (showAssistantControls) {
+                            val nextSelection = assistant.selectedSkills.toMutableSet().apply {
+                                if (checked) add(entry.directoryName) else remove(entry.directoryName)
+                            }
+                            onUpdateAssistant(assistant.copy(selectedSkills = nextSelection))
                         }
-                        onUpdateAssistant(assistant.copy(selectedSkills = nextSelection))
                     },
                 )
             }
@@ -724,7 +736,7 @@ fun SkillsPicker(
                             isDeleting = true
                             try {
                                 skillsRepository.deleteSkill(latestEntry.directoryName)
-                                if (latestEntry.directoryName in assistant.selectedSkills) {
+                                if (showAssistantControls && latestEntry.directoryName in assistant.selectedSkills) {
                                     onUpdateAssistant(
                                         assistant.copy(
                                             selectedSkills = assistant.selectedSkills - latestEntry.directoryName
@@ -809,7 +821,8 @@ fun SkillsPicker(
                             description = latestDocument.description,
                             body = latestDocument.body,
                         )
-                        if (latestDocument.originalDirectoryName in assistant.selectedSkills &&
+                        if (showAssistantControls &&
+                            latestDocument.originalDirectoryName in assistant.selectedSkills &&
                             latestDocument.originalDirectoryName != saved.directoryName
                         ) {
                             val nextSelection = assistant.selectedSkills.toMutableSet().apply {
@@ -838,6 +851,25 @@ fun SkillsPicker(
             },
         )
     }
+}
+
+@Composable
+fun SkillsManager(
+    skillsState: SkillsCatalogState,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val assistant = remember { Assistant() }
+
+    SkillsPicker(
+        assistant = assistant,
+        skillsState = skillsState,
+        modelSupportsTools = true,
+        onRefresh = onRefresh,
+        onUpdateAssistant = {},
+        modifier = modifier,
+        showAssistantControls = false,
+    )
 }
 
 @Composable
@@ -933,6 +965,7 @@ private fun SkillEntryCard(
     entry: SkillCatalogEntry,
     checked: Boolean,
     enabled: Boolean,
+    showSelection: Boolean,
     onEdit: () -> Unit,
     onDelete: (() -> Unit)?,
     onCheckedChange: (Boolean) -> Unit,
@@ -1000,11 +1033,13 @@ private fun SkillEntryCard(
                         )
                     }
                 }
-                Switch(
-                    checked = checked,
-                    enabled = enabled,
-                    onCheckedChange = onCheckedChange,
-                )
+                if (showSelection) {
+                    Switch(
+                        checked = checked,
+                        enabled = enabled,
+                        onCheckedChange = onCheckedChange,
+                    )
+                }
             }
         }
     }

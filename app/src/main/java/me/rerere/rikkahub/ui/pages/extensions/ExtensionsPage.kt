@@ -18,8 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
-import me.rerere.hugeicons.stroke.Book01
-import me.rerere.hugeicons.stroke.MagicWand01
+import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Tools
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.Screen
@@ -68,6 +67,12 @@ fun ExtensionsPage() {
                         leadingContent = { Icon(HugeIcons.Tools, null) },
                         headlineContent = { Text(stringResource(R.string.prompt_page_overview_mode_injection_title)) },
                         supportingContent = { Text(stringResource(R.string.prompt_page_overview_mode_injection_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Skills) },
+                        leadingContent = { Icon(HugeIcons.Puzzle, null) },
+                        headlineContent = { Text(stringResource(R.string.extensions_page_agent_skills)) },
+                        supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
                     )
                 }
             }

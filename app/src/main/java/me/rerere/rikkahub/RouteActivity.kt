@@ -99,6 +99,7 @@ import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
 import me.rerere.rikkahub.ui.pages.extensions.ModeInjectionSettingsPage
 import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
+import me.rerere.rikkahub.ui.pages.extensions.SkillsPage
 import me.rerere.rikkahub.ui.pages.extensions.WorkdirBrowserPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
@@ -651,6 +652,10 @@ class RouteActivity : ComponentActivity() {
                                 ModeInjectionSettingsPage()
                             }
 
+                            entry<Screen.Skills> {
+                                SkillsPage()
+                            }
+
                             entry<Screen.WorkdirBrowser> { key ->
                                 WorkdirBrowserPage(relativePath = key.relativePath)
                             }
@@ -866,6 +871,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object ModeInjections : Screen
+
+    @Serializable
+    data object Skills : Screen
 
     @Serializable
     data class WorkdirBrowser(val relativePath: String = "") : Screen
