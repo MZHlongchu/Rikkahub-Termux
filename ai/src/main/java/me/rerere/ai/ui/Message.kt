@@ -193,7 +193,7 @@ data class UIMessage(
             is UIMessagePart.Video -> part.url.isNotBlank()
             is UIMessagePart.Audio -> part.url.isNotBlank()
             is UIMessagePart.Document -> part.url.isNotBlank()
-            is UIMessagePart.Reasoning -> part.reasoning.isNotBlank()
+            is UIMessagePart.Reasoning -> part.reasoning.isNotBlank() || part.metadata?.isNotEmpty() == true
             else -> true
         }
     }

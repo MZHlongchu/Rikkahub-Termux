@@ -18,10 +18,12 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.util.json
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -182,6 +184,30 @@ class ResponseAPIMessageTest {
         assertEquals("rs_123", reasoningItems.single().jsonObject["id"]?.jsonPrimitive?.content)
         assertEquals(1, assistantContentItems.size)
         assertEquals("OK", assistantContentItems.single().jsonObject["content"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `buildMessages should preserve encrypted reasoning item with empty summary`() {
+        val assistantMessage = UIMessage(
+            role = MessageRole.ASSISTANT,
+            parts = listOf(
+                UIMessagePart.Reasoning(
+                    reasoning = "",
+                    metadata = buildJsonObject {
+                        put("reasoning_id", "rs_empty")
+                        put("encrypted_content", "encrypted")
+                    }
+                )
+            )
+        )
+
+        val result = invokeBuildMessages(listOf(assistantMessage))
+
+        val reasoningItem = result.single().jsonObject
+        assertEquals("reasoning", reasoningItem["type"]?.jsonPrimitive?.content)
+        assertEquals("rs_empty", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals("encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
+        assertEquals(0, reasoningItem["summary"]?.jsonArray?.size)
     }
 
     @Test
@@ -562,6 +588,112 @@ class ResponseAPIMessageTest {
     }
 
     @Test
+    fun `parseResponseOutput should preserve reasoning item for round trip`() {
+        val result = api.parseResponseOutput(
+            buildJsonObject {
+                put("id", "resp_123")
+                put("model", "gpt-5.4")
+                put("output", json.parseToJsonElement(
+                    """
+                    [
+                      {
+                        "id": "rs_123",
+                        "type": "reasoning",
+                        "summary": [
+                          {
+                            "type": "summary_text",
+                            "text": "Visible summary"
+                          }
+                        ],
+                        "content": [
+                          {
+                            "type": "reasoning_text",
+                            "text": "Hidden raw reasoning"
+                          }
+                        ],
+                        "encrypted_content": "encrypted"
+                      },
+                      {
+                        "id": "msg_123",
+                        "type": "message",
+                        "content": [
+                          {
+                            "type": "output_text",
+                            "text": "Final answer"
+                          }
+                        ]
+                      }
+                    ]
+                    """.trimIndent()
+                ))
+            }
+        )
+
+        val message = result.choices.single().message!!
+        val reasoning = message.parts.first() as UIMessagePart.Reasoning
+        assertEquals("Visible summary", reasoning.reasoning)
+        assertEquals("rs_123", reasoning.metadata?.get("reasoning_id")?.jsonPrimitive?.content)
+        assertEquals("encrypted", reasoning.metadata?.get("encrypted_content")?.jsonPrimitive?.content)
+
+        val roundTrip = invokeBuildMessages(listOf(message))
+        val reasoningItem = roundTrip.first().jsonObject
+        assertEquals("reasoning", reasoningItem["type"]?.jsonPrimitive?.content)
+        assertEquals("rs_123", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals("encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
+        assertEquals(
+            "Visible summary",
+            reasoningItem["summary"]!!.jsonArray[0].jsonObject["text"]?.jsonPrimitive?.content
+        )
+        assertEquals(
+            "Hidden raw reasoning",
+            reasoningItem["content"]!!.jsonArray[0].jsonObject["text"]?.jsonPrimitive?.content
+        )
+    }
+
+    @Test
+    fun `parseResponseOutput should preserve empty encrypted reasoning item`() {
+        val result = api.parseResponseOutput(
+            buildJsonObject {
+                put("id", "resp_123")
+                put("model", "gpt-5.4")
+                put("output", json.parseToJsonElement(
+                    """
+                    [
+                      {
+                        "id": "rs_empty",
+                        "type": "reasoning",
+                        "summary": [],
+                        "encrypted_content": "encrypted"
+                      },
+                      {
+                        "id": "msg_123",
+                        "type": "message",
+                        "content": [
+                          {
+                            "type": "output_text",
+                            "text": "Final answer"
+                          }
+                        ]
+                      }
+                    ]
+                    """.trimIndent()
+                ))
+            }
+        )
+
+        val message = result.choices.single().message!!
+        val reasoning = message.parts.first() as UIMessagePart.Reasoning
+        assertEquals("", reasoning.reasoning)
+        assertEquals("rs_empty", reasoning.metadata?.get("reasoning_id")?.jsonPrimitive?.content)
+
+        val roundTrip = invokeBuildMessages(listOf(message))
+        val reasoningItem = roundTrip.first().jsonObject
+        assertEquals("rs_empty", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals("encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
+        assertEquals(0, reasoningItem["summary"]?.jsonArray?.size)
+    }
+
+    @Test
     fun `parseResponseOutput should convert image_generation_call to image part`() {
         val result = api.parseResponseOutput(
             buildJsonObject {
@@ -603,6 +735,101 @@ class ResponseAPIMessageTest {
     }
 
     @Test
+    fun `parseResponseDelta should attach reasoning id to summary delta`() {
+        val result = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.reasoning_summary_text.delta",
+                  "item_id": "rs_123",
+                  "output_index": 0,
+                  "summary_index": 0,
+                  "delta": "Visible summary"
+                }
+                """.trimIndent()
+            ).jsonObject
+        )
+
+        val reasoning = result?.choices?.single()?.delta?.parts?.singleOrNull() as? UIMessagePart.Reasoning
+        assertEquals("Visible summary", reasoning?.reasoning)
+        assertEquals("rs_123", reasoning?.metadata?.get("reasoning_id")?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `parseResponseDelta should not expose raw reasoning text delta`() {
+        val result = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.reasoning_text.delta",
+                  "item_id": "rs_123",
+                  "output_index": 0,
+                  "content_index": 0,
+                  "delta": "Hidden raw reasoning"
+                }
+                """.trimIndent()
+            ).jsonObject
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `summary delta should merge into existing reasoning by id after text`() {
+        val added = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.output_item.added",
+                  "output_index": 0,
+                  "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "summary": []
+                  }
+                }
+                """.trimIndent()
+            ).jsonObject
+        )!!
+        val text = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.output_text.delta",
+                  "item_id": "msg_123",
+                  "output_index": 1,
+                  "content_index": 0,
+                  "delta": "Final answer"
+                }
+                """.trimIndent()
+            ).jsonObject
+        )!!
+        val summary = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.reasoning_summary_text.delta",
+                  "item_id": "rs_123",
+                  "output_index": 0,
+                  "summary_index": 0,
+                  "delta": "Visible summary"
+                }
+                """.trimIndent()
+            ).jsonObject
+        )!!
+
+        var messages = listOf(UIMessage(role = MessageRole.ASSISTANT, parts = emptyList()))
+        messages = messages.handleMessageChunk(added)
+        messages = messages.handleMessageChunk(text)
+        messages = messages.handleMessageChunk(summary)
+
+        val parts = messages.single().parts
+        assertEquals(2, parts.size)
+        assertEquals("Visible summary", (parts[0] as UIMessagePart.Reasoning).reasoning)
+        assertEquals("Final answer", (parts[1] as UIMessagePart.Text).text)
+    }
+
+    @Test
     fun `parseResponseDelta should convert output_item_done image_generation_call to image delta`() {
         val result = api.parseResponseDelta(
             json.parseToJsonElement(
@@ -627,6 +854,61 @@ class ResponseAPIMessageTest {
         assertEquals("xyz987", image?.url)
         assertEquals("ig_123", image?.metadata?.get("response_item_id")?.jsonPrimitive?.content)
         assertEquals("image/webp", image?.metadata?.get("mime_type")?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `parseResponseDelta should preserve done reasoning item for round trip without visible raw cot`() {
+        val result = api.parseResponseDelta(
+            json.parseToJsonElement(
+                """
+                {
+                  "type": "response.output_item.done",
+                  "output_index": 0,
+                  "item": {
+                    "id": "rs_done",
+                    "type": "reasoning",
+                    "summary": [
+                      {
+                        "type": "summary_text",
+                        "text": "Visible summary"
+                      }
+                    ],
+                    "content": [
+                      {
+                        "type": "reasoning_text",
+                        "text": "Hidden raw reasoning"
+                      }
+                    ],
+                    "encrypted_content": "encrypted"
+                  }
+                }
+                """.trimIndent()
+            ).jsonObject
+        )
+
+        val reasoning = result?.choices?.single()?.delta?.parts?.singleOrNull() as? UIMessagePart.Reasoning
+        assertEquals("", reasoning?.reasoning)
+        assertEquals("rs_done", reasoning?.metadata?.get("reasoning_id")?.jsonPrimitive?.content)
+        assertEquals("encrypted", reasoning?.metadata?.get("encrypted_content")?.jsonPrimitive?.content)
+
+        val roundTrip = invokeBuildMessages(
+            listOf(
+                UIMessage(
+                    role = MessageRole.ASSISTANT,
+                    parts = listOf(reasoning!!)
+                )
+            )
+        )
+        val reasoningItem = roundTrip.single().jsonObject
+        assertEquals("rs_done", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals(
+            "Visible summary",
+            reasoningItem["summary"]!!.jsonArray[0].jsonObject["text"]?.jsonPrimitive?.content
+        )
+        assertEquals(
+            "Hidden raw reasoning",
+            reasoningItem["content"]!!.jsonArray[0].jsonObject["text"]?.jsonPrimitive?.content
+        )
     }
 
     @Test

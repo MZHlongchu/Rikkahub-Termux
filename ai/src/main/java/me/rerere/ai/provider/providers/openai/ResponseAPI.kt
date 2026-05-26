@@ -5,6 +5,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonArrayBuilder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -63,6 +64,9 @@ import okhttp3.sse.EventSources
 import kotlin.time.Clock
 
 private const val TAG = "ResponseAPI"
+private const val OPENAI_REASONING_ITEM_METADATA_KEY = "openai_reasoning_item"
+private const val OPENAI_REASONING_SUMMARY_METADATA_KEY = "openai_reasoning_summary"
+private const val OPENAI_REASONING_CONTENT_METADATA_KEY = "openai_reasoning_content"
 
 class ResponseAPI(
     private val client: OkHttpClient,
@@ -333,9 +337,7 @@ class ResponseAPI(
                     group.parts.forEach { part ->
                         when (part) {
                             is UIMessagePart.Reasoning -> {
-                                val reasoningId = part.metadata?.get("reasoning_id")
-                                    ?.jsonPrimitiveOrNull
-                                    ?.contentOrNull
+                                val reasoningId = part.metadata.contentString("reasoning_id")
                                 if (reasoningId != null && !emittedReasoningIds.add(reasoningId)) {
                                     return@forEach
                                 }
@@ -346,24 +348,7 @@ class ResponseAPI(
                                     contentBuffer.clear()
                                 }
                                 // 输出 reasoning item
-                                add(buildJsonObject {
-                                    put("type", "reasoning")
-                                    part.metadata?.get("reasoning_id")?.jsonPrimitiveOrNull?.contentOrNull?.let {
-                                        put("id", it)
-                                    }
-                                    put("summary", buildJsonArray {
-                                        add(buildJsonObject {
-                                            put("type", "summary_text")
-                                            put("text", part.reasoning)
-                                        })
-                                    })
-                                    part.metadata?.get("encrypted_content")?.jsonPrimitiveOrNull?.contentOrNull?.let {
-                                        put(
-                                            "encrypted_content",
-                                            part.metadata?.get("encrypted_content")?.jsonPrimitive?.contentOrNull ?: ""
-                                        )
-                                    }
-                                })
+                                add(buildReasoningInputItem(part))
                             }
 
                             is UIMessagePart.Image -> {
@@ -492,9 +477,10 @@ class ResponseAPI(
                 )
             }
 
-            "response.reasoning_summary_text.delta", "response.reasoning_text.delta" -> {
+            "response.reasoning_summary_text.delta" -> {
+                val itemId = jsonObject["item_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 return MessageChunk(
-                    id = jsonObject["item_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    id = itemId,
                     model = "",
                     choices = listOf(
                         UIMessageChoice(
@@ -506,7 +492,72 @@ class ResponseAPI(
                                         reasoning = jsonObject["delta"]?.jsonPrimitive?.contentOrNull
                                             ?: "",
                                         createdAt = Clock.System.now(),
-                                        finishedAt = null
+                                        finishedAt = null,
+                                        metadata = buildReasoningMetadata(reasoningId = itemId)
+                                    )
+                                )
+                            ),
+                            message = null,
+                            finishReason = null
+                        )
+                    )
+                )
+            }
+
+            "response.reasoning_summary_text.done" -> {
+                val itemId = jsonObject["item_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                val text = jsonObject["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                return MessageChunk(
+                    id = itemId,
+                    model = "",
+                    choices = listOf(
+                        UIMessageChoice(
+                            index = 0,
+                            delta = UIMessage(
+                                role = MessageRole.ASSISTANT,
+                                parts = listOf(
+                                    UIMessagePart.Reasoning(
+                                        reasoning = "",
+                                        createdAt = Clock.System.now(),
+                                        finishedAt = null,
+                                        metadata = buildReasoningMetadata(
+                                            reasoningId = itemId,
+                                            summary = buildReasoningSummary(text)
+                                        )
+                                    )
+                                )
+                            ),
+                            message = null,
+                            finishReason = null
+                        )
+                    )
+                )
+            }
+
+            "response.reasoning_text.delta" -> {
+                return null
+            }
+
+            "response.reasoning_text.done" -> {
+                val itemId = jsonObject["item_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                val text = jsonObject["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                return MessageChunk(
+                    id = itemId,
+                    model = "",
+                    choices = listOf(
+                        UIMessageChoice(
+                            index = 0,
+                            delta = UIMessage(
+                                role = MessageRole.ASSISTANT,
+                                parts = listOf(
+                                    UIMessagePart.Reasoning(
+                                        reasoning = "",
+                                        createdAt = Clock.System.now(),
+                                        finishedAt = null,
+                                        metadata = buildReasoningMetadata(
+                                            reasoningId = itemId,
+                                            content = buildReasoningContent(text)
+                                        )
                                     )
                                 )
                             ),
@@ -546,7 +597,6 @@ class ResponseAPI(
                         )
                     )
                 } else if (type == "reasoning") {
-                    val encryptedContent = item["encrypted_content"]?.jsonPrimitive?.content
                     return MessageChunk(
                         id = id,
                         model = "",
@@ -561,10 +611,12 @@ class ResponseAPI(
                                             reasoning = "",
                                             createdAt = Clock.System.now(),
                                             finishedAt = null,
-                                            metadata = buildJsonObject {
-                                                put("encrypted_content", encryptedContent)
-                                                put("reasoning_id", id)
-                                            }
+                                            metadata = buildReasoningMetadata(
+                                                reasoningId = id,
+                                                encryptedContent = item["encrypted_content"]?.jsonPrimitiveOrNull?.contentOrNull,
+                                                summary = item["summary"] as? JsonArray,
+                                                content = item["content"] as? JsonArray,
+                                            )
                                         )
                                     )
                                 ),
@@ -605,7 +657,6 @@ class ResponseAPI(
                 val id = item["id"]?.jsonPrimitive?.content ?: error("chunk id not found")
                 when (type) {
                     "reasoning" -> {
-                        val encryptedContent = item["encrypted_content"]?.jsonPrimitive?.content
                         return MessageChunk(
                             id = id,
                             model = "",
@@ -620,10 +671,13 @@ class ResponseAPI(
                                                 reasoning = "",
                                                 createdAt = Clock.System.now(),
                                                 finishedAt = Clock.System.now(),
-                                                metadata = buildJsonObject {
-                                                    put("encrypted_content", encryptedContent)
-                                                    put("reasoning_id", id)
-                                                }
+                                                metadata = buildReasoningMetadata(
+                                                    reasoningId = id,
+                                                    encryptedContent = item["encrypted_content"]?.jsonPrimitiveOrNull?.contentOrNull,
+                                                    summary = item["summary"] as? JsonArray,
+                                                    content = item["content"] as? JsonArray,
+                                                    rawItem = item,
+                                                )
                                             )
                                         )
                                     ),
@@ -736,22 +790,7 @@ class ResponseAPI(
             val type = output["type"]?.jsonPrimitive?.content ?: error("output type not found")
             when (type) {
                 "reasoning" -> {
-                    val summary = output["summary"]?.jsonArray ?: error("summary not found")
-                    summary.map { it.jsonObject }.forEach { part ->
-                        val partType = part["type"]?.jsonPrimitive?.content ?: error("part type not found")
-                        when (partType) {
-                            "summary_text" -> {
-                                val text = part["text"]?.jsonPrimitive?.content ?: error("text not found")
-                                parts.add(
-                                    UIMessagePart.Reasoning(
-                                        reasoning = text,
-                                        createdAt = Clock.System.now(),
-                                        finishedAt = Clock.System.now()
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    parts.add(parseReasoningItem(output))
                 }
 
                 "function_call" -> {
@@ -824,6 +863,94 @@ class ResponseAPI(
                 ?: 0
         )
     }
+}
+
+private fun buildReasoningInputItem(part: UIMessagePart.Reasoning): JsonObject {
+    val rawItem = part.metadata?.get(OPENAI_REASONING_ITEM_METADATA_KEY) as? JsonObject
+    if (rawItem != null) return rawItem
+
+    return buildJsonObject {
+        put("type", "reasoning")
+        part.metadata.contentString("reasoning_id")?.let { put("id", it) }
+        put(
+            "summary",
+            (part.metadata?.get(OPENAI_REASONING_SUMMARY_METADATA_KEY) as? JsonArray)
+                ?: buildReasoningSummary(part.reasoning)
+        )
+        (part.metadata?.get(OPENAI_REASONING_CONTENT_METADATA_KEY) as? JsonArray)?.let { content ->
+            put("content", content)
+        }
+        part.metadata.contentString("encrypted_content")?.let { encryptedContent ->
+            put("encrypted_content", encryptedContent)
+        }
+    }
+}
+
+private fun parseReasoningItem(item: JsonObject): UIMessagePart.Reasoning {
+    val summary = item["summary"] as? JsonArray ?: buildJsonArray {}
+    val content = item["content"] as? JsonArray
+    val reasoningId = item["id"]?.jsonPrimitiveOrNull?.contentOrNull
+    val encryptedContent = item["encrypted_content"]?.jsonPrimitiveOrNull?.contentOrNull
+    return UIMessagePart.Reasoning(
+        reasoning = extractReasoningSummaryText(summary),
+        createdAt = Clock.System.now(),
+        finishedAt = Clock.System.now(),
+        metadata = buildReasoningMetadata(
+            reasoningId = reasoningId,
+            encryptedContent = encryptedContent,
+            summary = summary,
+            content = content,
+            rawItem = item,
+        )
+    )
+}
+
+private fun buildReasoningMetadata(
+    reasoningId: String? = null,
+    encryptedContent: String? = null,
+    summary: JsonArray? = null,
+    content: JsonArray? = null,
+    rawItem: JsonObject? = null,
+): JsonObject? {
+    return buildJsonObject {
+        reasoningId?.takeIf { it.isNotBlank() }?.let { put("reasoning_id", it) }
+        encryptedContent?.let { put("encrypted_content", it) }
+        summary?.let { put(OPENAI_REASONING_SUMMARY_METADATA_KEY, it) }
+        content?.let { put(OPENAI_REASONING_CONTENT_METADATA_KEY, it) }
+        rawItem?.let { put(OPENAI_REASONING_ITEM_METADATA_KEY, it) }
+    }.takeIf { it.isNotEmpty() }
+}
+
+private fun buildReasoningSummary(text: String): JsonArray = buildJsonArray {
+    if (text.isNotEmpty()) {
+        add(buildJsonObject {
+            put("type", "summary_text")
+            put("text", text)
+        })
+    }
+}
+
+private fun buildReasoningContent(text: String): JsonArray = buildJsonArray {
+    if (text.isNotEmpty()) {
+        add(buildJsonObject {
+            put("type", "reasoning_text")
+            put("text", text)
+        })
+    }
+}
+
+private fun extractReasoningSummaryText(summary: JsonArray): String {
+    return summary.mapNotNull { part ->
+        val partObject = part as? JsonObject ?: return@mapNotNull null
+        if (partObject["type"]?.jsonPrimitiveOrNull?.contentOrNull != "summary_text") {
+            return@mapNotNull null
+        }
+        partObject["text"]?.jsonPrimitiveOrNull?.contentOrNull
+    }.filter { it.isNotEmpty() }.joinToString("\n")
+}
+
+private fun JsonObject?.contentString(key: String): String? {
+    return this?.get(key)?.jsonPrimitiveOrNull?.contentOrNull
 }
 
 private fun buildBuiltInTool(tool: BuiltInTools): JsonObject? {
