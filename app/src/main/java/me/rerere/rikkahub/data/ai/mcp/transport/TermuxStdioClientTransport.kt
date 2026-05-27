@@ -122,7 +122,7 @@ class TermuxStdioClientTransport(
     private fun emitCloseOnce() {
         if (closeEmitted.compareAndSet(false, true)) {
             closeSessionSilently()
-            _onClose()
+            invokeOnCloseCallback()
         }
     }
 }

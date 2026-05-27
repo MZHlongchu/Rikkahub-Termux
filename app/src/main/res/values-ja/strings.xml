@@ -1693,4 +1693,13 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_mcp_page_market_title">MCPマーケット</string>
   <string name="setting_provider_page_full_reasoning_history">完全な推論/署名履歴を送信</string>
   <string name="setting_provider_page_full_reasoning_history_warning">完全な推論/署名履歴を送信すると、リクエストサイズが大幅に増加し、プロンプトキャッシュのヒット率が低下する可能性があります。最大限の推論継続性が必要な場合のみ有効にしてください。</string>
+  <string name="skills_page_import_from_file">ファイルからインポート</string>
+  <string name="skills_page_add_manually">手動追加</string>
+  <string name="setting_model_page_tab_model">モデル</string>
+  <string name="setting_model_page_tab_prompt">プロンプト</string>
+  <string name="setting_model_page_prompt_translation">翻訳</string>
+  <string name="setting_model_page_prompt_title">タイトル生成</string>
+  <string name="setting_model_page_prompt_suggestion">チャット返信の提案</string>
+  <string name="setting_model_page_prompt_ocr">OCR認識</string>
+  <string name="setting_model_page_prompt_compress">コンテキスト圧縮</string>
 </resources>

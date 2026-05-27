@@ -1693,4 +1693,13 @@
   <string name="setting_mcp_page_market_title">Маркет MCP</string>
   <string name="setting_provider_page_full_reasoning_history">Отправлять полную историю рассуждений/подписей</string>
   <string name="setting_provider_page_full_reasoning_history_warning">Отправка полной истории рассуждений/подписей может значительно увеличить размер запроса и снизить количество попаданий в кэш промптов. Включайте только при необходимости максимальной непрерывности рассуждений.</string>
+  <string name="skills_page_import_from_file">Импортировать из файла</string>
+  <string name="skills_page_add_manually">Добавить вручную</string>
+  <string name="setting_model_page_tab_model">Модель</string>
+  <string name="setting_model_page_tab_prompt">Промпты</string>
+  <string name="setting_model_page_prompt_translation">Перевод</string>
+  <string name="setting_model_page_prompt_title">Генерация заголовка</string>
+  <string name="setting_model_page_prompt_suggestion">Подсказки ответов в чате</string>
+  <string name="setting_model_page_prompt_ocr">OCR распознавание</string>
+  <string name="setting_model_page_prompt_compress">Сжатие контекста</string>
 </resources>

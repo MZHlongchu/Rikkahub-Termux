@@ -1693,4 +1693,13 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_skills_market_installing">安装中…</string>
   <string name="setting_provider_page_full_reasoning_history">发送完整推理/签名历史记录</string>
   <string name="setting_provider_page_full_reasoning_history_warning">发送完整推理/签名历史会大幅增加请求大小，并可能降低提示缓存命中率。仅在需要最大推理连续性时才启用。</string>
+  <string name="skills_page_import_from_file">从文件导入</string>
+  <string name="skills_page_add_manually">手动添加</string>
+  <string name="setting_model_page_tab_model">模型</string>
+  <string name="setting_model_page_tab_prompt">提示词</string>
+  <string name="setting_model_page_prompt_translation">翻译</string>
+  <string name="setting_model_page_prompt_title">标题生成</string>
+  <string name="setting_model_page_prompt_suggestion">聊天回复建议</string>
+  <string name="setting_model_page_prompt_ocr">OCR识别</string>
+  <string name="setting_model_page_prompt_compress">上下文压缩</string>
 </resources>

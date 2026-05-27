@@ -57,7 +57,6 @@ import androidx.compose.ui.util.fastForEachIndexed
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.net.toUri
-import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -101,7 +100,6 @@ import me.rerere.rikkahub.ui.theme.extendColors
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.base64Encode
 import me.rerere.rikkahub.utils.openUrl
-import me.rerere.rikkahub.utils.toMessageTimeString
 import me.rerere.rikkahub.utils.urlDecode
 import java.util.Locale
 
@@ -266,15 +264,6 @@ fun ChatMessage(
                 }
             }
 
-            if (settings.showDateTimeInMessage && !message.parts.isEmptyUIMessage()) {
-                Text(
-                    text = message.createdAt.toJavaLocalDateTime().toMessageTimeString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-            }
         }
     }
 
@@ -287,7 +276,7 @@ fun ChatMessage(
         ) {
             when (message.role) {
                 MessageRole.USER -> {
-                    if (headerState.showIdentityLabel) {
+                    if (headerState.showIdentityLabel || headerState.showDateTime) {
                         ChatMessageIdentityLabel(
                             message = message,
                             model = model,
@@ -310,7 +299,7 @@ fun ChatMessage(
                             loading = loading,
                         )
                     }
-                    if (headerState.showIdentityLabel) {
+                    if (headerState.showIdentityLabel || headerState.showDateTime) {
                         ChatMessageIdentityLabel(
                             message = message,
                             model = model,
@@ -320,7 +309,7 @@ fun ChatMessage(
                 }
 
                 else -> {
-                    if (headerState.showIdentityLabel) {
+                    if (headerState.showIdentityLabel || headerState.showDateTime) {
                         ChatMessageIdentityLabel(
                             message = message,
                             model = model,

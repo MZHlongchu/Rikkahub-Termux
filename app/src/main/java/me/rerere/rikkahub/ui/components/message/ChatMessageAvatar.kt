@@ -2,6 +2,7 @@ package me.rerere.rikkahub.ui.components.message
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -11,9 +12,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.datetime.toJavaLocalDateTime
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.ui.isEmptyUIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
@@ -22,13 +25,15 @@ import me.rerere.rikkahub.data.model.effectiveUserName
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.utils.toMessageTimeString
 
 internal data class ChatMessageHeaderState(
     val showAvatar: Boolean,
     val showIdentityLabel: Boolean,
+    val showDateTime: Boolean,
 ) {
     val isVisible: Boolean
-        get() = showAvatar || showIdentityLabel
+        get() = showAvatar || showIdentityLabel || showDateTime
 }
 
 internal fun UIMessage.headerState(
@@ -41,6 +46,7 @@ internal fun UIMessage.headerState(
         return ChatMessageHeaderState(
             showAvatar = false,
             showIdentityLabel = false,
+            showDateTime = false,
         )
     }
 
@@ -63,6 +69,7 @@ internal fun UIMessage.headerState(
     return ChatMessageHeaderState(
         showAvatar = showAvatar,
         showIdentityLabel = showName && hasName,
+        showDateTime = settings.displaySetting.showDateTimeInMessage && !parts.isEmptyUIMessage(),
     )
 }
 
@@ -126,8 +133,9 @@ fun ChatMessageIdentityLabel(
     )
     val isUser = message.role == MessageRole.USER
     val showName = if (isUser) settings.displaySetting.showUserAvatar else settings.displaySetting.showModelName
+    val showDateTime = headerState.showDateTime
 
-    if (!headerState.showIdentityLabel) return
+    if (!headerState.showIdentityLabel && !showDateTime) return
 
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val labelText = when {
@@ -145,13 +153,34 @@ fun ChatMessageIdentityLabel(
         horizontalAlignment = alignment,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        if (showName && labelText != null) {
-            Text(
-                text = labelText,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                color = LocalContentColor.current.copy(alpha = 0.72f),
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp, alignment),
+        ) {
+            if (isUser && showDateTime) {
+                MessageTimeLabel(message = message)
+            }
+            if (showName && labelText != null) {
+                Text(
+                    text = labelText,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    color = LocalContentColor.current.copy(alpha = 0.72f),
+                )
+            }
+            if (!isUser && showDateTime) {
+                MessageTimeLabel(message = message)
+            }
         }
     }
+}
+
+@Composable
+private fun MessageTimeLabel(message: UIMessage) {
+    Text(
+        text = message.createdAt.toJavaLocalDateTime().toMessageTimeString(),
+        style = MaterialTheme.typography.labelSmall,
+        color = LocalContentColor.current.copy(alpha = 0.5f),
+        maxLines = 1,
+    )
 }

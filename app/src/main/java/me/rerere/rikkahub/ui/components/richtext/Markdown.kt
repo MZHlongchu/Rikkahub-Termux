@@ -101,6 +101,7 @@ private val parser by lazy {
 
 private val INLINE_LATEX_REGEX = Regex("\\\\\\((.+?)\\\\\\)")
 private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MATCHES_ALL)
+private val LATEX_BLOCK_LINE_BREAK_REGEX = Regex("""[ \t]*\r?\n[ \t]*""")
 private val PROTECTED_MARKDOWN_NODE_TYPES = setOf(
     MarkdownElementTypes.CODE_BLOCK,
     MarkdownElementTypes.CODE_FENCE,
@@ -145,9 +146,12 @@ internal fun preProcessMarkdownContent(content: String): String {
 
     BLOCK_LATEX_REGEX.findAll(content).forEach { match ->
         if (!protectedRanges.overlaps(match.range)) {
+            val formula = match.groupValues[1]
+                .trim()
+                .replace(LATEX_BLOCK_LINE_BREAK_REGEX, " ")
             replacements += MarkdownReplacement(
                 range = match.range,
-                replacement = "$$" + match.groupValues[1] + "$$"
+                replacement = "$$" + formula + "$$"
             )
         }
     }
@@ -553,7 +557,7 @@ private fun MarkdownNode(
             UnorderedListNode(
                 node = node,
                 content = content,
-                modifier = modifier.padding(vertical = 4.dp),
+                modifier = modifier,
                 headerLevelOffset = headerLevelOffset,
                 onClickCitation = onClickCitation,
                 level = listLevel,
@@ -566,7 +570,7 @@ private fun MarkdownNode(
             OrderedListNode(
                 node = node,
                 content = content,
-                modifier = modifier.padding(vertical = 4.dp),
+                modifier = modifier,
                 headerLevelOffset = headerLevelOffset,
                 onClickCitation = onClickCitation,
                 level = listLevel,
