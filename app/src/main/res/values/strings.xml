@@ -1689,4 +1689,6 @@
   <string name="setting_theme_page_dynamic_color_hint">Dynamic color is enabled. Disable it in Preferences &gt; Theme to use custom themes.</string>
   <string name="setting_theme_page_delete_theme_title">Delete Theme</string>
   <string name="setting_theme_page_delete_theme_message">Are you sure you want to delete this theme?</string>
+  <string name="setting_provider_page_full_reasoning_history">Send full reasoning/signature history</string>
+  <string name="setting_provider_page_full_reasoning_history_warning">Sending full reasoning/signature history can greatly increase request size and may reduce prompt cache hits. Enable only if you need maximum reasoning continuity.</string>
 </resources>

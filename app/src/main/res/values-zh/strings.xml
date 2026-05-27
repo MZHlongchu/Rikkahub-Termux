@@ -1691,4 +1691,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_skills_market_open">打开</string>
   <string name="assistant_page_skills_market_install">安装</string>
   <string name="assistant_page_skills_market_installing">安装中…</string>
+  <string name="setting_provider_page_full_reasoning_history">发送完整推理/签名历史记录</string>
+  <string name="setting_provider_page_full_reasoning_history_warning">发送完整推理/签名历史会大幅增加请求大小，并可能降低提示缓存命中率。仅在需要最大推理连续性时才启用。</string>
 </resources>

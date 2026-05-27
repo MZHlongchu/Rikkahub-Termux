@@ -99,6 +99,35 @@ fun ProviderConfigure(
     }
 }
 
+@Composable
+private fun FullReasoningHistoryRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val toaster = LocalToaster.current
+    val warning = stringResource(id = R.string.setting_provider_page_full_reasoning_history_warning)
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(id = R.string.setting_provider_page_full_reasoning_history),
+            modifier = Modifier.weight(1f)
+        )
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { enabled ->
+                onCheckedChange(enabled)
+                if (enabled) {
+                    toaster.show(
+                        message = warning,
+                        type = ToastType.Warning
+                    )
+                }
+            }
+        )
+    }
+}
+
 fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSetting {
     if (this::class == type) {
         return this
@@ -108,6 +137,11 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
         is ProviderSetting.OpenAI -> this.apiKey
         is ProviderSetting.Google -> this.apiKey
         is ProviderSetting.Claude -> this.apiKey
+    }
+    val sendFullReasoningHistory = when (this) {
+        is ProviderSetting.OpenAI -> this.sendFullReasoningHistory
+        is ProviderSetting.Google -> this.sendFullReasoningHistory
+        is ProviderSetting.Claude -> false
     }
 
     val sourceBaseUrl = when (this) {
@@ -134,7 +168,8 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
             description = this.description,
             shortDescription = this.shortDescription,
             apiKey = apiKey,
-            baseUrl = convertedBaseUrl
+            baseUrl = convertedBaseUrl,
+            sendFullReasoningHistory = sendFullReasoningHistory
         )
 
         ProviderSetting.Google::class -> ProviderSetting.Google(
@@ -147,7 +182,8 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
             description = this.description,
             shortDescription = this.shortDescription,
             apiKey = apiKey,
-            baseUrl = convertedBaseUrl
+            baseUrl = convertedBaseUrl,
+            sendFullReasoningHistory = sendFullReasoningHistory
         )
 
         ProviderSetting.Claude::class -> ProviderSetting.Claude(
@@ -346,6 +382,15 @@ private fun ColumnScope.ProviderConfigureOpenAI(
                         type = ToastType.Warning
                     )
                 }
+            }
+        )
+    }
+
+    if (provider.useResponseApi) {
+        FullReasoningHistoryRow(
+            checked = provider.sendFullReasoningHistory,
+            onCheckedChange = {
+                onEdit(provider.copy(sendFullReasoningHistory = it))
             }
         )
     }
@@ -652,4 +697,11 @@ private fun ColumnScope.ProviderConfigureGoogle(
             )
         }
     }
+
+    FullReasoningHistoryRow(
+        checked = provider.sendFullReasoningHistory,
+        onCheckedChange = {
+            onEdit(provider.copy(sendFullReasoningHistory = it))
+        }
+    )
 }

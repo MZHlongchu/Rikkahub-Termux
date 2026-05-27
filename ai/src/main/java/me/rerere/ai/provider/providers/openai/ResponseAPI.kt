@@ -259,7 +259,13 @@ class ResponseAPI(
             }
 
             // messages
-            put("input", buildMessages(normalizedMessages))
+            put(
+                "input",
+                buildMessages(
+                    messages = normalizedMessages,
+                    sendFullReasoningHistory = providerSetting.sendFullReasoningHistory
+                )
+            )
 
             // reasoning
             if (params.model.abilities.contains(ModelAbility.REASONING)) {
@@ -314,19 +320,30 @@ class ResponseAPI(
         }.mergeCustomBody(params.customBody)
     }
 
-    internal fun buildMessages(messages: List<UIMessage>) = buildJsonArray {
-        messages
-            .filter { it.isValidToUpload() }
-            .forEach { message ->
-                if (message.role == MessageRole.ASSISTANT) {
-                    addAssistantItems(message)
-                } else {
-                    addUserItems(message)
-                }
+    internal fun buildMessages(
+        messages: List<UIMessage>,
+        sendFullReasoningHistory: Boolean = false,
+    ) = buildJsonArray {
+        val uploadableMessages = messages.filter { it.isValidToUpload() }
+        val reasoningPassthroughStartIndex = if (sendFullReasoningHistory) {
+            0
+        } else {
+            uploadableMessages.indexOfLast { it.role == MessageRole.USER }.takeIf { it >= 0 } ?: 0
+        }
+
+        uploadableMessages.forEachIndexed { index, message ->
+            if (message.role == MessageRole.ASSISTANT) {
+                addAssistantItems(
+                    message = message,
+                    includeReasoningItems = index >= reasoningPassthroughStartIndex
+                )
+            } else {
+                addUserItems(message)
             }
+        }
     }
 
-    private fun JsonArrayBuilder.addAssistantItems(message: UIMessage) {
+    private fun JsonArrayBuilder.addAssistantItems(message: UIMessage, includeReasoningItems: Boolean) {
         val groups = groupPartsByToolBoundary(message.parts)
         val contentBuffer = mutableListOf<UIMessagePart>()
         val emittedReasoningIds = mutableSetOf<String>()
@@ -337,6 +354,10 @@ class ResponseAPI(
                     group.parts.forEach { part ->
                         when (part) {
                             is UIMessagePart.Reasoning -> {
+                                if (!includeReasoningItems) {
+                                    return@forEach
+                                }
+
                                 val reasoningId = part.metadata.contentString("reasoning_id")
                                 if (reasoningId != null && !emittedReasoningIds.add(reasoningId)) {
                                     return@forEach

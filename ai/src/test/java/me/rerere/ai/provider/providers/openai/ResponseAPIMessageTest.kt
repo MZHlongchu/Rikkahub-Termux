@@ -47,8 +47,11 @@ class ResponseAPIMessageTest {
     }
 
     // Helper to invoke buildMessages method
-    private fun invokeBuildMessages(messages: List<UIMessage>): JsonArray {
-        return api.buildMessages(messages)
+    private fun invokeBuildMessages(
+        messages: List<UIMessage>,
+        sendFullReasoningHistory: Boolean = false
+    ): JsonArray {
+        return api.buildMessages(messages, sendFullReasoningHistory = sendFullReasoningHistory)
     }
 
     private fun invokeBuildRequestBody(
@@ -208,6 +211,134 @@ class ResponseAPIMessageTest {
         assertEquals("rs_empty", reasoningItem["id"]?.jsonPrimitive?.content)
         assertEquals("encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
         assertEquals(0, reasoningItem["summary"]?.jsonArray?.size)
+    }
+
+    @Test
+    fun `buildMessages should omit reasoning items before latest user message`() {
+        val messages = listOf(
+            UIMessage.user("Old question"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Reasoning(
+                        reasoning = "",
+                        metadata = buildJsonObject {
+                            put("reasoning_id", "rs_old")
+                            put("encrypted_content", "old_encrypted")
+                        }
+                    ),
+                    UIMessagePart.Text("Old answer")
+                )
+            ),
+            UIMessage.user("New question")
+        )
+
+        val result = invokeBuildMessages(messages)
+
+        val reasoningItems = result.filter {
+            it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning"
+        }
+        val assistantItems = result.filter {
+            it.jsonObject["role"]?.jsonPrimitive?.content == "assistant"
+        }
+        assertEquals(0, reasoningItems.size)
+        assertEquals(1, assistantItems.size)
+        assertEquals("Old answer", assistantItems.single().jsonObject["content"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `buildMessages should keep reasoning items before latest user when full history is enabled`() {
+        val messages = listOf(
+            UIMessage.user("Old question"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Reasoning(
+                        reasoning = "",
+                        metadata = buildJsonObject {
+                            put("reasoning_id", "rs_old")
+                            put("encrypted_content", "old_encrypted")
+                        }
+                    ),
+                    UIMessagePart.Text("Old answer")
+                )
+            ),
+            UIMessage.user("New question")
+        )
+
+        val result = invokeBuildMessages(messages, sendFullReasoningHistory = true)
+
+        val reasoningItem = result.single {
+            it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning"
+        }.jsonObject
+        assertEquals("rs_old", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals("old_encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `request body should use provider full reasoning history setting`() {
+        val request = invokeBuildRequestBody(
+            providerSetting = ProviderSetting.OpenAI(
+                sendFullReasoningHistory = true,
+            ),
+            messages = listOf(
+                UIMessage.user("Old question"),
+                UIMessage(
+                    role = MessageRole.ASSISTANT,
+                    parts = listOf(
+                        UIMessagePart.Reasoning(
+                            reasoning = "",
+                            metadata = buildJsonObject {
+                                put("reasoning_id", "rs_old")
+                                put("encrypted_content", "old_encrypted")
+                            }
+                        ),
+                        UIMessagePart.Text("Old answer")
+                    )
+                ),
+                UIMessage.user("New question")
+            ),
+            params = createReasoningParams()
+        )
+
+        val reasoningItem = request["input"]!!.jsonArray.single {
+            it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning"
+        }.jsonObject
+        assertEquals("rs_old", reasoningItem["id"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `buildMessages should keep current turn reasoning for tool continuation`() {
+        val messages = listOf(
+            UIMessage.user("Use a tool"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Reasoning(
+                        reasoning = "",
+                        metadata = buildJsonObject {
+                            put("reasoning_id", "rs_current")
+                            put("encrypted_content", "current_encrypted")
+                        }
+                    ),
+                    createExecutedTool("call_current", "lookup", """{"query":"x"}""", "result")
+                )
+            )
+        )
+
+        val result = invokeBuildMessages(messages)
+
+        val reasoningItem = result.single {
+            it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning"
+        }.jsonObject
+        assertEquals("rs_current", reasoningItem["id"]?.jsonPrimitive?.content)
+        assertEquals("current_encrypted", reasoningItem["encrypted_content"]?.jsonPrimitive?.content)
+        assertTrue(
+            result.any {
+                it.jsonObject["type"]?.jsonPrimitive?.content == "function_call_output" &&
+                    it.jsonObject["call_id"]?.jsonPrimitive?.content == "call_current"
+            }
+        )
     }
 
     @Test

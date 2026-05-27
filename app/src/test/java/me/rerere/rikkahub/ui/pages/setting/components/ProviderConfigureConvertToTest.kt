@@ -51,12 +51,14 @@ class ProviderConfigureConvertToTest {
         val original = ProviderSetting.OpenAI(
             name = "Proxy OpenAI",
             apiKey = "proxy-key",
-            baseUrl = "https://gateway.example.com/api/v1"
+            baseUrl = "https://gateway.example.com/api/v1",
+            sendFullReasoningHistory = true
         )
 
         val converted = original.convertTo(ProviderSetting.Google::class) as ProviderSetting.Google
         assertEquals("https://gateway.example.com/api/v1beta", converted.baseUrl)
         assertEquals("gateway.example.com", converted.baseUrl.toHttpUrlOrNull()?.host)
+        assertTrue(converted.sendFullReasoningHistory)
     }
 
     @Test

@@ -90,7 +90,11 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         params: TextGenerationParams,
         stream: Boolean,
     ): TextRequestPreview {
-        val requestBody = buildCompletionRequestBody(messages, params)
+        val requestBody = buildCompletionRequestBody(
+            messages = messages,
+            params = params,
+            sendFullReasoningHistory = providerSetting.sendFullReasoningHistory
+        )
         val url = if (stream) {
             buildUrl(
                 providerSetting = providerSetting,
@@ -197,7 +201,11 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         messages: List<UIMessage>,
         params: TextGenerationParams,
     ): MessageChunk = withContext(Dispatchers.IO) {
-        val requestBody = buildCompletionRequestBody(messages, params)
+        val requestBody = buildCompletionRequestBody(
+            messages = messages,
+            params = params,
+            sendFullReasoningHistory = providerSetting.sendFullReasoningHistory
+        )
 
         val url = buildUrl(
             providerSetting = providerSetting,
@@ -253,7 +261,11 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         messages: List<UIMessage>,
         params: TextGenerationParams,
     ): Flow<MessageChunk> = callbackFlow {
-        val requestBody = buildCompletionRequestBody(messages, params)
+        val requestBody = buildCompletionRequestBody(
+            messages = messages,
+            params = params,
+            sendFullReasoningHistory = providerSetting.sendFullReasoningHistory
+        )
 
         val url = buildUrl(
             providerSetting = providerSetting,
@@ -386,6 +398,16 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
     private fun buildCompletionRequestBody(
         messages: List<UIMessage>,
         params: TextGenerationParams
+    ): JsonObject = buildCompletionRequestBody(
+        messages = messages,
+        params = params,
+        sendFullReasoningHistory = false
+    )
+
+    private fun buildCompletionRequestBody(
+        messages: List<UIMessage>,
+        params: TextGenerationParams,
+        sendFullReasoningHistory: Boolean,
     ): JsonObject {
         val leadingSystemMessages = splitLeadingSystemMessages(messages)
         val isImageRequest = params.model.outputModalities.contains(Modality.IMAGE)
@@ -464,7 +486,10 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
 
             put(
                 "contents",
-                buildContents(normalizedMessages)
+                buildContents(
+                    messages = normalizedMessages,
+                    sendFullReasoningHistory = sendFullReasoningHistory
+                )
             )
 
             if (params.tools.isNotEmpty() && params.model.abilities.contains(ModelAbility.TOOL)) {
@@ -650,33 +675,55 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         }
     }
 
-    private fun buildContents(messages: List<UIMessage>): JsonArray {
+    private fun buildContents(messages: List<UIMessage>): JsonArray = buildContents(
+        messages = messages,
+        sendFullReasoningHistory = false
+    )
+
+    private fun buildContents(messages: List<UIMessage>, sendFullReasoningHistory: Boolean): JsonArray {
         return buildJsonArray {
-            messages
-                .filter { it.isValidToUpload() }
-                .forEach { message ->
-                    if (message.role == MessageRole.ASSISTANT) {
-                        addModelMessage(message)
-                    } else {
-                        addUserMessage(message)
-                    }
+            val uploadableMessages = messages.filter { it.isValidToUpload() }
+            val signaturePassthroughStartIndex = if (sendFullReasoningHistory) {
+                0
+            } else {
+                uploadableMessages.indexOfLast { it.role == MessageRole.USER }.takeIf { it >= 0 } ?: 0
+            }
+
+            uploadableMessages.forEachIndexed { index, message ->
+                if (message.role == MessageRole.ASSISTANT) {
+                    addModelMessage(
+                        message = message,
+                        includeThoughtSignatures = index >= signaturePassthroughStartIndex
+                    )
+                } else {
+                    addUserMessage(
+                        message = message,
+                        includeThoughtSignatures = index >= signaturePassthroughStartIndex
+                    )
                 }
+            }
         }
     }
 
-    private fun JsonArrayBuilder.addModelMessage(message: UIMessage) {
+    private fun JsonArrayBuilder.addModelMessage(message: UIMessage, includeThoughtSignatures: Boolean) {
         val groups = groupPartsByToolBoundary(message.parts)
         val partsBuffer = mutableListOf<JsonObject>()
 
         for (group in groups) {
             when (group) {
                 is PartGroup.Content -> {
-                    group.parts.mapNotNull { it.toGooglePart() }.forEach { partsBuffer.add(it) }
+                    group.parts.mapNotNull {
+                        it.toGooglePart(includeThoughtSignatures = includeThoughtSignatures)
+                    }.forEach { partsBuffer.add(it) }
                 }
 
                 is PartGroup.Tools -> {
                     // 添加 functionCall 到 parts 缓冲
-                    group.tools.forEach { partsBuffer.add(it.toFunctionCallPart()) }
+                    group.tools.forEach {
+                        partsBuffer.add(
+                            it.toFunctionCallPart(includeThoughtSignatures = includeThoughtSignatures)
+                        )
+                    }
 
                     // 输出 model 消息
                     add(buildJsonObject {
@@ -705,16 +752,18 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         }
     }
 
-    private fun JsonArrayBuilder.addUserMessage(message: UIMessage) {
+    private fun JsonArrayBuilder.addUserMessage(message: UIMessage, includeThoughtSignatures: Boolean) {
         add(buildJsonObject {
             put("role", commonRoleToGoogleRole(message.role))
             putJsonArray("parts") {
-                message.parts.mapNotNull { it.toGooglePart() }.forEach { add(it) }
+                message.parts.mapNotNull {
+                    it.toGooglePart(includeThoughtSignatures = includeThoughtSignatures)
+                }.forEach { add(it) }
             }
         })
     }
 
-    private fun UIMessagePart.toGooglePart(): JsonObject? = when (this) {
+    private fun UIMessagePart.toGooglePart(includeThoughtSignatures: Boolean): JsonObject? = when (this) {
         is UIMessagePart.Text -> buildJsonObject {
             put("text", text)
         }
@@ -726,8 +775,10 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
                         put("mimeType", encoded.mimeType)
                         put("data", encoded.base64)
                     })
-                    metadata?.get("thoughtSignature")?.jsonPrimitive?.contentOrNull?.let {
-                        put("thoughtSignature", it)
+                    if (includeThoughtSignatures) {
+                        metadata?.get("thoughtSignature")?.jsonPrimitive?.contentOrNull?.let {
+                            put("thoughtSignature", it)
+                        }
                     }
                 }
             }
@@ -758,13 +809,15 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
         else -> null
     }
 
-    private fun UIMessagePart.Tool.toFunctionCallPart() = buildJsonObject {
+    private fun UIMessagePart.Tool.toFunctionCallPart(includeThoughtSignatures: Boolean) = buildJsonObject {
         put("functionCall", buildJsonObject {
             put("name", toolName)
             put("args", inputAsJson())
         })
-        metadata?.get("thoughtSignature")?.let {
-            put("thoughtSignature", it)
+        if (includeThoughtSignatures) {
+            metadata?.get("thoughtSignature")?.let {
+                put("thoughtSignature", it)
+            }
         }
     }
 

@@ -1689,4 +1689,6 @@
   <string name="assistant_page_skills_market_open">開啟</string>
   <string name="assistant_page_skills_market_install">安裝</string>
   <string name="assistant_page_skills_market_installing">安裝中…</string>
+  <string name="setting_provider_page_full_reasoning_history">傳送完整的推理/簽名記錄</string>
+  <string name="setting_provider_page_full_reasoning_history_warning">發送完整的推理/簽名歷史記錄會顯著增加請求大小，並可能降低提示快取命中率。僅在需要最大推理連續性時啟用。</string>
 </resources>

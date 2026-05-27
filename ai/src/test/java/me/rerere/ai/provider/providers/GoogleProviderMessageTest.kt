@@ -3,9 +3,11 @@ package me.rerere.ai.provider.providers
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Modality
@@ -48,6 +50,19 @@ class GoogleProviderMessageTest {
         )
         method.isAccessible = true
         return method.invoke(provider, messages) as JsonArray
+    }
+
+    private fun invokeBuildContents(
+        messages: List<UIMessage>,
+        sendFullReasoningHistory: Boolean
+    ): JsonArray {
+        val method = GoogleProvider::class.java.getDeclaredMethod(
+            "buildContents",
+            List::class.java,
+            Boolean::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        return method.invoke(provider, messages, sendFullReasoningHistory) as JsonArray
     }
 
     private fun invokeBuildRequestBody(params: TextGenerationParams): JsonObject {
@@ -265,6 +280,81 @@ class GoogleProviderMessageTest {
             it.jsonObject["thought"]?.toString() == "true"
         }
         // Note: If reasoning is handled differently, adjust this assertion
+    }
+
+    @Test
+    fun `thought signatures before latest user should be omitted by default`() {
+        val messages = listOf(
+            UIMessage.user("Old question"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    createExecutedTool(
+                        callId = "old_call",
+                        name = "lookup",
+                        input = """{"query":"old"}""",
+                        output = "old result",
+                        thoughtSignature = "old_signature"
+                    )
+                )
+            ),
+            UIMessage.user("New question")
+        )
+
+        val result = invokeBuildContents(messages)
+        val oldCall = result.functionCallPart("lookup")
+
+        assertTrue(oldCall != null)
+        assertTrue(oldCall?.containsKey("thoughtSignature") == false)
+    }
+
+    @Test
+    fun `thought signatures before latest user should be kept when full history is enabled`() {
+        val messages = listOf(
+            UIMessage.user("Old question"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    createExecutedTool(
+                        callId = "old_call",
+                        name = "lookup",
+                        input = """{"query":"old"}""",
+                        output = "old result",
+                        thoughtSignature = "old_signature"
+                    )
+                )
+            ),
+            UIMessage.user("New question")
+        )
+
+        val result = invokeBuildContents(messages, sendFullReasoningHistory = true)
+        val oldCall = result.functionCallPart("lookup")
+
+        assertEquals("old_signature", oldCall?.get("thoughtSignature")?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `current turn thought signatures should be kept by default`() {
+        val messages = listOf(
+            UIMessage.user("Use a tool"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    createExecutedTool(
+                        callId = "current_call",
+                        name = "lookup",
+                        input = """{"query":"current"}""",
+                        output = "current result",
+                        thoughtSignature = "current_signature"
+                    )
+                )
+            )
+        )
+
+        val result = invokeBuildContents(messages)
+        val currentCall = result.functionCallPart("lookup")
+
+        assertEquals("current_signature", currentCall?.get("thoughtSignature")?.jsonPrimitive?.content)
     }
 
     @Test
@@ -571,13 +661,28 @@ class GoogleProviderMessageTest {
         callId: String,
         name: String,
         input: String,
-        output: String
+        output: String,
+        thoughtSignature: String? = null,
     ): UIMessagePart.Tool {
         return UIMessagePart.Tool(
             toolCallId = callId,
             toolName = name,
             input = input,
-            output = listOf(UIMessagePart.Text(output))
+            output = listOf(UIMessagePart.Text(output)),
+            metadata = thoughtSignature?.let {
+                buildJsonObject {
+                    put("thoughtSignature", it)
+                }
+            }
         )
+    }
+
+    private fun JsonArray.functionCallPart(name: String): JsonObject? {
+        return firstNotNullOfOrNull { message ->
+            val parts = message.jsonObject["parts"]?.jsonArray ?: return@firstNotNullOfOrNull null
+            parts.map { it.jsonObject }.firstOrNull { part ->
+                part["functionCall"]?.jsonObject?.get("name")?.jsonPrimitive?.content == name
+            }
+        }
     }
 }

@@ -64,6 +64,7 @@ sealed class ProviderSetting {
         var baseUrl: String = "https://api.openai.com/v1",
         var chatCompletionsPath: String = "/chat/completions",
         var useResponseApi: Boolean = false,
+        var sendFullReasoningHistory: Boolean = false,
     ) : ProviderSetting() {
         override fun addModel(model: Model): ProviderSetting {
             return copy(models = models + model)
@@ -129,6 +130,7 @@ sealed class ProviderSetting {
         var serviceAccountEmail: String = "", // only for vertex AI service account
         var location: String = "us-central1", // only for vertex AI service account
         var projectId: String = "", // only for vertex AI service account
+        var sendFullReasoningHistory: Boolean = false,
     ) : ProviderSetting() {
         override fun addModel(model: Model): ProviderSetting {
             return copy(models = models + model)

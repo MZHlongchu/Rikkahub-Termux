@@ -1691,4 +1691,6 @@
   <string name="setting_mcp_page_market_open">Открыть</string>
   <string name="setting_mcp_page_market_sources">Источники маркета</string>
   <string name="setting_mcp_page_market_title">Маркет MCP</string>
+  <string name="setting_provider_page_full_reasoning_history">Отправлять полную историю рассуждений/подписей</string>
+  <string name="setting_provider_page_full_reasoning_history_warning">Отправка полной истории рассуждений/подписей может значительно увеличить размер запроса и снизить количество попаданий в кэш промптов. Включайте только при необходимости максимальной непрерывности рассуждений.</string>
 </resources>

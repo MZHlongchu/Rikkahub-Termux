@@ -1691,4 +1691,6 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_mcp_page_market_open">열기</string>
   <string name="setting_mcp_page_market_sources">마켓 소스</string>
   <string name="setting_mcp_page_market_title">MCP 마켓</string>
+  <string name="setting_provider_page_full_reasoning_history">전체 추론/서명 기록 보내기</string>
+  <string name="setting_provider_page_full_reasoning_history_warning">전체 추론/서명 기록을 전송하면 요청 크기가 크게 증가하고 프롬프트 캐시 적중률이 낮아질 수 있습니다. 추론 연속성이 꼭 필요한 경우에만 활성화하세요.</string>
 </resources>
