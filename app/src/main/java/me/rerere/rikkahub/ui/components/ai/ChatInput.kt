@@ -9,6 +9,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -487,56 +489,61 @@ fun ChatInput(
                             )
                         }
 
-                        // Send Button
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .combinedClickable(
-                                    enabled = loading || hasMessageContent,
-                                    onClick = {
-                                        dismissFilesPicker()
-                                        sendMessage()
-                                    }, onLongClick = {
-                                        dismissFilesPicker()
-                                        sendMessageWithoutAnswer()
-                                    }
-                                )
+                        AnimatedVisibility(
+                            visible = !asrState.isRecording,
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut(),
                         ) {
-                            val containerColor = when {
-                                loading -> MaterialTheme.colorScheme.errorContainer // 加载时，红色
-                                !hasMessageContent -> MaterialTheme.colorScheme.surfaceContainerHigh // 禁用时(输入为空)，灰色
-                                else -> MaterialTheme.colorScheme.primary // 启用时(输入非空)，绿色/主题色
-                            }
-                            val contentColor = when {
-                                loading -> MaterialTheme.colorScheme.onErrorContainer
-                                !hasMessageContent -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) // 禁用时，内容用带透明度的灰色
-                                else -> MaterialTheme.colorScheme.onPrimary
-                            }
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = CircleShape,
-                                color = containerColor,
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (loading) {
-                                        MaterialTheme.colorScheme.error.copy(alpha = 0.22f)
-                                    } else {
-                                        luneGlassBorderColor()
-                                    }
-                                ),
-                                content = {}
-                            )
-                            if (loading) {
-                                KeepScreenOn()
-                                Icon(HugeIcons.Cancel01, stringResource(R.string.stop), tint = contentColor)
-                            } else {
-                                Icon(
-                                    imageVector = HugeIcons.ArrowUp02,
-                                    contentDescription = stringResource(R.string.send),
-                                    tint = contentColor
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        enabled = loading || hasMessageContent,
+                                        onClick = {
+                                            dismissFilesPicker()
+                                            sendMessage()
+                                        }, onLongClick = {
+                                            dismissFilesPicker()
+                                            sendMessageWithoutAnswer()
+                                        }
+                                    )
+                            ) {
+                                val containerColor = when {
+                                    loading -> MaterialTheme.colorScheme.errorContainer // 加载时，红色
+                                    !hasMessageContent -> MaterialTheme.colorScheme.surfaceContainerHigh // 禁用时(输入为空)，灰色
+                                    else -> MaterialTheme.colorScheme.primary // 启用时(输入非空)，绿色/主题色
+                                }
+                                val contentColor = when {
+                                    loading -> MaterialTheme.colorScheme.onErrorContainer
+                                    !hasMessageContent -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) // 禁用时，内容用带透明度的灰色
+                                    else -> MaterialTheme.colorScheme.onPrimary
+                                }
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = CircleShape,
+                                    color = containerColor,
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (loading) {
+                                            MaterialTheme.colorScheme.error.copy(alpha = 0.22f)
+                                        } else {
+                                            luneGlassBorderColor()
+                                        }
+                                    ),
+                                    content = {}
                                 )
+                                if (loading) {
+                                    KeepScreenOn()
+                                    Icon(HugeIcons.Cancel01, stringResource(R.string.stop), tint = contentColor)
+                                } else {
+                                    Icon(
+                                        imageVector = HugeIcons.ArrowUp02,
+                                        contentDescription = stringResource(R.string.send),
+                                        tint = contentColor
+                                    )
+                                }
                             }
                         }
                     }

@@ -357,7 +357,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                             }
                             if (showTts) {
                                 item(
-                                    onClick = { navController.navigate(Screen.SettingTTS) },
+                                    onClick = { navController.navigate(Screen.SettingSpeech) },
                                     leadingContent = { Icon(HugeIcons.Megaphone01, null) },
                                     supportingContent = { Text(ttsDesc) },
                                     headlineContent = { Text(ttsTitle) },

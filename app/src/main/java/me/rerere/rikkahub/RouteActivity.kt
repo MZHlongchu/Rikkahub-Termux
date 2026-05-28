@@ -600,7 +600,7 @@ class RouteActivity : ComponentActivity() {
                                 SettingScheduledTaskPage()
                             }
 
-                            entry<Screen.SettingTTS> {
+                            entry<Screen.SettingSpeech> {
                                 SettingSpeechPage()
                             }
 
@@ -834,7 +834,7 @@ sealed interface Screen : NavKey {
     data object SettingScheduledTasks : Screen
 
     @Serializable
-    data object SettingTTS : Screen
+    data object SettingSpeech : Screen
 
     @Serializable
     data object SettingMcp : Screen
