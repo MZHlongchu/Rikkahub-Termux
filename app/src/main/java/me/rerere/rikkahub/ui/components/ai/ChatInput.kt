@@ -1,5 +1,8 @@
 package me.rerere.rikkahub.ui.components.ai
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -66,6 +69,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -76,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import com.dokar.sonner.ToastType
@@ -113,6 +118,7 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.ui.components.ui.KeepScreenOn
 import me.rerere.rikkahub.ui.components.ui.luneGlassBorderColor
 import me.rerere.rikkahub.ui.components.ui.luneGlassContainerColor
+import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionRecordAudio
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
@@ -123,7 +129,9 @@ import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
 import org.koin.compose.koinInject
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.Uuid
 
 @Composable
 fun ChatInput(
@@ -149,6 +157,7 @@ fun ChatInput(
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
 ) {
+    val context = LocalContext.current
     val filesManager: FilesManager = koinInject()
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -163,6 +172,8 @@ fun ChatInput(
     }
     val asrPermission = rememberPermissionState(PermissionRecordAudio)
     PermissionManager(permissionState = asrPermission)
+    val cameraPermission = rememberPermissionState(PermissionCamera)
+    PermissionManager(permissionState = cameraPermission)
     var asrBaseText by remember { mutableStateOf("") }
     LaunchedEffect(asrState.status) {
         when (asrState.status) {
@@ -213,6 +224,51 @@ fun ChatInput(
         showInjectionSheet = false
         showCompressDialog = false
     }
+
+    var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraOutputFile by remember { mutableStateOf<File?>(null) }
+    val (_, launchCameraCrop) = useCropLauncher(
+        onCroppedImageReady = { croppedUri ->
+            state.addImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
+            dismissFilesPicker()
+        },
+        onCleanup = {
+            cameraOutputFile?.delete()
+            cameraOutputFile = null
+            cameraOutputUri = null
+        }
+    )
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captureSuccessful ->
+        if (captureSuccessful && cameraOutputUri != null) {
+            if (settings.displaySetting.skipCropImage) {
+                state.addImages(filesManager.createChatFilesByContents(listOf(cameraOutputUri!!)))
+                cameraOutputFile?.delete()
+                cameraOutputFile = null
+                cameraOutputUri = null
+                dismissFilesPicker()
+            } else {
+                launchCameraCrop(cameraOutputUri!!)
+            }
+        } else {
+            cameraOutputFile?.delete()
+            cameraOutputFile = null
+            cameraOutputUri = null
+        }
+    }
+    val onLaunchCamera: () -> Unit = {
+        if (cameraPermission.allRequiredPermissionsGranted) {
+            cameraOutputFile = context.cacheDir.resolve("camera_${Uuid.random()}.jpg")
+            cameraOutputUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                cameraOutputFile!!
+            )
+            cameraLauncher.launch(cameraOutputUri!!)
+        } else {
+            cameraPermission.requestPermissions()
+        }
+    }
+
     val composerShape = RoundedCornerShape(24.dp)
     val hasMessageContent = !state.isEmpty() || state.messageContent.isNotEmpty()
     val composerHazeState = hazeState.takeIf { settings.displaySetting.enableBlurEffect }
@@ -550,6 +606,7 @@ fun ChatInput(
                         onToggleTermuxCommandMode = onToggleTermuxCommandMode,
                         codeBlockRichRenderEnabled = codeBlockRichRenderEnabled,
                         onToggleCodeBlockRichRender = onToggleCodeBlockRichRender,
+                        onTakePic = onLaunchCamera,
                         onDismiss = { dismissFilesPicker() },
                     )
                 }

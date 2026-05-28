@@ -48,7 +48,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import com.dokar.sonner.ToastType
@@ -78,9 +77,6 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.components.ui.InjectionSelector
-import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
-import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
-import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -88,7 +84,6 @@ import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.isAllowedFileType
 import org.koin.compose.koinInject
 import java.io.File
-import kotlin.uuid.Uuid
 
 @Composable
 internal fun FilesPicker(
@@ -106,6 +101,7 @@ internal fun FilesPicker(
     onToggleTermuxCommandMode: (Boolean) -> Unit,
     codeBlockRichRenderEnabled: Boolean,
     onToggleCodeBlockRichRender: (Boolean) -> Unit,
+    onTakePic: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val settings = LocalSettings.current
@@ -125,10 +121,7 @@ internal fun FilesPicker(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (attachmentsEnabled) {
-                TakePicButton {
-                    state.addImages(it)
-                    onDismiss()
-                }
+                TakePicButton(onLaunchCamera = onTakePic)
 
                 ImagePickButton {
                     state.addImages(it)
@@ -293,7 +286,7 @@ internal fun FilesPicker(
 }
 
 @Composable
-private fun useCropLauncher(
+internal fun useCropLauncher(
     onCroppedImageReady: (Uri) -> Unit,
     onCleanup: (() -> Unit)? = null
 ): Pair<ActivityResultLauncher<Intent>, (Uri) -> Unit> {
@@ -387,67 +380,16 @@ private fun ImagePickButton(onAddImages: (List<Uri>) -> Unit = {}) {
 }
 
 @Composable
-private fun TakePicButton(onAddImages: (List<Uri>) -> Unit = {}) {
-    val cameraPermission = rememberPermissionState(PermissionCamera)
-
-    val context = LocalContext.current
-    val settings = LocalSettings.current
-    val filesManager: FilesManager = koinInject()
-    var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
-    var cameraOutputFile by remember { mutableStateOf<File?>(null) }
-
-    val (_, launchCrop) = useCropLauncher(
-        onCroppedImageReady = { croppedUri ->
-            onAddImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
+private fun TakePicButton(onLaunchCamera: () -> Unit = {}) {
+    BigIconTextButton(
+        icon = {
+            Icon(HugeIcons.Camera01, null)
         },
-        onCleanup = {
-            cameraOutputFile?.delete()
-            cameraOutputFile = null
-            cameraOutputUri = null
+        text = {
+            Text(stringResource(R.string.take_picture))
         }
-    )
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { captureSuccessful ->
-        if (captureSuccessful && cameraOutputUri != null) {
-            if (settings.displaySetting.skipCropImage) {
-                onAddImages(filesManager.createChatFilesByContents(listOf(cameraOutputUri!!)))
-                cameraOutputFile?.delete()
-                cameraOutputFile = null
-                cameraOutputUri = null
-            } else {
-                launchCrop(cameraOutputUri!!)
-            }
-        } else {
-            cameraOutputFile?.delete()
-            cameraOutputFile = null
-            cameraOutputUri = null
-        }
-    }
-    PermissionManager(
-        permissionState = cameraPermission
     ) {
-        BigIconTextButton(
-            icon = {
-                Icon(HugeIcons.Camera01, null)
-            },
-            text = {
-                Text(stringResource(R.string.take_picture))
-            }
-        ) {
-            if (cameraPermission.allRequiredPermissionsGranted) {
-                cameraOutputFile = context.cacheDir.resolve("camera_${Uuid.random()}.jpg")
-                cameraOutputUri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    cameraOutputFile!!
-                )
-                cameraLauncher.launch(cameraOutputUri!!)
-            } else {
-                cameraPermission.requestPermissions()
-            }
-        }
+        onLaunchCamera()
     }
 }
 
