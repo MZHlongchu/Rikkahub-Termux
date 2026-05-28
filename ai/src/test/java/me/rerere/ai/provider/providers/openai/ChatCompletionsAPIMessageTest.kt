@@ -38,13 +38,17 @@ class ChatCompletionsAPIMessageTest {
     }
 
     // Helper to invoke private buildMessages method via reflection
-    private fun invokeBuildMessages(messages: List<UIMessage>): JsonArray {
+    private fun invokeBuildMessages(
+        messages: List<UIMessage>,
+        sendFullReasoningHistory: Boolean = true
+    ): JsonArray {
         val method = ChatCompletionsAPI::class.java.getDeclaredMethod(
             "buildMessages",
-            List::class.java
+            List::class.java,
+            Boolean::class.javaPrimitiveType!!
         )
         method.isAccessible = true
-        return method.invoke(api, messages) as JsonArray
+        return method.invoke(api, messages, sendFullReasoningHistory) as JsonArray
     }
 
     private fun invokeBuildRequestBody(
@@ -238,6 +242,27 @@ class ChatCompletionsAPIMessageTest {
 
         val second = assistantMessages[1].jsonObject
         assertEquals("Final thinking", second["reasoning_content"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `reasoning should be omitted when full reasoning history is disabled`() {
+        val messages = listOf(
+            UIMessage.user("Question"),
+            UIMessage(
+                role = MessageRole.ASSISTANT,
+                parts = listOf(
+                    UIMessagePart.Reasoning(reasoning = "thinking"),
+                    UIMessagePart.Text("answer")
+                )
+            )
+        )
+
+        val result = invokeBuildMessages(messages, sendFullReasoningHistory = false)
+
+        val assistant = result[1].jsonObject
+        assertEquals("assistant", assistant["role"]?.jsonPrimitive?.content)
+        assertFalse(assistant.containsKey("reasoning_content"))
+        assertEquals("answer", assistant["content"]?.jsonPrimitive?.content)
     }
 
     @Test

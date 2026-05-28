@@ -1702,4 +1702,5 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_model_page_prompt_suggestion">채팅 답변 제안</string>
   <string name="setting_model_page_prompt_ocr">OCR 인식</string>
   <string name="setting_model_page_prompt_compress">컨텍스트 압축</string>
+  <string name="setting_display_page_bubble_opacity_title">버블 불투명도</string>
 </resources>

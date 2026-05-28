@@ -63,6 +63,7 @@ import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.utils.copyMessageToClipboard
 import me.rerere.rikkahub.utils.extractQuotedContentAsText
 import me.rerere.rikkahub.utils.toLocalString
+import me.rerere.rikkahub.utils.toMessageTimeString
 import java.util.Locale
 
 @Composable
