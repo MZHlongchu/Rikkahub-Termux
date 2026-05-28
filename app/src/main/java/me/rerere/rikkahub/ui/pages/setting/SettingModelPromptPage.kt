@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
@@ -198,8 +197,9 @@ private fun PromptCard(
 ) {
     OutlinedCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = CustomColors.listItemColors.containerColor
+        colors = CustomColors.outlinedCardColorsForContainer(
+            containerColor = CustomColors.listItemSurfaceColors.containerColor,
+            preferredContentColor = CustomColors.listItemSurfaceColors.contentColor,
         )
     ) {
         Column(

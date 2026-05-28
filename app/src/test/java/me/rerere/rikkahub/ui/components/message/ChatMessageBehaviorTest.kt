@@ -140,7 +140,6 @@ class ChatMessageBehaviorTest {
             displaySetting = DisplaySetting(
                 showModelIcon = true,
                 showModelName = true,
-                showDateBelowName = false,
             ),
         )
         val message = UIMessage(
