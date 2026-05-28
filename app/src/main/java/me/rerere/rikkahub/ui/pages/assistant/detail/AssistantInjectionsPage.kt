@@ -17,7 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.ui.components.nav.BackButton
-import me.rerere.rikkahub.ui.components.ui.InjectionSelector
+import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.androidx.compose.koinViewModel
@@ -39,7 +39,7 @@ fun AssistantInjectionsPage(id: String) {
         topBar = {
             LargeFlexibleTopAppBar(
                 title = {
-                    Text(stringResource(R.string.assistant_page_tab_injections))
+                    Text(stringResource(R.string.assistant_page_tab_extensions))
                 },
                 navigationIcon = {
                     BackButton()
@@ -52,7 +52,7 @@ fun AssistantInjectionsPage(id: String) {
         containerColor = CustomColors.topBarColors.containerColor,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) { innerPadding ->
-        InjectionSelector(
+        ExtensionSelector(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
@@ -60,6 +60,7 @@ fun AssistantInjectionsPage(id: String) {
             assistant = assistant,
             settings = settings,
             onUpdate = { vm.update(it) },
+            onNavigateToQuickMessages = { navController.navigate(Screen.QuickMessages) },
             onNavigateToPrompts = { navController.navigate(Screen.Prompts) },
         )
     }

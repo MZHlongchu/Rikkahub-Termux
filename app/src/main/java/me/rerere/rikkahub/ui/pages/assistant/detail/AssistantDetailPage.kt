@@ -1,12 +1,12 @@
 package me.rerere.rikkahub.ui.pages.assistant.detail
 
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Injection
 import me.rerere.hugeicons.stroke.BookOpen01
 import me.rerere.hugeicons.stroke.Brain02
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Code
 import me.rerere.hugeicons.stroke.Message02
+import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Wrench01
@@ -111,9 +111,9 @@ fun AssistantDetailPage(id: String) {
                     )
                     item(
                         onClick = { navController.navigate(Screen.AssistantInjections(id)) },
-                        leadingContent = { Icon(HugeIcons.Injection, null) },
-                        supportingContent = { Text(stringResource(R.string.assistant_detail_injections_desc)) },
-                        headlineContent = { Text(stringResource(R.string.assistant_page_tab_injections)) },
+                        leadingContent = { Icon(HugeIcons.Package, null) },
+                        supportingContent = { Text(stringResource(R.string.assistant_detail_extensions_desc)) },
+                        headlineContent = { Text(stringResource(R.string.assistant_page_tab_extensions)) },
                         trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
                     )
                     item(

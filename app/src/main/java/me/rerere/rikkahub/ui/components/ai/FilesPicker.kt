@@ -41,13 +41,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Camera01
 import me.rerere.hugeicons.stroke.CommandLine
 import me.rerere.hugeicons.stroke.Files02
 import me.rerere.hugeicons.stroke.FileZip
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.MusicNote03
+import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.hugeicons.stroke.WebProgramming
 import me.rerere.rikkahub.R
@@ -57,7 +57,7 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.ui.components.ui.InjectionSelector
+import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -122,38 +122,37 @@ internal fun FilesPicker(
             modifier = Modifier.fillMaxWidth()
         )
 
-        if (settings.modeInjections.isNotEmpty()) {
-            val activeCount = if (assistant.allowConversationPromptInjection) {
-                conversation.modeInjectionIds.size
-            } else {
-                assistant.modeInjectionIds.size
-            }
-            ListItem(
-                leadingContent = {
-                    Icon(
-                        imageVector = HugeIcons.Book03,
-                        contentDescription = stringResource(R.string.chat_page_prompt_injections),
-                    )
-                },
-                headlineContent = {
-                    Text(stringResource(R.string.chat_page_prompt_injections))
-                },
-                trailingContent = {
-                    if (activeCount > 0) {
-                        Text(
-                            text = activeCount.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.large)
-                    .clickable {
-                        onShowInjectionSheetChange(true)
-                    },
-            )
+        val activeInjectionCount = if (assistant.allowConversationPromptInjection) {
+            conversation.modeInjectionIds.size
+        } else {
+            assistant.modeInjectionIds.size
         }
+        val activeExtensionCount = assistant.quickMessageIds.size + activeInjectionCount
+        ListItem(
+            leadingContent = {
+                Icon(
+                    imageVector = HugeIcons.Package,
+                    contentDescription = stringResource(R.string.assistant_page_tab_extensions),
+                )
+            },
+            headlineContent = {
+                Text(stringResource(R.string.assistant_page_tab_extensions))
+            },
+            trailingContent = {
+                if (activeExtensionCount > 0) {
+                    Text(
+                        text = activeExtensionCount.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            },
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.large)
+                .clickable {
+                    onShowInjectionSheetChange(true)
+                },
+        )
 
         ListItem(
             leadingContent = {
@@ -231,7 +230,7 @@ internal fun FilesPicker(
     }
 
     if (showInjectionSheet) {
-        InjectionQuickConfigSheet(
+        ExtensionQuickConfigSheet(
             conversation = conversation,
             assistant = assistant,
             settings = settings,
@@ -365,7 +364,7 @@ private fun BigIconTextButton(
 }
 
 @Composable
-private fun InjectionQuickConfigSheet(
+private fun ExtensionQuickConfigSheet(
     conversation: Conversation,
     assistant: Assistant,
     settings: Settings,
@@ -387,13 +386,20 @@ private fun InjectionQuickConfigSheet(
                 .fillMaxHeight(0.75f)
                 .padding(horizontal = 16.dp),
         ) {
-            InjectionSelector(
+            ExtensionSelector(
                 assistant = assistant,
                 settings = settings,
                 onUpdate = onUpdateAssistant,
                 conversation = conversation,
                 onUpdateConversation = onUpdateConversation,
                 modifier = Modifier.weight(1f),
+                onNavigateToQuickMessages = {
+                    scope.launch {
+                        sheetState.hide()
+                        onDismiss()
+                        navController.navigate(Screen.QuickMessages)
+                    }
+                },
                 onNavigateToPrompts = {
                     scope.launch {
                         sheetState.hide()
