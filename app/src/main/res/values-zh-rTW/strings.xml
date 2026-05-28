@@ -1701,4 +1701,5 @@
   <string name="setting_model_page_prompt_ocr">OCR 辨識</string>
   <string name="setting_model_page_prompt_compress">上下文壓縮</string>
   <string name="setting_display_page_bubble_opacity_title">氣泡透明度</string>
+  <string name="assistant_detail_extensions_desc">設定快捷訊息與提示詞注入</string>
 </resources>

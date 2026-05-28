@@ -1703,4 +1703,5 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_model_page_prompt_ocr">OCR 인식</string>
   <string name="setting_model_page_prompt_compress">컨텍스트 압축</string>
   <string name="setting_display_page_bubble_opacity_title">버블 불투명도</string>
+  <string name="assistant_detail_extensions_desc">빠른 메시지와 프롬프트 주입 설정</string>
 </resources>
