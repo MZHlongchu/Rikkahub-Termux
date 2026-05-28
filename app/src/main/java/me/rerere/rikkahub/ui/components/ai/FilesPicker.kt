@@ -1,12 +1,5 @@
 package me.rerere.rikkahub.ui.components.ai
 
-import android.content.Intent
-import android.graphics.Bitmap
-import android.net.Uri
-import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,31 +26,20 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toFile
-import androidx.core.net.toUri
-import com.dokar.sonner.ToastType
-import com.yalantis.ucrop.UCrop
-import com.yalantis.ucrop.UCropActivity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.ProviderSetting
-import me.rerere.ai.ui.UIMessagePart
-import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Camera01
@@ -73,17 +55,12 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
-import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.components.ui.InjectionSelector
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
-import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
-import me.rerere.rikkahub.utils.isAllowedFileType
-import org.koin.compose.koinInject
-import java.io.File
 
 @Composable
 internal fun FilesPicker(
@@ -102,6 +79,10 @@ internal fun FilesPicker(
     codeBlockRichRenderEnabled: Boolean,
     onToggleCodeBlockRichRender: (Boolean) -> Unit,
     onTakePic: () -> Unit,
+    onPickImage: () -> Unit,
+    onPickVideo: () -> Unit,
+    onPickAudio: () -> Unit,
+    onPickFile: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val settings = LocalSettings.current
@@ -123,27 +104,15 @@ internal fun FilesPicker(
             if (attachmentsEnabled) {
                 TakePicButton(onLaunchCamera = onTakePic)
 
-                ImagePickButton {
-                    state.addImages(it)
-                    onDismiss()
-                }
+                ImagePickButton(onClick = onPickImage)
 
                 if (provider != null && provider is ProviderSetting.Google) {
-                    VideoPickButton {
-                        state.addVideos(it)
-                        onDismiss()
-                    }
+                    VideoPickButton(onClick = onPickVideo)
 
-                    AudioPickButton {
-                        state.addAudios(it)
-                        onDismiss()
-                    }
+                    AudioPickButton(onClick = onPickAudio)
                 }
 
-                FilePickButton {
-                    state.addFiles(it)
-                    onDismiss()
-                }
+                FilePickButton(onClick = onPickFile)
             } else {
                 Text(stringResource(R.string.chat_page_termux_command_mode_attachments_disabled))
             }
@@ -286,100 +255,6 @@ internal fun FilesPicker(
 }
 
 @Composable
-internal fun useCropLauncher(
-    onCroppedImageReady: (Uri) -> Unit,
-    onCleanup: (() -> Unit)? = null
-): Pair<ActivityResultLauncher<Intent>, (Uri) -> Unit> {
-    val context = LocalContext.current
-    var cropOutputUri by remember { mutableStateOf<Uri?>(null) }
-
-    val cropActivityLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            cropOutputUri?.let { croppedUri ->
-                onCroppedImageReady(croppedUri)
-            }
-        }
-        cropOutputUri?.toFile()?.delete()
-        cropOutputUri = null
-        onCleanup?.invoke()
-    }
-
-    val launchCrop: (Uri) -> Unit = { sourceUri ->
-        val outputFile = File(context.appTempFolder, "crop_output_${System.currentTimeMillis()}.jpg")
-        cropOutputUri = Uri.fromFile(outputFile)
-
-        val cropIntent = UCrop.of(sourceUri, cropOutputUri!!)
-            .withOptions(UCrop.Options().apply {
-                setFreeStyleCropEnabled(true)
-                setAllowedGestures(
-                    UCropActivity.SCALE,
-                    UCropActivity.ROTATE,
-                    UCropActivity.NONE
-                )
-                setCompressionFormat(Bitmap.CompressFormat.PNG)
-            })
-            .withMaxResultSize(4096, 4096)
-            .getIntent(context)
-
-        cropActivityLauncher.launch(cropIntent)
-    }
-
-    return Pair(cropActivityLauncher, launchCrop)
-}
-
-@Composable
-private fun ImagePickButton(onAddImages: (List<Uri>) -> Unit = {}) {
-    val context = LocalContext.current
-    val settings = LocalSettings.current
-    val filesManager: FilesManager = koinInject()
-    var preCropTempFile by remember { mutableStateOf<File?>(null) }
-    val (_, launchCrop) = useCropLauncher(
-        onCroppedImageReady = { croppedUri ->
-            onAddImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
-        },
-        onCleanup = {
-            preCropTempFile?.delete()
-            preCropTempFile = null
-        }
-    )
-    val imagePickerLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selectedUris ->
-            if (selectedUris.isNotEmpty()) {
-                if (settings.displaySetting.skipCropImage) {
-                    onAddImages(filesManager.createChatFilesByContents(selectedUris))
-                } else if (selectedUris.size == 1) {
-                    val tempFile = File(context.appTempFolder, "pick_temp_${System.currentTimeMillis()}.jpg")
-                    runCatching {
-                        context.contentResolver.openInputStream(selectedUris.first())?.use { input ->
-                            tempFile.outputStream().use { output -> input.copyTo(output) }
-                        }
-                        preCropTempFile = tempFile
-                        launchCrop(tempFile.toUri())
-                    }.onFailure {
-                        Log.e("ImagePickButton", "Failed to copy image to temp, falling back", it)
-                        launchCrop(selectedUris.first())
-                    }
-                } else {
-                    onAddImages(filesManager.createChatFilesByContents(selectedUris))
-                }
-            }
-        }
-
-    BigIconTextButton(
-        icon = {
-            Icon(HugeIcons.Image02, null)
-        },
-        text = {
-            Text(stringResource(R.string.photo))
-        }
-    ) {
-        imagePickerLauncher.launch("image/*")
-    }
-}
-
-@Composable
 private fun TakePicButton(onLaunchCamera: () -> Unit = {}) {
     BigIconTextButton(
         icon = {
@@ -394,16 +269,21 @@ private fun TakePicButton(onLaunchCamera: () -> Unit = {}) {
 }
 
 @Composable
-private fun VideoPickButton(onAddVideos: (List<Uri>) -> Unit = {}) {
-    val filesManager: FilesManager = koinInject()
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
-    ) { selectedUris ->
-        if (selectedUris.isNotEmpty()) {
-            onAddVideos(filesManager.createChatFilesByContents(selectedUris))
+private fun ImagePickButton(onClick: () -> Unit = {}) {
+    BigIconTextButton(
+        icon = {
+            Icon(HugeIcons.Image02, null)
+        },
+        text = {
+            Text(stringResource(R.string.photo))
         }
+    ) {
+        onClick()
     }
+}
 
+@Composable
+private fun VideoPickButton(onClick: () -> Unit = {}) {
     BigIconTextButton(
         icon = {
             Icon(HugeIcons.Video01, null)
@@ -412,21 +292,12 @@ private fun VideoPickButton(onAddVideos: (List<Uri>) -> Unit = {}) {
             Text(stringResource(R.string.video))
         }
     ) {
-        videoPickerLauncher.launch("video/*")
+        onClick()
     }
 }
 
 @Composable
-private fun AudioPickButton(onAddAudios: (List<Uri>) -> Unit = {}) {
-    val filesManager: FilesManager = koinInject()
-    val audioPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
-    ) { selectedUris ->
-        if (selectedUris.isNotEmpty()) {
-            onAddAudios(filesManager.createChatFilesByContents(selectedUris))
-        }
-    }
-
+private fun AudioPickButton(onClick: () -> Unit = {}) {
     BigIconTextButton(
         icon = {
             Icon(HugeIcons.MusicNote03, null)
@@ -435,39 +306,12 @@ private fun AudioPickButton(onAddAudios: (List<Uri>) -> Unit = {}) {
             Text(stringResource(R.string.audio))
         }
     ) {
-        audioPickerLauncher.launch("audio/*")
+        onClick()
     }
 }
 
 @Composable
-private fun FilePickButton(onAddFiles: (List<UIMessagePart.Document>) -> Unit = {}) {
-    val toaster = LocalToaster.current
-    val filesManager: FilesManager = koinInject()
-    val pickMedia =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-            if (uris.isNotEmpty()) {
-                val documents = uris.mapNotNull { uri ->
-                    val fileName = filesManager.getFileNameFromUri(uri) ?: "file"
-                    val mime = filesManager.resolveMimeType(uri, fileName)
-
-                    if (isAllowedFileType(fileName, mime)) {
-                        val localUri = filesManager.createChatFilesByContents(listOf(uri))[0]
-                        UIMessagePart.Document(
-                            url = localUri.toString(),
-                            fileName = fileName,
-                            mime = mime
-                        )
-                    } else {
-                        toaster.show("不支持的文件类型: $fileName", type = ToastType.Error)
-                        null
-                    }
-                }
-
-                if (documents.isNotEmpty()) {
-                    onAddFiles(documents)
-                }
-            }
-        }
+private fun FilePickButton(onClick: () -> Unit = {}) {
     BigIconTextButton(
         icon = {
             Icon(HugeIcons.Files02, null)
@@ -476,7 +320,7 @@ private fun FilePickButton(onAddFiles: (List<UIMessagePart.Document>) -> Unit = 
             Text(stringResource(R.string.upload_file))
         }
     ) {
-        pickMedia.launch(arrayOf("*/*"))
+        onClick()
     }
 }
 

@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.components.ai
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -53,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,7 +68,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -77,12 +76,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
-import coil3.compose.AsyncImage
 import com.dokar.sonner.ToastType
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
@@ -94,14 +91,13 @@ import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ModelType
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.asr.ASRStatus
+import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Files02
-import me.rerere.hugeicons.stroke.MusicNote03
-import me.rerere.hugeicons.stroke.Video01
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.mcp.McpManager
@@ -128,6 +124,7 @@ import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
+import me.rerere.rikkahub.utils.isAllowedFileType
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
@@ -268,6 +265,84 @@ fun ChatInput(
             cameraPermission.requestPermissions()
         }
     }
+
+    var preCropTempFile by remember { mutableStateOf<File?>(null) }
+    val (_, launchImageCrop) = useCropLauncher(
+        onCroppedImageReady = { croppedUri ->
+            state.addImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
+            dismissFilesPicker()
+        },
+        onCleanup = {
+            preCropTempFile?.delete()
+            preCropTempFile = null
+        }
+    )
+    val imagePickerLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selectedUris ->
+            if (selectedUris.isNotEmpty()) {
+                if (settings.displaySetting.skipCropImage) {
+                    state.addImages(filesManager.createChatFilesByContents(selectedUris))
+                    dismissFilesPicker()
+                } else if (selectedUris.size == 1) {
+                    val tempFile = File(context.appTempFolder, "pick_temp_${System.currentTimeMillis()}.jpg")
+                    runCatching {
+                        context.contentResolver.openInputStream(selectedUris.first())?.use { input ->
+                            tempFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        preCropTempFile = tempFile
+                        launchImageCrop(tempFile.toUri())
+                    }.onFailure {
+                        Log.e("ImagePickButton", "Failed to copy image to temp, falling back", it)
+                        launchImageCrop(selectedUris.first())
+                    }
+                } else {
+                    state.addImages(filesManager.createChatFilesByContents(selectedUris))
+                    dismissFilesPicker()
+                }
+            }
+        }
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { selectedUris ->
+        if (selectedUris.isNotEmpty()) {
+            state.addVideos(filesManager.createChatFilesByContents(selectedUris))
+            dismissFilesPicker()
+        }
+    }
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { selectedUris ->
+        if (selectedUris.isNotEmpty()) {
+            state.addAudios(filesManager.createChatFilesByContents(selectedUris))
+            dismissFilesPicker()
+        }
+    }
+    val filePickerLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                val documents = uris.mapNotNull { uri ->
+                    val fileName = filesManager.getFileNameFromUri(uri) ?: "file"
+                    val mime = filesManager.resolveMimeType(uri, fileName)
+
+                    if (isAllowedFileType(fileName, mime)) {
+                        val localUri = filesManager.createChatFilesByContents(listOf(uri))[0]
+                        UIMessagePart.Document(
+                            url = localUri.toString(),
+                            fileName = fileName,
+                            mime = mime
+                        )
+                    } else {
+                        toaster.show("不支持的文件类型: $fileName", type = ToastType.Error)
+                        null
+                    }
+                }
+
+                if (documents.isNotEmpty()) {
+                    state.addFiles(documents)
+                    dismissFilesPicker()
+                }
+            }
+        }
 
     val composerShape = RoundedCornerShape(24.dp)
     val hasMessageContent = !state.isEmpty() || state.messageContent.isNotEmpty()
@@ -607,6 +682,10 @@ fun ChatInput(
                         codeBlockRichRenderEnabled = codeBlockRichRenderEnabled,
                         onToggleCodeBlockRichRender = onToggleCodeBlockRichRender,
                         onTakePic = onLaunchCamera,
+                        onPickImage = { imagePickerLauncher.launch("image/*") },
+                        onPickVideo = { videoPickerLauncher.launch("video/*") },
+                        onPickAudio = { audioPickerLauncher.launch("audio/*") },
+                        onPickFile = { filePickerLauncher.launch(arrayOf("*/*")) },
                         onDismiss = { dismissFilesPicker() },
                     )
                 }
@@ -801,197 +880,6 @@ private fun QuickMessageButton(
             }
         }
     }
-}
-
-@Composable
-private fun MediaFileInputRow(
-    state: ChatInputState,
-) {
-    val filesManager: FilesManager = koinInject()
-    val managedFiles by filesManager.observe().collectAsState(initial = emptyList())
-    val displayNameByRelativePath = remember(managedFiles) {
-        managedFiles.associate { it.relativePath to it.displayName }
-    }
-    val displayNameByFileName = remember(managedFiles) {
-        managedFiles.associate { it.relativePath.substringAfterLast('/') to it.displayName }
-    }
-
-    fun removePart(part: UIMessagePart, url: String) {
-        state.messageContent = state.messageContent.filterNot { it == part }
-        if (state.shouldDeleteFileOnRemove(part)) {
-            filesManager.deleteChatFiles(listOf(url.toUri()))
-        }
-    }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-            .horizontalScroll(rememberScrollState())
-    ) {
-        state.messageContent.fastForEach { part ->
-            when (part) {
-                is UIMessagePart.Image -> {
-                    AttachmentChip(
-                        title = attachmentNameFromUrl(
-                            url = part.url,
-                            fallback = "image",
-                            displayNameByRelativePath = displayNameByRelativePath,
-                            displayNameByFileName = displayNameByFileName
-                        ),
-                        leading = {
-                            Surface(
-                                modifier = Modifier.size(34.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            ) {
-                                AsyncImage(
-                                    model = part.url,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        },
-                        onRemove = { removePart(part, part.url) }
-                    )
-                }
-
-                is UIMessagePart.Video -> {
-                    AttachmentChip(
-                        title = attachmentNameFromUrl(
-                            url = part.url,
-                            fallback = "video",
-                            displayNameByRelativePath = displayNameByRelativePath,
-                            displayNameByFileName = displayNameByFileName
-                        ),
-                        leading = { AttachmentLeadingIcon(icon = HugeIcons.Video01) },
-                        onRemove = { removePart(part, part.url) }
-                    )
-                }
-
-                is UIMessagePart.Audio -> {
-                    AttachmentChip(
-                        title = attachmentNameFromUrl(
-                            url = part.url,
-                            fallback = "audio",
-                            displayNameByRelativePath = displayNameByRelativePath,
-                            displayNameByFileName = displayNameByFileName
-                        ),
-                        leading = { AttachmentLeadingIcon(icon = HugeIcons.MusicNote03) },
-                        onRemove = { removePart(part, part.url) }
-                    )
-                }
-
-                is UIMessagePart.Document -> {
-                    AttachmentChip(
-                        title = attachmentNameFromUrl(
-                            url = part.url,
-                            fallback = part.fileName,
-                            displayNameByRelativePath = displayNameByRelativePath,
-                            displayNameByFileName = displayNameByFileName
-                        ),
-                        leading = { AttachmentLeadingIcon(icon = HugeIcons.Files02) },
-                        onRemove = { removePart(part, part.url) }
-                    )
-                }
-
-                else -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun AttachmentChip(
-    title: String,
-    leading: @Composable () -> Unit,
-    onRemove: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        tonalElevation = 1.dp,
-        shadowElevation = 0.dp,
-        color = luneGlassContainerColor(),
-        border = BorderStroke(1.dp, luneGlassBorderColor().copy(alpha = 0.9f))
-    ) {
-        Row(
-            modifier = Modifier
-                .height(44.dp)
-                .padding(start = 8.dp, end = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            leading()
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.widthIn(min = 40.dp, max = 180.dp),
-            )
-            Box(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .clip(CircleShape)
-                    .size(40.dp)
-                    .clickable(onClick = onRemove),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = HugeIcons.Cancel01,
-                    contentDescription = stringResource(R.string.chat_page_delete),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AttachmentLeadingIcon(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-) {
-    Surface(
-        modifier = Modifier.size(34.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun attachmentNameFromUrl(
-    url: String,
-    fallback: String,
-    displayNameByRelativePath: Map<String, String>,
-    displayNameByFileName: Map<String, String>,
-): String {
-    val parsed = runCatching { url.toUri() }.getOrNull()
-    val relativePath = parsed?.path
-        ?.substringAfter("/files/", missingDelimiterValue = "")
-        ?.takeIf { it.isNotBlank() }
-    if (relativePath != null) {
-        displayNameByRelativePath[relativePath]?.let { return it }
-    }
-
-    val storedFileName = parsed?.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
-    if (storedFileName != null) {
-        displayNameByFileName[storedFileName]?.let { return it }
-        return storedFileName
-    }
-
-    return fallback
 }
 
 @Composable
