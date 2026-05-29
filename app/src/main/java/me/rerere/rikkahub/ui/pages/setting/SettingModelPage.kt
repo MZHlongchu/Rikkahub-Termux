@@ -63,6 +63,8 @@ fun SettingModelPage(vm: SettingVM = koinViewModel()) {
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        containerColor = CustomColors.topBarColors.containerColor,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text(stringResource(R.string.setting_model_page_title)) },
@@ -72,7 +74,9 @@ fun SettingModelPage(vm: SettingVM = koinViewModel()) {
             )
         },
         bottomBar = {
-            BottomAppBar {
+            BottomAppBar(
+                containerColor = CustomColors.cardColorsOnSurfaceContainer.containerColor
+            ) {
                 NavigationBarItem(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
@@ -88,8 +92,6 @@ fun SettingModelPage(vm: SettingVM = koinViewModel()) {
             }
         },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = CustomColors.topBarColors.containerColor,
-        contentColor = MaterialTheme.colorScheme.onSurface,
     ) { contentPadding ->
         HorizontalPager(
             state = pagerState,
