@@ -61,7 +61,7 @@ fun AssistantInjectionsPage(id: String) {
             settings = settings,
             onUpdate = { vm.update(it) },
             onNavigateToQuickMessages = { navController.navigate(Screen.QuickMessages) },
-            onNavigateToPrompts = { navController.navigate(Screen.Prompts) },
+            onNavigateToModeInjections = { navController.navigate(Screen.ModeInjections) },
         )
     }
 }

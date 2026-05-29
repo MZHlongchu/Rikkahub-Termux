@@ -10,7 +10,7 @@ import me.rerere.rikkahub.data.model.normalizedForSystemPromptSupplement
 import kotlin.uuid.Uuid
 
 /**
- * 提示词注入转换器
+ * 模式注入转换器
  */
 object PromptInjectionTransformer : InputMessageTransformer {
     override suspend fun transform(

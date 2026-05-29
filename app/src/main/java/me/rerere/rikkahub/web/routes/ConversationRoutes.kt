@@ -214,7 +214,7 @@ fun Route.conversationRoutes(
             call.respond(HttpStatusCode.OK, mapOf("status" to "updated"))
         }
 
-        // POST /api/conversations/{id}/injections - Update conversation-scoped prompt injections
+        // POST /api/conversations/{id}/injections - Update conversation-scoped mode injections
         post("/{id}/injections") {
             val uuid = call.parameters["id"].toUuid("conversation id")
             val request = call.receive<UpdateConversationInjectionsRequest>()
@@ -227,7 +227,7 @@ fun Route.conversationRoutes(
             val assistant = settings.assistants.firstOrNull { it.id == conversation.assistantId }
                 ?: throw NotFoundException("Assistant not found")
             if (!assistant.allowConversationPromptInjection) {
-                throw BadRequestException("Conversation prompt injection is not enabled for this assistant")
+                throw BadRequestException("Conversation mode injection is not enabled for this assistant")
             }
 
             val modeInjectionIds = validateConversationInjectionIds(
@@ -478,7 +478,7 @@ private suspend fun applyInitialConversationInjections(
         ?: throw NotFoundException("Assistant not found")
     if (!assistant.allowConversationPromptInjection) {
         if (modeInjectionIds.isNotEmpty()) {
-            throw BadRequestException("Conversation prompt injection is not enabled for this assistant")
+            throw BadRequestException("Conversation mode injection is not enabled for this assistant")
         }
         return
     }

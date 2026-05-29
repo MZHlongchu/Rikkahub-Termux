@@ -106,7 +106,6 @@
   <string name="assistant_page_strict">Строгий</string>
   <string name="assistant_page_system_prompt">Системный промпт</string>
   <string name="assistant_page_tab_basic">Основные настройки</string>
-  <string name="assistant_page_tab_injections">Внедрение подсказок</string>
   <string name="assistant_page_tab_local_tools">Локальные инструменты</string>
   <string name="assistant_page_tab_mcp">MCP</string>
   <string name="assistant_page_tab_memory">Память</string>
@@ -684,14 +683,11 @@
   <string name="video">Видео</string>
   <string name="web_search_disabled">Веб-поиск отключён</string>
   <string name="web_search_enabled">Веб-поиск включён</string>
-  <string name="prompt_page_title">Внедрение подсказок</string>
   <string name="prompt_page_unnamed">Без имени</string>
   <string name="prompt_page_unnamed_entry">Безымянная запись</string>
   <string name="prompt_page_use_regex">Использовать регулярные выражения</string>
-  <string name="setting_page_prompts_title">Внедрение подсказок</string>
-  <string name="chat_page_prompt_injections">Внедрение подсказок</string>
   <string name="injection_selector_unnamed">Без имени</string>
-  <string name="injection_selector_empty_title">Нет доступных внедрений подсказок</string>
+  <string name="injection_selector_empty_title">Нет доступных инъекций режимов</string>
   <string name="injection_selector_empty_hint">Создайте инъекции режима в настройках</string>
   <string name="injection_selector_mode_injections">Режим инъекций</string>
   <string name="injection_selector_mode_injections_empty">Нет доступных внедрений режима</string>
@@ -853,7 +849,6 @@
   <string name="stats_page_input_tokens">Входные токены</string>
   <string name="stats_page_output_tokens">Выходные токены</string>
   <string name="stats_page_cached_tokens">Кэшированные токены</string>
-  <string name="injection_selector_go_to_prompts">Управление подсказками</string>
   <string name="extension_content_unnamed">Без имени</string>
   <string name="stats_page_launch_count">Количество запусков приложения</string>
   <string name="setting_page_sponsor_alert_title">Поддержать разработчика</string>
@@ -1168,9 +1163,8 @@
   <string name="assistant_extensions_page_tab_mode_injections">Инъекции режимов</string>
   <string name="assistant_extensions_page_tab_skills">Навыки</string>
   <string name="assistant_extensions_page_empty_quick_messages">Нет быстрых сообщений. Создайте одно в разделе «Расширения».</string>
-  <string name="assistant_extensions_page_empty_mode_injections">Нет инъекций режимов. Создайте одну в разделе «Подсказки».</string>
+  <string name="assistant_extensions_page_empty_mode_injections">Нет инъекций режимов. Создайте одну в разделе «Инъекции режимов».</string>
   <string name="assistant_extensions_page_empty_skills">Нет навыков. Установите один в разделе «Расширения».</string>
-  <string name="assistant_extensions_page_goto_prompts">Перейти к подсказкам</string>
   <string name="assistant_extensions_page_goto_extensions">Перейти к расширениям</string>
   <string name="assistant_page_tab_extensions">Расширения</string>
   <string name="chat_input_unsupported_file_type">Неподдерживаемый тип файла: %s</string>
@@ -1183,14 +1177,11 @@
   <string name="extension_selector_quick_messages_empty">Нет доступных быстрых сообщений</string>
   <string name="extension_selector_mode_injections_empty">Нет доступных инъекций режимов</string>
   <string name="extension_selector_empty_title">Нет доступных расширений</string>
-  <string name="extension_selector_go_to_prompts">Управлять промптами</string>
   <string name="setting_page_extensions">Расширения</string>
-  <string name="setting_page_extensions_desc">Управляйте инъекциями промптов, навыками и другим</string>
+  <string name="setting_page_extensions_desc">Управляйте инъекциями режимов, навыками и другим</string>
   <string name="extensions_page_title">Расширения</string>
   <string name="extensions_page_section_extensions">Расширения</string>
   <string name="extensions_page_quick_messages_desc">Управление общими шаблонами быстрых сообщений</string>
-  <string name="extensions_page_prompts">Промпты</string>
-  <string name="extensions_page_prompts_desc">Управление и использование пользовательских промптов</string>
   <string name="extensions_page_agent_skills">Навыки агента</string>
   <string name="extensions_page_agent_skills_desc">Управление пакетами навыков ИИ, загружаемыми по требованию</string>
   <string name="quick_messages_page_add_title">Добавить быстрое сообщение</string>
@@ -1285,12 +1276,10 @@
   <string name="assistant_page_regex_unnamed">Unnamed regex</string>
   <string name="close">Close</string>
   <string name="editor_guide_open">Open guide</string>
-  <string name="prompt_page_help_title">Prompt Systems Guide</string>
   <string name="prompt_page_mode_injection_help_title">Mode Injection Guide</string>
   <string name="prompt_page_mode_injection_title">Mode Injections</string>
   <string name="prompt_page_overview_mode_injection_desc">Управляйте переиспользуемыми блоками режима.</string>
   <string name="prompt_page_overview_mode_injection_title">Mode Injections</string>
-  <string name="prompt_page_overview_title">Prompt Management</string>
   <string name="extensions_page_mode_injections_desc">Управляйте правилами инъекций режимов отдельно.</string>
   <string name="translator_page_paste_text">Вставить текст</string>
   <string name="translator_page_copy_result">Скопировать перевод</string>
@@ -1614,8 +1603,8 @@
   <string name="skills_page_skill_content_label">Содержимое SKILL.md</string>
   <string name="skills_page_skill_name">Название навыка: %s</string>
   <string name="skills_page_title">Навыки агента</string>
-  <string name="assistant_page_allow_conversation_prompt_injection">Промпт-инъекции для каждой беседы</string>
-  <string name="assistant_page_allow_conversation_prompt_injection_desc">Разрешить каждой беседе привязывать собственные промпт-инъекции</string>
+  <string name="assistant_page_allow_conversation_prompt_injection">Инъекции режимов для каждой беседы</string>
+  <string name="assistant_page_allow_conversation_prompt_injection_desc">Разрешить каждой беседе привязывать собственные инъекции режимов</string>
   <string name="setting_page_theme_setting_desc">Настроить цветовую схему приложения</string>
   <string name="setting_theme_page_preset_themes">Предустановленные темы</string>
   <string name="setting_theme_page_custom_themes">Пользовательские темы</string>
@@ -1703,5 +1692,5 @@
   <string name="setting_model_page_prompt_ocr">OCR распознавание</string>
   <string name="setting_model_page_prompt_compress">Сжатие контекста</string>
   <string name="setting_display_page_bubble_opacity_title">Прозрачность пузырьков</string>
-  <string name="assistant_detail_extensions_desc">Настройте быстрые сообщения и инъекции промптов</string>
+  <string name="assistant_detail_extensions_desc">Настройте быстрые сообщения и инъекции режимов</string>
 </resources>

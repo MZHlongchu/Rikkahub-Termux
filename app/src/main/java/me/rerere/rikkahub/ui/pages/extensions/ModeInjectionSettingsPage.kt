@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
+import me.rerere.rikkahub.ui.components.ui.EditorGuideAction
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.androidx.compose.koinViewModel
 
@@ -26,6 +27,12 @@ fun ModeInjectionSettingsPage(vm: PromptVM = koinViewModel()) {
             LargeFlexibleTopAppBar(
                 title = { Text(stringResource(R.string.prompt_page_mode_injection_title)) },
                 navigationIcon = { BackButton() },
+                actions = {
+                    EditorGuideAction(
+                        title = stringResource(R.string.prompt_page_mode_injection_help_title),
+                        bodyResId = R.raw.prompt_page_mode_injection_help_body_markdown,
+                    )
+                },
                 scrollBehavior = scrollBehavior,
                 colors = CustomColors.topBarColors,
             )

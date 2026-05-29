@@ -174,7 +174,7 @@ class SettingsStore(
         val WEB_SERVER_ACCESS_PASSWORD = stringPreferencesKey("web_server_access_password")
         val WEB_SERVER_LOCALHOST_ONLY = booleanPreferencesKey("web_server_localhost_only")
 
-        // 提示词注入
+        // 模式注入
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
         val GLOBAL_REGEX_ENABLED = booleanPreferencesKey("global_regex_enabled")

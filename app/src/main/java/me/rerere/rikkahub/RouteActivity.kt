@@ -97,7 +97,6 @@ import me.rerere.rikkahub.ui.pages.log.LogPage
 import me.rerere.rikkahub.ui.pages.persona.UserPersonaPage
 import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
 import me.rerere.rikkahub.ui.pages.extensions.ModeInjectionSettingsPage
-import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.SkillsPage
 import me.rerere.rikkahub.ui.pages.extensions.WorkdirBrowserPage
@@ -644,10 +643,6 @@ class RouteActivity : ComponentActivity() {
                                 QuickMessagesPage()
                             }
 
-                            entry<Screen.Prompts> {
-                                PromptPage()
-                            }
-
                             entry<Screen.ModeInjections> {
                                 ModeInjectionSettingsPage()
                             }
@@ -865,9 +860,6 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object QuickMessages : Screen
-
-    @Serializable
-    data object Prompts : Screen
 
     @Serializable
     data object ModeInjections : Screen

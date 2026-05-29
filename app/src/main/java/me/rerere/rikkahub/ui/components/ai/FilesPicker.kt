@@ -400,11 +400,11 @@ private fun ExtensionQuickConfigSheet(
                         navController.navigate(Screen.QuickMessages)
                     }
                 },
-                onNavigateToPrompts = {
+                onNavigateToModeInjections = {
                     scope.launch {
                         sheetState.hide()
                         onDismiss()
-                        navController.navigate(Screen.Prompts)
+                        navController.navigate(Screen.ModeInjections)
                     }
                 },
             )

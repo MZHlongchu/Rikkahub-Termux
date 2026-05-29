@@ -8,7 +8,6 @@ import org.junit.Test
 class EditorGuideMarkdownResourceTest {
     private val markdownResourceNames = setOf(
         "assistant_page_regex_help_body_markdown",
-        "prompt_page_help_body_markdown",
         "prompt_page_mode_injection_help_body_markdown",
     )
 

@@ -111,7 +111,6 @@
   <string name="assistant_page_allow_conversation_system_prompt">独立对话系统提示</string>
   <string name="assistant_page_allow_conversation_system_prompt_desc">允许每个对话单独设置系统提示词</string>
   <string name="assistant_page_tab_basic">基础设定</string>
-  <string name="assistant_page_tab_injections">提示词注入</string>
   <string name="assistant_page_tab_local_tools">本地工具</string>
   <string name="assistant_page_tab_mcp">MCP</string>
   <string name="assistant_page_tab_memory">记忆</string>
@@ -757,7 +756,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="video">视频</string>
   <string name="web_search_disabled">已禁用网页搜索</string>
   <string name="web_search_enabled">已启用网页搜索</string>
-  <string name="prompt_page_title">提示词注入</string>
   <string name="prompt_page_unnamed">未命名</string>
   <string name="prompt_page_position_author_note_top">作者注释前</string>
   <string name="prompt_page_position_author_note_bottom">作者注释后</string>
@@ -769,10 +767,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="prompt_page_position_outlet">Outlet</string>
   <string name="prompt_page_unnamed_entry">未命名条目</string>
   <string name="prompt_page_use_regex">使用正则表达式</string>
-  <string name="setting_page_prompts_title">提示注入</string>
-  <string name="chat_page_prompt_injections">提示注入</string>
   <string name="injection_selector_unnamed">未命名</string>
-  <string name="injection_selector_empty_title">无可用的提示注入</string>
+  <string name="injection_selector_empty_title">无可用的模式注入</string>
   <string name="injection_selector_empty_hint">在设置中创建模式注入</string>
   <string name="injection_selector_mode_injections">模式注入</string>
   <string name="injection_selector_mode_injections_empty">无可用的模式注入</string>
@@ -978,7 +974,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="stats_page_input_tokens">输入 Token</string>
   <string name="stats_page_output_tokens">输出 Token</string>
   <string name="stats_page_cached_tokens">缓存节省 Token</string>
-  <string name="injection_selector_go_to_prompts">管理提示</string>
   <string name="extension_content_unnamed">未命名</string>
   <string name="stats_page_launch_count">应用启动次数</string>
   <string name="setting_page_sponsor_alert_title">支持开发者</string>
@@ -1233,9 +1228,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_extensions_page_tab_mode_injections">模式注入</string>
   <string name="assistant_extensions_page_tab_skills">技能</string>
   <string name="assistant_extensions_page_empty_quick_messages">暂无快捷消息，请在“扩展”中创建</string>
-  <string name="assistant_extensions_page_empty_mode_injections">暂无模式注入，请在“提示词”中创建</string>
+  <string name="assistant_extensions_page_empty_mode_injections">暂无模式注入，请在“模式注入”中创建</string>
   <string name="assistant_extensions_page_empty_skills">暂无技能，请在“扩展”中安装</string>
-  <string name="assistant_extensions_page_goto_prompts">前往“提示词”</string>
   <string name="assistant_extensions_page_goto_extensions">前往扩展</string>
   <string name="assistant_page_tab_extensions">扩展</string>
   <string name="chat_input_unsupported_file_type">不支持的文件类型：%s</string>
@@ -1248,14 +1242,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="extension_selector_quick_messages_empty">没有可用的快速消息</string>
   <string name="extension_selector_mode_injections_empty">没有可用的模式注入</string>
   <string name="extension_selector_empty_title">没有可用的扩展</string>
-  <string name="extension_selector_go_to_prompts">管理提示词</string>
   <string name="setting_page_extensions">扩展</string>
-  <string name="setting_page_extensions_desc">管理提示注入、技能等</string>
+  <string name="setting_page_extensions_desc">管理模式注入、技能等</string>
   <string name="extensions_page_title">扩展</string>
   <string name="extensions_page_section_extensions">扩展</string>
   <string name="extensions_page_quick_messages_desc">管理共享的快捷消息模板</string>
-  <string name="extensions_page_prompts">提示词</string>
-  <string name="extensions_page_prompts_desc">管理和使用自定义提示词</string>
   <string name="extensions_page_agent_skills">Agent 技能</string>
   <string name="extensions_page_agent_skills_desc">管理供 AI 按需加载的技能包</string>
   <string name="quick_messages_page_add_title">添加快捷消息</string>
@@ -1344,12 +1335,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_regex_unnamed">未命名正则</string>
   <string name="close">关闭</string>
   <string name="editor_guide_open">打开说明</string>
-  <string name="prompt_page_help_title">提示词系统说明</string>
   <string name="prompt_page_mode_injection_help_title">模式注入说明</string>
   <string name="prompt_page_mode_injection_title">模式注入</string>
   <string name="prompt_page_overview_mode_injection_desc">管理可复用的模式提示块。</string>
   <string name="prompt_page_overview_mode_injection_title">模式注入</string>
-  <string name="prompt_page_overview_title">提示词管理</string>
   <string name="extensions_page_mode_injections_desc">独立管理模式注入规则。</string>
   <string name="translator_page_paste_text">粘贴文本</string>
   <string name="translator_page_copy_result">复制翻译结果</string>
@@ -1641,8 +1630,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="skills_page_skill_content_label">SKILL.md内容</string>
   <string name="skills_page_skill_name">技能名称：%s</string>
   <string name="skills_page_title">代理技能</string>
-  <string name="assistant_page_allow_conversation_prompt_injection">独立对话提示词注入</string>
-  <string name="assistant_page_allow_conversation_prompt_injection_desc">允许每个对话单独绑定提示词注入</string>
+  <string name="assistant_page_allow_conversation_prompt_injection">独立对话模式注入</string>
+  <string name="assistant_page_allow_conversation_prompt_injection_desc">允许每个对话单独绑定模式注入</string>
   <string name="setting_page_theme_setting_desc">自定义应用配色方案</string>
   <string name="setting_theme_page_preset_themes">预设主题</string>
   <string name="setting_theme_page_custom_themes">自定义主题</string>
@@ -1703,5 +1692,5 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_model_page_prompt_ocr">OCR识别</string>
   <string name="setting_model_page_prompt_compress">上下文压缩</string>
   <string name="setting_display_page_bubble_opacity_title">气泡不透明度</string>
-  <string name="assistant_detail_extensions_desc">配置快捷消息和提示词注入</string>
+  <string name="assistant_detail_extensions_desc">配置快捷消息和模式注入</string>
 </resources>

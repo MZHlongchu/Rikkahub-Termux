@@ -47,7 +47,7 @@ fun ExtensionSelector(
     conversation: Conversation? = null,
     onUpdateConversation: ((Conversation) -> Unit)? = null,
     onNavigateToQuickMessages: () -> Unit = {},
-    onNavigateToPrompts: () -> Unit = {},
+    onNavigateToModeInjections: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
@@ -102,7 +102,7 @@ fun ExtensionSelector(
                     modeInjections = settings.modeInjections,
                     onUpdate = onUpdate,
                     onUpdateConversation = onUpdateConversation,
-                    onManage = onNavigateToPrompts,
+                    onManage = onNavigateToModeInjections,
                 )
             }
         }
@@ -178,7 +178,7 @@ private fun ModeInjectionsExtensionPage(
     if (modeInjections.isEmpty()) {
         ExtensionEmptyState(
             message = stringResource(R.string.extension_selector_mode_injections_empty),
-            buttonText = stringResource(R.string.extension_selector_go_to_prompts),
+            buttonText = stringResource(R.string.prompt_page_mode_injection_title),
             onAction = onManage,
         )
         return

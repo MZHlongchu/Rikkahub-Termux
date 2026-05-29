@@ -36,12 +36,12 @@ fun InjectionSelector(
     onUpdate: (Assistant) -> Unit,
     conversation: Conversation? = null,
     onUpdateConversation: ((Conversation) -> Unit)? = null,
-    onNavigateToPrompts: () -> Unit = {},
+    onNavigateToModeInjections: () -> Unit = {},
 ) {
     if (settings.modeInjections.isEmpty()) {
         InjectionEmptyState(
             modifier = modifier,
-            onNavigateToPrompts = onNavigateToPrompts,
+            onNavigateToModeInjections = onNavigateToModeInjections,
         )
         return
     }
@@ -61,7 +61,7 @@ fun InjectionSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.End,
         ) {
-            IconButton(onClick = onNavigateToPrompts) {
+            IconButton(onClick = onNavigateToModeInjections) {
                 Icon(HugeIcons.Link01, contentDescription = null)
             }
         }
@@ -117,7 +117,7 @@ private fun ModeInjectionsSection(
 @Composable
 private fun InjectionEmptyState(
     modifier: Modifier = Modifier,
-    onNavigateToPrompts: () -> Unit = {},
+    onNavigateToModeInjections: () -> Unit = {},
 ) {
     val content: @Composable () -> Unit = {
         Column(
@@ -137,9 +137,9 @@ private fun InjectionEmptyState(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
-            TextButton(onClick = onNavigateToPrompts) {
+            TextButton(onClick = onNavigateToModeInjections) {
                 Icon(HugeIcons.Link01, contentDescription = null)
-                Text(stringResource(R.string.injection_selector_go_to_prompts))
+                Text(stringResource(R.string.prompt_page_mode_injection_title))
             }
         }
     }

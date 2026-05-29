@@ -106,7 +106,6 @@
   <string name="assistant_page_strict">厳密</string>
   <string name="assistant_page_system_prompt">システムプロンプト</string>
   <string name="assistant_page_tab_basic">基本設定</string>
-  <string name="assistant_page_tab_injections">プロンプトインジェクション</string>
   <string name="assistant_page_tab_local_tools">ローカルツール</string>
   <string name="assistant_page_tab_mcp">MCP</string>
   <string name="assistant_page_tab_memory">記憶</string>
@@ -707,14 +706,11 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="video">動画</string>
   <string name="web_search_disabled">ウェブ検索が無効になりました</string>
   <string name="web_search_enabled">ウェブ検索が有効になりました</string>
-  <string name="prompt_page_title">プロンプトインジェクション</string>
   <string name="prompt_page_unnamed">名前なし</string>
   <string name="prompt_page_unnamed_entry">無題のエントリー</string>
   <string name="prompt_page_use_regex">正規表現を使用</string>
-  <string name="setting_page_prompts_title">プロンプトインジェクション</string>
-  <string name="chat_page_prompt_injections">プロンプトインジェクション</string>
   <string name="injection_selector_unnamed">名前なし</string>
-  <string name="injection_selector_empty_title">プロンプトインジェクションがありません</string>
+  <string name="injection_selector_empty_title">利用可能なモードインジェクションはありません</string>
   <string name="injection_selector_empty_hint">設定でモードインジェクションを作成</string>
   <string name="injection_selector_mode_injections">モードインジェクション</string>
   <string name="injection_selector_mode_injections_empty">利用可能なモードインジェクションがありません</string>
@@ -862,7 +858,6 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="stats_page_input_tokens">入力トークン</string>
   <string name="stats_page_output_tokens">出力トークン</string>
   <string name="stats_page_cached_tokens">キャッシュされたトークン</string>
-  <string name="injection_selector_go_to_prompts">プロンプトを管理</string>
   <string name="extension_content_unnamed">名前なし</string>
   <string name="stats_page_launch_count">アプリ起動回数</string>
   <string name="setting_page_sponsor_alert_title">開発者を支援する</string>
@@ -1168,9 +1163,8 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="assistant_extensions_page_tab_mode_injections">モードインジェクション</string>
   <string name="assistant_extensions_page_tab_skills">スキル</string>
   <string name="assistant_extensions_page_empty_quick_messages">利用可能なクイックメッセージはありません。拡張機能で作成してください</string>
-  <string name="assistant_extensions_page_empty_mode_injections">利用可能なモードインジェクションはありません。プロンプトで作成してください</string>
+  <string name="assistant_extensions_page_empty_mode_injections">利用可能なモードインジェクションはありません。モードインジェクションで作成してください</string>
   <string name="assistant_extensions_page_empty_skills">利用可能なスキルはありません。拡張機能からインストールしてください</string>
-  <string name="assistant_extensions_page_goto_prompts">プロンプトに移動</string>
   <string name="assistant_extensions_page_goto_extensions">拡張機能へ移動</string>
   <string name="assistant_page_tab_extensions">拡張機能</string>
   <string name="chat_input_unsupported_file_type">サポートされていないファイル形式です: %s</string>
@@ -1183,14 +1177,11 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="extension_selector_quick_messages_empty">利用可能なクイックメッセージはありません</string>
   <string name="extension_selector_mode_injections_empty">利用可能なモードインジェクションはありません</string>
   <string name="extension_selector_empty_title">利用可能な拡張機能はありません</string>
-  <string name="extension_selector_go_to_prompts">プロンプトを管理</string>
   <string name="setting_page_extensions">拡張機能</string>
-  <string name="setting_page_extensions_desc">プロンプトインジェクション、スキルなどを管理します</string>
+  <string name="setting_page_extensions_desc">モードインジェクション、スキルなどを管理します</string>
   <string name="extensions_page_title">拡張機能</string>
   <string name="extensions_page_section_extensions">拡張機能</string>
   <string name="extensions_page_quick_messages_desc">共有の定型メッセージテンプレートを管理</string>
-  <string name="extensions_page_prompts">プロンプト</string>
-  <string name="extensions_page_prompts_desc">カスタムプロンプトを管理して使用</string>
   <string name="extensions_page_agent_skills">エージェントスキル</string>
   <string name="extensions_page_agent_skills_desc">AI がオンデマンドで読み込むスキルパッケージを管理</string>
   <string name="quick_messages_page_add_title">定型メッセージを追加</string>
@@ -1285,12 +1276,10 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="assistant_page_regex_unnamed">Unnamed regex</string>
   <string name="close">Close</string>
   <string name="editor_guide_open">Open guide</string>
-  <string name="prompt_page_help_title">Prompt Systems Guide</string>
   <string name="prompt_page_mode_injection_help_title">Mode Injection Guide</string>
   <string name="prompt_page_mode_injection_title">Mode Injections</string>
   <string name="prompt_page_overview_mode_injection_desc">再利用できるモード用プロンプトブロックを管理します。</string>
   <string name="prompt_page_overview_mode_injection_title">Mode Injections</string>
-  <string name="prompt_page_overview_title">Prompt Management</string>
   <string name="extensions_page_mode_injections_desc">モード注入ルールを個別に管理します。</string>
   <string name="translator_page_paste_text">テキストを貼り付け</string>
   <string name="translator_page_copy_result">翻訳結果をコピー</string>
@@ -1614,8 +1603,8 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="skills_page_skill_content_label">SKILL.mdコンテンツ</string>
   <string name="skills_page_skill_name">スキル名: %s</string>
   <string name="skills_page_title">エージェントスキル</string>
-  <string name="assistant_page_allow_conversation_prompt_injection">会話別プロンプトインジェクション</string>
-  <string name="assistant_page_allow_conversation_prompt_injection_desc">会話ごとにプロンプトインジェクションを個別にバインド可能にする</string>
+  <string name="assistant_page_allow_conversation_prompt_injection">会話ごとのモードインジェクション</string>
+  <string name="assistant_page_allow_conversation_prompt_injection_desc">各会話で独自のモードインジェクションを割り当てることを許可</string>
   <string name="setting_page_theme_setting_desc">アプリの配色をカスタマイズ</string>
   <string name="setting_theme_page_preset_themes">プリセットテーマ</string>
   <string name="setting_theme_page_custom_themes">カスタムテーマ</string>
@@ -1703,5 +1692,5 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_model_page_prompt_ocr">OCR認識</string>
   <string name="setting_model_page_prompt_compress">コンテキスト圧縮</string>
   <string name="setting_display_page_bubble_opacity_title">吹き出しの不透明度</string>
-  <string name="assistant_detail_extensions_desc">クイックメッセージとプロンプトインジェクションを設定</string>
+  <string name="assistant_detail_extensions_desc">クイックメッセージとモードインジェクションを設定</string>
 </resources>
