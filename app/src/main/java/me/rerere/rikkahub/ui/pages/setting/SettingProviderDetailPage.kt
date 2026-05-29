@@ -166,6 +166,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
 
     Scaffold(
         containerColor = CustomColors.topBarColors.containerColor,
+        contentColor = CustomColors.scaffoldSurfaceColors.contentColor,
         topBar = {
             TopAppBar(
                 navigationIcon = {
