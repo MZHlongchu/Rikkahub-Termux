@@ -236,9 +236,7 @@ class ResponseAPI(
         return buildJsonObject {
             put("model", params.model.modelId)
             put("stream", stream)
-            if (!params.model.tools.contains(BuiltInTools.ImageGeneration)) {
-                put("store", false)
-            }
+            put("store", false)
 
             if (isModelAllowTemperature(params.model)) {
                 if (params.temperature != null) put("temperature", params.temperature)
@@ -373,19 +371,11 @@ class ResponseAPI(
                             }
 
                             is UIMessagePart.Image -> {
-                                val callId = part.metadata?.get("openai_image_call_id")?.jsonPrimitive?.contentOrNull
-                                if (callId != null) {
-                                    if (contentBuffer.isNotEmpty()) {
-                                        addContentItem(MessageRole.ASSISTANT, contentBuffer)
-                                        contentBuffer.clear()
-                                    }
-                                    add(buildJsonObject {
-                                        put("type", "image_generation_call")
-                                        put("id", callId)
-                                    })
-                                } else {
-                                    contentBuffer.add(part)
+                                if (contentBuffer.isNotEmpty()) {
+                                    addContentItem(MessageRole.ASSISTANT, contentBuffer)
+                                    contentBuffer.clear()
                                 }
+                                addContentItem(MessageRole.USER, listOf(part))
                             }
 
                             is UIMessagePart.Text -> {
@@ -459,7 +449,7 @@ class ResponseAPI(
                             is UIMessagePart.Image -> {
                                 add(buildJsonObject {
                                     part.encodeBase64().onSuccess { encodedImage ->
-                                        put("type", if (role == MessageRole.USER) "input_image" else "output_image")
+                                        put("type", "input_image")
                                         put("image_url", encodedImage.base64)
                                     }.onFailure {
                                         it.printStackTrace()
@@ -617,6 +607,22 @@ class ResponseAPI(
                             )
                         )
                     )
+                } else if (type == "image_generation_call") {
+                    return MessageChunk(
+                        id = id,
+                        model = "",
+                        choices = listOf(
+                            UIMessageChoice(
+                                index = 0,
+                                delta = UIMessage(
+                                    role = MessageRole.ASSISTANT,
+                                    parts = listOf(UIMessagePart.Image(url = ""))
+                                ),
+                                message = null,
+                                finishReason = null
+                            )
+                        )
+                    )
                 } else if (type == "reasoning") {
                     return MessageChunk(
                         id = id,
@@ -642,30 +648,6 @@ class ResponseAPI(
                                     )
                                 ),
                                 finishReason = null,
-                            )
-                        )
-                    )
-                } else if (type == "image_generation_call") {
-                    val callId = item["id"]?.jsonPrimitive?.content ?: error("call_id not found")
-                    return MessageChunk(
-                        id = callId,
-                        model = "",
-                        choices = listOf(
-                            UIMessageChoice(
-                                index = 0,
-                                delta = UIMessage(
-                                    role = MessageRole.ASSISTANT,
-                                    parts = listOf(
-                                        UIMessagePart.Image(
-                                            url = "",
-                                            metadata = buildJsonObject {
-                                                put("openai_image_call_id", callId)
-                                            }
-                                        )
-                                    )
-                                ),
-                                message = null,
-                                finishReason = null
                             )
                         )
                     )
