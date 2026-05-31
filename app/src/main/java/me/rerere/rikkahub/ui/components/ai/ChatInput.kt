@@ -73,6 +73,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -157,6 +158,7 @@ fun ChatInput(
     onLongSendClick: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val filesManager: FilesManager = koinInject()
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -330,7 +332,7 @@ fun ChatInput(
                         val localUri = filesManager.createChatFilesByContents(listOf(uri)).firstOrNull()
                             ?: run {
                                 toaster.show(
-                                    context.getString(R.string.chat_input_file_read_failed, fileName),
+                                    resources.getString(R.string.chat_input_file_read_failed, fileName),
                                     type = ToastType.Error
                                 )
                                 return@mapNotNull null
@@ -342,7 +344,7 @@ fun ChatInput(
                         )
                     } else {
                         toaster.show(
-                            context.getString(R.string.chat_input_unsupported_file_type, fileName),
+                            resources.getString(R.string.chat_input_unsupported_file_type, fileName),
                             type = ToastType.Error
                         )
                         null
