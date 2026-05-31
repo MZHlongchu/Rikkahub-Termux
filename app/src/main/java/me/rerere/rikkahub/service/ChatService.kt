@@ -1275,10 +1275,8 @@ class ChatService(
 
         runCatching {
             val settings = settingsStore.settingsFlow.first()
-            val model = settings.findModelById(settings.titleModelId)
-                ?: throw IllegalStateException("Title model is not configured")
-            val provider = model.findProvider(settings.providers)
-                ?: throw IllegalStateException("Title model provider is not configured")
+            val model = settings.findModelById(settings.titleModelId, fallback = settings.fastModelId) ?: return
+            val provider = model.findProvider(settings.providers) ?: return
 
             val providerHandler = providerManager.getProviderByType(provider)
             val result = providerHandler.generateText(
@@ -1319,7 +1317,8 @@ class ChatService(
     suspend fun generateSuggestion(conversationId: Uuid, conversation: Conversation) {
         runCatching {
             val settings = settingsStore.settingsFlow.first()
-            val model = settings.findModelById(settings.suggestionModelId) ?: return
+            if (!settings.enableSuggestion) return
+            val model = settings.findModelById(settings.suggestionModelId, fallback = settings.fastModelId) ?: return
             val provider = model.findProvider(settings.providers) ?: return
 
             sessions[conversationId]?.let { session ->

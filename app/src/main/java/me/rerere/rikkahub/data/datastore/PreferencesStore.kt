@@ -103,8 +103,10 @@ class SettingsStore(
         val ENABLE_WEB_SEARCH = booleanPreferencesKey("enable_web_search")
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
         val SELECT_MODEL = stringPreferencesKey("chat_model")
+        val FAST_MODEL = stringPreferencesKey("fast_model")
         val TITLE_MODEL = stringPreferencesKey("title_model")
         val TRANSLATE_MODEL = stringPreferencesKey("translate_model")
+        val ENABLE_SUGGESTION = booleanPreferencesKey("enable_suggestion")
         val SUGGESTION_MODEL = stringPreferencesKey("suggestion_model")
         val IMAGE_GENERATION_MODEL = stringPreferencesKey("image_generation_model")
         val TITLE_PROMPT = stringPreferencesKey("title_prompt")
@@ -212,12 +214,13 @@ class SettingsStore(
                 } ?: emptyList(),
                 chatModelId = preferences[SELECT_MODEL]?.let { Uuid.parse(it) }
                     ?: DEFAULT_AUTO_MODEL_ID,
-                titleModelId = preferences[TITLE_MODEL]?.let { Uuid.parse(it) }
+                fastModelId = preferences[FAST_MODEL]?.let { Uuid.parse(it) }
                     ?: DEFAULT_AUTO_MODEL_ID,
+                titleModelId = preferences[TITLE_MODEL]?.let { Uuid.parse(it) },
                 translateModeId = preferences[TRANSLATE_MODEL]?.let { Uuid.parse(it) }
                     ?: DEFAULT_AUTO_MODEL_ID,
-                suggestionModelId = preferences[SUGGESTION_MODEL]?.let { Uuid.parse(it) }
-                    ?: DEFAULT_AUTO_MODEL_ID,
+                enableSuggestion = preferences[ENABLE_SUGGESTION] != false,
+                suggestionModelId = preferences[SUGGESTION_MODEL]?.let { Uuid.parse(it) },
                 imageGenerationModelId = preferences[IMAGE_GENERATION_MODEL]?.let { Uuid.parse(it) } ?: Uuid.random(),
                 titlePrompt = preferences[TITLE_PROMPT] ?: DEFAULT_TITLE_PROMPT,
                 translatePrompt = preferences[TRANSLATION_PROMPT] ?: DEFAULT_TRANSLATION_PROMPT,
@@ -503,9 +506,15 @@ class SettingsStore(
             preferences[ENABLE_WEB_SEARCH] = normalizedSettings.enableWebSearch
             preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(normalizedSettings.favoriteModels)
             preferences[SELECT_MODEL] = normalizedSettings.chatModelId.toString()
-            preferences[TITLE_MODEL] = normalizedSettings.titleModelId.toString()
+            preferences[FAST_MODEL] = normalizedSettings.fastModelId.toString()
+            normalizedSettings.titleModelId?.let {
+                preferences[TITLE_MODEL] = it.toString()
+            } ?: preferences.remove(TITLE_MODEL)
             preferences[TRANSLATE_MODEL] = normalizedSettings.translateModeId.toString()
-            preferences[SUGGESTION_MODEL] = normalizedSettings.suggestionModelId.toString()
+            preferences[ENABLE_SUGGESTION] = normalizedSettings.enableSuggestion
+            normalizedSettings.suggestionModelId?.let {
+                preferences[SUGGESTION_MODEL] = it.toString()
+            } ?: preferences.remove(SUGGESTION_MODEL)
             preferences[IMAGE_GENERATION_MODEL] = normalizedSettings.imageGenerationModelId.toString()
             preferences[TITLE_PROMPT] = normalizedSettings.titlePrompt
             preferences[TRANSLATION_PROMPT] = normalizedSettings.translatePrompt
@@ -660,14 +669,16 @@ data class Settings(
     val enableWebSearch: Boolean = false,
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
-    val titleModelId: Uuid = Uuid.random(),
+    val fastModelId: Uuid = Uuid.random(),
+    val titleModelId: Uuid? = null,
     val imageGenerationModelId: Uuid = Uuid.random(),
     val titlePrompt: String = DEFAULT_TITLE_PROMPT,
     val translateModeId: Uuid = Uuid.random(),
     val translatePrompt: String = DEFAULT_TRANSLATION_PROMPT,
     val translateThinkingBudget: Int = 0,
     val translateReasoningSummary: String = "",
-    val suggestionModelId: Uuid = Uuid.random(),
+    val enableSuggestion: Boolean = true,
+    val suggestionModelId: Uuid? = null,
     val suggestionPrompt: String = DEFAULT_SUGGESTION_PROMPT,
     val ocrModelId: Uuid = Uuid.random(),
     val ocrPrompt: String = DEFAULT_OCR_PROMPT,
@@ -830,8 +841,10 @@ data class BackupReminderConfig(
 
 fun Settings.isNotConfigured() = providers.all { it.models.isEmpty() }
 
-fun Settings.findModelById(uuid: Uuid): Model? {
-    return this.providers.findModelById(uuid)
+fun Settings.findModelById(uuid: Uuid?, fallback: Uuid? = null): Model? {
+    if (uuid == null && fallback == null) return null
+    return uuid?.let { this.providers.findModelById(it) }
+        ?: fallback?.let { this.providers.findModelById(it) }
 }
 
 fun List<ProviderSetting>.findModelById(uuid: Uuid): Model? {
