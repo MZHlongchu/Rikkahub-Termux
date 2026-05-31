@@ -387,24 +387,13 @@ private fun HtmlParagraphContent(
 }
 
 @Composable
-private fun htmlHeadingStyle(level: Int): TextStyle {
-    return when (level) {
-        1 -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 24.sp)
-        2 -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-        3 -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        4 -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        5 -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        else -> TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    }
-}
-
-@Composable
 private fun HtmlHeading(element: Element, onClickCitation: (String) -> Unit) {
     val level = element.tagName().removePrefix("h").toIntOrNull() ?: 1
-    val headingStyle = htmlHeadingStyle(level)
-    val verticalPadding = when (level) {
-        1 -> 16.dp; 2 -> 14.dp; 3 -> 12.dp; 4 -> 10.dp; 5 -> 8.dp; else -> 6.dp
-    }
+    val headingStyle = HeaderStyle.fromLevel(
+        level = level,
+        fontSizeRatio = LocalSettings.current.displaySetting.fontSizeRatio,
+    )
+    val verticalPadding = HeaderStyle.verticalPadding(level)
     ProvideTextStyle(LocalTextStyle.current.merge(headingStyle)) {
         Box(modifier = Modifier.padding(vertical = verticalPadding)) {
             HtmlParagraph(element = element, onClickCitation = onClickCitation)
@@ -896,7 +885,7 @@ private fun AnnotatedString.Builder.appendHtmlInlineElement(
 
         "code" -> withStyle(
             SpanStyle(
-                fontFamily = FontFamily.Monospace,
+                fontFamily = JetbrainsMono,
                 fontSize = 0.95.em,
                 background = colorScheme.surfaceVariant,
                 color = colorScheme.primary,

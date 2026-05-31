@@ -2,12 +2,10 @@ package me.rerere.rikkahub.data.ai.transformers
 
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
-import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.activeStPresetTemplate
 import kotlin.uuid.Uuid
 
 class TransformerContext(
@@ -15,12 +13,8 @@ class TransformerContext(
     val model: Model,
     val assistant: Assistant,
     val settings: Settings,
-    val stGenerationType: String = "normal",
-    val stMacroState: StMacroState? = null,
-    val lorebookRuntimeState: LorebookRuntimeState? = null,
     val dryRun: Boolean = false,
     val conversationModeInjectionIds: Set<Uuid> = emptySet(),
-    val conversationLorebookIds: Set<Uuid> = emptySet(),
     val processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
 )
 
@@ -72,12 +66,8 @@ suspend fun List<UIMessage>.transforms(
     model: Model,
     assistant: Assistant,
     settings: Settings,
-    stGenerationType: String = "normal",
-    stMacroState: StMacroState? = null,
-    lorebookRuntimeState: LorebookRuntimeState? = null,
     dryRun: Boolean = false,
     conversationModeInjectionIds: Set<Uuid> = emptySet(),
-    conversationLorebookIds: Set<Uuid> = emptySet(),
     processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
 ): List<UIMessage> {
     val ctx = TransformerContext(
@@ -85,30 +75,12 @@ suspend fun List<UIMessage>.transforms(
         model = model,
         assistant = assistant,
         settings = settings,
-        stGenerationType = stGenerationType,
-        stMacroState = stMacroState,
-        lorebookRuntimeState = lorebookRuntimeState,
         dryRun = dryRun,
         conversationModeInjectionIds = conversationModeInjectionIds,
-        conversationLorebookIds = conversationLorebookIds,
         processingStatus = processingStatus,
     )
-    val transformedMessages = transformers.fold(this) { acc, transformer ->
+    return transformers.fold(this) { acc, transformer ->
         transformer.transform(ctx, acc)
-    }
-    val activeTemplate = settings.activeStPresetTemplate()
-        ?.takeIf { settings.stPresetEnabled }
-        ?: return transformedMessages
-    if (activeTemplate.useSystemPrompt) {
-        return transformedMessages
-    }
-
-    return transformedMessages.map { message ->
-        if (message.role == MessageRole.SYSTEM) {
-            message.copy(role = MessageRole.USER)
-        } else {
-            message
-        }
     }
 }
 
@@ -118,9 +90,6 @@ suspend fun List<UIMessage>.visualTransforms(
     model: Model,
     assistant: Assistant,
     settings: Settings,
-    stGenerationType: String = "normal",
-    stMacroState: StMacroState? = null,
-    lorebookRuntimeState: LorebookRuntimeState? = null,
     dryRun: Boolean = false,
     processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
 ): List<UIMessage> {
@@ -129,9 +98,6 @@ suspend fun List<UIMessage>.visualTransforms(
         model = model,
         assistant = assistant,
         settings = settings,
-        stGenerationType = stGenerationType,
-        stMacroState = stMacroState,
-        lorebookRuntimeState = lorebookRuntimeState,
         dryRun = dryRun,
         processingStatus = processingStatus,
     )
@@ -150,9 +116,6 @@ suspend fun List<UIMessage>.onGenerationFinish(
     model: Model,
     assistant: Assistant,
     settings: Settings,
-    stGenerationType: String = "normal",
-    stMacroState: StMacroState? = null,
-    lorebookRuntimeState: LorebookRuntimeState? = null,
     dryRun: Boolean = false,
     processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
 ): List<UIMessage> {
@@ -161,9 +124,6 @@ suspend fun List<UIMessage>.onGenerationFinish(
         model = model,
         assistant = assistant,
         settings = settings,
-        stGenerationType = stGenerationType,
-        stMacroState = stMacroState,
-        lorebookRuntimeState = lorebookRuntimeState,
         dryRun = dryRun,
         processingStatus = processingStatus,
     )

@@ -215,8 +215,8 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         ColorMode.LIGHT -> stringResource(R.string.setting_page_color_mode_light)
                         ColorMode.DARK -> stringResource(R.string.setting_page_color_mode_dark)
                     }
-                    val displayTitle = stringResource(R.string.setting_page_display_setting)
-                    val displayDesc = stringResource(R.string.setting_page_display_setting_desc)
+                    val preferencesTitle = stringResource(R.string.setting_page_preferences)
+                    val preferencesDesc = stringResource(R.string.setting_page_preferences_desc)
                     val assistantTitle = stringResource(R.string.setting_page_assistant)
                     val assistantDesc = stringResource(R.string.setting_page_assistant_desc)
                     val scheduledTitle = stringResource(R.string.setting_page_scheduled_tasks)
@@ -224,12 +224,12 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     val extensionsTitle = stringResource(R.string.setting_page_extensions)
                     val extensionsDesc = stringResource(R.string.setting_page_extensions_desc)
                     val showColorMode = generalSectionMatch || matchesSetting(colorModeTitle, selectedColorModeText)
-                    val showDisplay = generalSectionMatch || matchesSetting(displayTitle, displayDesc)
+                    val showPreferences = generalSectionMatch || matchesSetting(preferencesTitle, preferencesDesc)
                     val showAssistant = generalSectionMatch || matchesSetting(assistantTitle, assistantDesc)
                     val showScheduled = generalSectionMatch || matchesSetting(scheduledTitle, scheduledDesc)
                     val showExtensions = generalSectionMatch || matchesSetting(extensionsTitle, extensionsDesc)
 
-                    if (showColorMode || showDisplay || showAssistant || showScheduled || showExtensions) {
+                    if (showColorMode || showPreferences || showAssistant || showScheduled || showExtensions) {
                         CardGroup(
                             modifier = Modifier.padding(horizontal = 8.dp),
                             title = { Text(generalSectionTitle) },
@@ -263,12 +263,12 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                                     supportingContent = { Text(selectedColorModeText) },
                                 )
                             }
-                            if (showDisplay) {
+                            if (showPreferences) {
                                 item(
-                                    onClick = { navController.navigate(Screen.SettingDisplay) },
+                                    onClick = { navController.navigate(Screen.SettingPreferences) },
                                     leadingContent = { Icon(HugeIcons.Settings03, null) },
-                                    supportingContent = { Text(displayDesc) },
-                                    headlineContent = { Text(displayTitle) },
+                                    supportingContent = { Text(preferencesDesc) },
+                                    headlineContent = { Text(preferencesTitle) },
                                 )
                             }
                             if (showAssistant) {

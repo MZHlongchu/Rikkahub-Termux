@@ -241,16 +241,6 @@ class ConversationRepository(
         messageFtsManager.indexConversation(conversation)
     }
 
-    suspend fun updateConversationLocalVariables(
-        conversationId: Uuid,
-        stLocalVariables: Map<String, String>,
-    ) {
-        conversationDAO.updateStLocalVariables(
-            id = conversationId.toString(),
-            stLocalVariables = JsonInstant.encodeToString(stLocalVariables),
-        )
-    }
-
     suspend fun deleteConversation(conversation: Conversation) {
         // 获取完整的 Conversation（包含 messageNodes）以正确清理文件
         val fullConversation = if (conversation.messageNodes.isEmpty()) {
@@ -312,7 +302,7 @@ class ConversationRepository(
             id = conversation.id.toString(),
             title = conversation.title,
             nodes = "[]",  // nodes 现在存储在单独的表中
-            stLocalVariables = JsonInstant.encodeToString(conversation.stLocalVariables),
+            stLocalVariables = "{}",
             createAt = conversation.createAt.toEpochMilli(),
             updateAt = conversation.updateAt.toEpochMilli(),
             assistantId = conversation.assistantId.toString(),
@@ -320,7 +310,7 @@ class ConversationRepository(
             isPinned = conversation.isPinned,
             customSystemPrompt = conversation.customSystemPrompt ?: "",
             modeInjectionIds = JsonInstant.encodeToString(conversation.modeInjectionIds),
-            lorebookIds = JsonInstant.encodeToString(conversation.lorebookIds),
+            lorebookIds = "[]",
         )
     }
 
@@ -332,7 +322,6 @@ class ConversationRepository(
             id = Uuid.parse(conversationEntity.id),
             title = conversationEntity.title,
             messageNodes = messageNodes.filter { it.messages.isNotEmpty() },
-            stLocalVariables = JsonInstant.decodeFromString(conversationEntity.stLocalVariables),
             createAt = Instant.ofEpochMilli(conversationEntity.createAt),
             updateAt = Instant.ofEpochMilli(conversationEntity.updateAt),
             assistantId = Uuid.parse(conversationEntity.assistantId),
@@ -340,7 +329,6 @@ class ConversationRepository(
             isPinned = conversationEntity.isPinned,
             customSystemPrompt = conversationEntity.customSystemPrompt.ifEmpty { null },
             modeInjectionIds = JsonInstant.decodeFromString(conversationEntity.modeInjectionIds),
-            lorebookIds = JsonInstant.decodeFromString(conversationEntity.lorebookIds),
         )
     }
 

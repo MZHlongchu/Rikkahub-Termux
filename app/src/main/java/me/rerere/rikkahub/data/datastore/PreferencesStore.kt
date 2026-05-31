@@ -47,17 +47,12 @@ import me.rerere.rikkahub.data.model.AssistantRegex
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.DEFAULT_TEXT_SELECTION_ACTIONS
 import me.rerere.rikkahub.data.model.InjectionPosition
-import me.rerere.rikkahub.data.model.Lorebook
-import me.rerere.rikkahub.data.model.LorebookGlobalSettings
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.ScheduledPromptTask
-import me.rerere.rikkahub.data.model.SillyTavernPreset
-import me.rerere.rikkahub.data.model.SillyTavernPromptTemplate
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.model.TextSelectionConfig
 import me.rerere.rikkahub.data.model.UserPersonaProfile
-import me.rerere.rikkahub.data.model.normalizeStPresetState
 import me.rerere.rikkahub.data.model.normalizedForSystemPromptSupplement
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.theme.CustomTheme
@@ -181,18 +176,9 @@ class SettingsStore(
 
         // 提示词注入
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
-        val LOREBOOKS = stringPreferencesKey("lorebooks")
-        val GLOBAL_LOREBOOK_IDS = stringPreferencesKey("global_lorebook_ids")
-        val LOREBOOK_GLOBAL_SETTINGS = stringPreferencesKey("lorebook_global_settings")
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
         val GLOBAL_REGEX_ENABLED = booleanPreferencesKey("global_regex_enabled")
         val GLOBAL_REGEXES = stringPreferencesKey("global_regexes")
-        val ST_GLOBAL_VARIABLES = stringPreferencesKey("st_global_variables")
-        val REGEXES = stringPreferencesKey("regexes")
-        val ST_PRESET_ENABLED = booleanPreferencesKey("st_preset_enabled")
-        val ST_PRESET_TEMPLATE = stringPreferencesKey("st_preset_template")
-        val ST_PRESETS = stringPreferencesKey("st_presets")
-        val SELECTED_ST_PRESET = stringPreferencesKey("selected_st_preset")
         val USER_PERSONA_PROFILES = stringPreferencesKey("user_persona_profiles")
         val SELECTED_USER_PERSONA_PROFILE = stringPreferencesKey("selected_user_persona_profile")
 
@@ -311,34 +297,11 @@ class SettingsStore(
                 modeInjections = preferences[MODE_INJECTIONS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
-                lorebooks = preferences[LOREBOOKS]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: emptyList(),
-                globalLorebookIds = preferences[GLOBAL_LOREBOOK_IDS]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: emptySet(),
-                lorebookGlobalSettings = preferences[LOREBOOK_GLOBAL_SETTINGS]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: LorebookGlobalSettings(),
                 quickMessages = preferences[QUICK_MESSAGES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
                 globalRegexEnabled = false,
                 globalRegexes = emptyList(),
-                stGlobalVariables = preferences[ST_GLOBAL_VARIABLES]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: emptyMap(),
-                regexes = preferences[REGEXES]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: emptyList(),
-                stPresetEnabled = preferences[ST_PRESET_ENABLED] == true,
-                stPresetTemplate = preferences[ST_PRESET_TEMPLATE]?.let {
-                    JsonInstant.decodeFromString(it)
-                },
-                stPresets = preferences[ST_PRESETS]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: emptyList(),
-                selectedStPresetId = preferences[SELECTED_ST_PRESET]?.let { Uuid.parse(it) },
                 userPersonaProfiles = preferences[USER_PERSONA_PROFILES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
@@ -421,7 +384,6 @@ class SettingsStore(
                 ?: asrProviders.firstOrNull()?.id
             val validMcpServerIds = settings.mcpServers.map { it.id }.toSet()
             val validModeInjectionIds = settings.modeInjections.map { it.id }.toSet()
-            val validLorebookIds = settings.lorebooks.map { it.id }.toSet()
             val validAssistantIds = settings.assistants.map { it.id }.toSet()
             val fallbackAssistantId = settings.assistants.firstOrNull()?.id ?: DEFAULT_ASSISTANT_ID
             val maxSearchIndex = (settings.searchServices.size - 1).coerceAtLeast(0)
@@ -439,8 +401,7 @@ class SettingsStore(
                         .distinctBy { it.id }
                 )
             }
-            val normalizedStSettings = settings.normalizeStPresetState()
-            normalizedStSettings.copy(
+            settings.copy(
                 providers = settings.providers.distinctBy { it.id }.map { provider ->
                     when (provider) {
                         is ProviderSetting.OpenAI -> provider.copy(
@@ -466,10 +427,6 @@ class SettingsStore(
                         modeInjectionIds = assistant.modeInjectionIds.filter { id ->
                             id in validModeInjectionIds
                         }.toSet(),
-                        // 过滤掉不存在的 Lorebook ID
-                        lorebookIds = assistant.lorebookIds.filter { id ->
-                            id in validLorebookIds
-                        }.toSet(),
                         // 过滤掉不存在的快捷消息 ID
                         quickMessageIds = assistant.quickMessageIds.filter { id ->
                             id in validQuickMessageIds
@@ -485,14 +442,8 @@ class SettingsStore(
                 modeInjections = settings.modeInjections
                     .map { it.normalizedForSystemPromptSupplement() }
                     .distinctBy { it.id },
-                lorebooks = settings.lorebooks.distinctBy { it.id },
-                globalLorebookIds = settings.globalLorebookIds.filter { it in validLorebookIds }.toSet(),
                 globalRegexEnabled = false,
                 globalRegexes = emptyList(),
-                regexes = normalizedStSettings.regexes.distinctBy { it.id },
-                stPresets = normalizedStSettings.stPresets,
-                selectedStPresetId = normalizedStSettings.selectedStPresetId,
-                stPresetTemplate = normalizedStSettings.stPresetTemplate,
                 userPersonaProfiles = userPersonaProfiles,
                 selectedUserPersonaProfileId = selectedUserPersonaProfileId,
                 scheduledTasks = settings.scheduledTasks
@@ -512,7 +463,6 @@ class SettingsStore(
                     },
                 textSelectionConfig = textSelectionConfig,
                 quickMessages = settings.quickMessages.distinctBy { it.id },
-                lorebookGlobalSettings = settings.lorebookGlobalSettings.normalized(),
             )
         }
 
@@ -525,19 +475,11 @@ class SettingsStore(
             Log.w(TAG, "Cannot update dummy settings")
             return
         }
-        val validLorebookIds = settings.lorebooks.map { it.id }.toSet()
-        val normalizedStSettings = settings.normalizeStPresetState()
         val asrProviders = settings.asrProviders.distinctBy { it.id }
-        val normalizedSettings = normalizedStSettings.copy(
+        val normalizedSettings = settings.copy(
             modeInjections = settings.modeInjections.map { it.normalizedForSystemPromptSupplement() },
-            lorebookGlobalSettings = settings.lorebookGlobalSettings.normalized(),
-            globalLorebookIds = settings.globalLorebookIds.filter { it in validLorebookIds }.toSet(),
             globalRegexEnabled = false,
             globalRegexes = emptyList(),
-            stPresets = normalizedStSettings.stPresets,
-            selectedStPresetId = normalizedStSettings.selectedStPresetId,
-            stPresetTemplate = normalizedStSettings.stPresetTemplate,
-            regexes = normalizedStSettings.regexes.distinctBy { it.id },
             asrProviders = asrProviders,
             selectedASRProviderId = settings.selectedASRProviderId
                 ?.takeIf { selectedId -> asrProviders.any { it.id == selectedId } }
@@ -613,22 +555,9 @@ class SettingsStore(
                 preferences[SELECTED_ASR_PROVIDER] = it.toString()
             } ?: preferences.remove(SELECTED_ASR_PROVIDER)
             preferences[MODE_INJECTIONS] = JsonInstant.encodeToString(normalizedSettings.modeInjections)
-            preferences[LOREBOOKS] = JsonInstant.encodeToString(normalizedSettings.lorebooks)
-            preferences[GLOBAL_LOREBOOK_IDS] = JsonInstant.encodeToString(normalizedSettings.globalLorebookIds)
-            preferences[LOREBOOK_GLOBAL_SETTINGS] = JsonInstant.encodeToString(normalizedSettings.lorebookGlobalSettings)
             preferences[QUICK_MESSAGES] = JsonInstant.encodeToString(normalizedSettings.quickMessages)
             preferences.remove(GLOBAL_REGEX_ENABLED)
             preferences.remove(GLOBAL_REGEXES)
-            preferences[ST_GLOBAL_VARIABLES] = JsonInstant.encodeToString(normalizedSettings.stGlobalVariables)
-            preferences[REGEXES] = JsonInstant.encodeToString(normalizedSettings.regexes)
-            preferences[ST_PRESET_ENABLED] = normalizedSettings.stPresetEnabled
-            normalizedSettings.stPresetTemplate?.let {
-                preferences[ST_PRESET_TEMPLATE] = JsonInstant.encodeToString(it)
-            } ?: preferences.remove(ST_PRESET_TEMPLATE)
-            preferences[ST_PRESETS] = JsonInstant.encodeToString(normalizedSettings.stPresets)
-            normalizedSettings.selectedStPresetId?.let {
-                preferences[SELECTED_ST_PRESET] = it.toString()
-            } ?: preferences.remove(SELECTED_ST_PRESET)
             preferences[USER_PERSONA_PROFILES] = JsonInstant.encodeToString(normalizedSettings.userPersonaProfiles)
             normalizedSettings.selectedUserPersonaProfileId?.let {
                 preferences[SELECTED_USER_PERSONA_PROFILE] = it.toString()
@@ -700,7 +629,6 @@ class SettingsStore(
     suspend fun updateAssistantInjections(
         assistantId: Uuid,
         modeInjectionIds: Set<Uuid>,
-        lorebookIds: Set<Uuid>,
         quickMessageIds: Set<Uuid> = emptySet(),
     ) {
         update { settings ->
@@ -709,7 +637,6 @@ class SettingsStore(
                     if (assistant.id == assistantId) {
                         assistant.copy(
                             modeInjectionIds = modeInjectionIds,
-                            lorebookIds = lorebookIds,
                             quickMessageIds = quickMessageIds,
                         )
                     } else {
@@ -779,19 +706,9 @@ data class Settings(
     val asrProviders: List<ASRProviderSetting> = emptyList(),
     val selectedASRProviderId: Uuid? = null,
     val modeInjections: List<PromptInjection.ModeInjection> = DEFAULT_MODE_INJECTIONS,
-    val lorebooks: List<Lorebook> = emptyList(),
-    val globalLorebookIds: Set<Uuid> = emptySet(),
-    val lorebookGlobalSettings: LorebookGlobalSettings = LorebookGlobalSettings(),
     val quickMessages: List<QuickMessage> = emptyList(),
     val globalRegexEnabled: Boolean = false,
     val globalRegexes: List<AssistantRegex> = emptyList(),
-    val stGlobalVariables: Map<String, String> = emptyMap(),
-    // Legacy cache for older builds. Active preset regexes are mirrored here during persistence.
-    val regexes: List<AssistantRegex> = emptyList(),
-    val stPresetEnabled: Boolean = false,
-    val stPresetTemplate: SillyTavernPromptTemplate? = null,
-    val stPresets: List<SillyTavernPreset> = emptyList(),
-    val selectedStPresetId: Uuid? = null,
     val userPersonaProfiles: List<UserPersonaProfile> = emptyList(),
     val selectedUserPersonaProfileId: Uuid? = null,
     val webServerEnabled: Boolean = false,

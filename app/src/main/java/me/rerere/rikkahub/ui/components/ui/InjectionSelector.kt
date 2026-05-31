@@ -2,37 +2,29 @@ package me.rerere.rikkahub.ui.components.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Link01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.ui.theme.CustomColors
 
@@ -46,7 +38,7 @@ fun InjectionSelector(
     onUpdateConversation: ((Conversation) -> Unit)? = null,
     onNavigateToPrompts: () -> Unit = {},
 ) {
-    if (settings.modeInjections.isEmpty() && settings.lorebooks.isEmpty()) {
+    if (settings.modeInjections.isEmpty()) {
         InjectionEmptyState(
             modifier = modifier,
             onNavigateToPrompts = onNavigateToPrompts,
@@ -54,8 +46,6 @@ fun InjectionSelector(
         return
     }
 
-    val pagerState = rememberPagerState { 2 }
-    val scope = rememberCoroutineScope()
     val useConversationInjections =
         assistant.allowConversationPromptInjection && conversation != null && onUpdateConversation != null
     val selectedModeInjectionIds = if (useConversationInjections) {
@@ -63,106 +53,35 @@ fun InjectionSelector(
     } else {
         assistant.modeInjectionIds
     }
-    val selectedLorebookIds = if (useConversationInjections) {
-        conversation.lorebookIds
-    } else {
-        assistant.lorebookIds
-    }
 
     Column(
         modifier = modifier
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.End,
         ) {
-            SecondaryTabRow(
-                selectedTabIndex = pagerState.currentPage,
-                containerColor = CustomColors.scaffoldSurfaceColors.containerColor,
-                modifier = Modifier.weight(1f)
-            ) {
-                Tab(
-                    selected = pagerState.currentPage == 0,
-                    onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(0)
-                        }
-                    },
-                    text = {
-                        Text(stringResource(R.string.injection_selector_mode_injections))
-                    }
-                )
-                Tab(
-                    selected = pagerState.currentPage == 1,
-                    onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(1)
-                        }
-                    },
-                    text = {
-                        Text(stringResource(R.string.injection_selector_lorebooks))
-                    }
-                )
-            }
             IconButton(onClick = onNavigateToPrompts) {
                 Icon(HugeIcons.Link01, contentDescription = null)
             }
         }
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) { page ->
-            when (page) {
-                0 -> {
-                    if (settings.modeInjections.isNotEmpty()) {
-                        ModeInjectionsSection(
-                            modeInjections = settings.modeInjections,
-                            selectedIds = selectedModeInjectionIds,
-                            onToggle = { id, checked ->
-                                val newIds = if (checked) {
-                                    selectedModeInjectionIds + id
-                                } else {
-                                    selectedModeInjectionIds - id
-                                }
-                                if (useConversationInjections) {
-                                    onUpdateConversation(conversation.copy(modeInjectionIds = newIds))
-                                } else {
-                                    onUpdate(assistant.copy(modeInjectionIds = newIds))
-                                }
-                            },
-                        )
-                    } else {
-                        ModeInjectionsEmptyState()
-                    }
+        ModeInjectionsSection(
+            modeInjections = settings.modeInjections,
+            selectedIds = selectedModeInjectionIds,
+            onToggle = { id, checked ->
+                val newIds = if (checked) {
+                    selectedModeInjectionIds + id
+                } else {
+                    selectedModeInjectionIds - id
                 }
-
-                1 -> {
-                    if (settings.lorebooks.isNotEmpty()) {
-                        LorebooksSection(
-                            lorebooks = settings.lorebooks,
-                            selectedIds = selectedLorebookIds,
-                            onToggle = { id, checked ->
-                                val newIds = if (checked) {
-                                    selectedLorebookIds + id
-                                } else {
-                                    selectedLorebookIds - id
-                                }
-                                if (useConversationInjections) {
-                                    onUpdateConversation(conversation.copy(lorebookIds = newIds))
-                                } else {
-                                    onUpdate(assistant.copy(lorebookIds = newIds))
-                                }
-                            },
-                        )
-                    } else {
-                        LorebooksEmptyState()
-                    }
+                if (useConversationInjections) {
+                    onUpdateConversation(conversation.copy(modeInjectionIds = newIds))
+                } else {
+                    onUpdate(assistant.copy(modeInjectionIds = newIds))
                 }
-            }
-        }
+            },
+        )
     }
 }
 
@@ -186,44 +105,6 @@ private fun ModeInjectionsSection(
                         checked = selectedIds.contains(injection.id),
                         onCheckedChange = { checked ->
                             onToggle(injection.id, checked)
-                        }
-                    )
-                },
-                colors = CustomColors.listItemColors
-            )
-        }
-    }
-}
-
-@Composable
-private fun LorebooksSection(
-    lorebooks: List<Lorebook>,
-    selectedIds: Set<kotlin.uuid.Uuid>,
-    onToggle: (kotlin.uuid.Uuid, Boolean) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        items(lorebooks) { lorebook ->
-            ListItem(
-                headlineContent = {
-                    Text(lorebook.name.ifBlank { stringResource(R.string.injection_selector_unnamed_lorebook) })
-                },
-                supportingContent = if (lorebook.description.isNotBlank()) {
-                    {
-                        Text(
-                            text = lorebook.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                } else null,
-                trailingContent = {
-                    Switch(
-                        checked = selectedIds.contains(lorebook.id),
-                        onCheckedChange = { checked ->
-                            onToggle(lorebook.id, checked)
                         }
                     )
                 },
@@ -277,23 +158,6 @@ private fun ModeInjectionsEmptyState() {
     ) {
         Text(
             text = stringResource(R.string.injection_selector_mode_injections_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
-    }
-}
-
-@Composable
-private fun LorebooksEmptyState() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.injection_selector_lorebooks_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )

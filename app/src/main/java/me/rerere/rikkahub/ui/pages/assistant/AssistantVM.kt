@@ -19,7 +19,6 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
-import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import kotlin.uuid.Uuid
@@ -91,20 +90,11 @@ class AssistantVM(
     }
 
     fun addAssistant(assistant: Assistant) {
-        addAssistantWithLorebooks(assistant = assistant, lorebooks = emptyList())
-    }
-
-    fun addAssistantWithLorebooks(
-        assistant: Assistant,
-        lorebooks: List<Lorebook>,
-        baseSettings: Settings? = null,
-    ) {
         viewModelScope.launch {
-            val settings = baseSettings ?: settings.value
+            val settings = settings.value
             settingsStore.update(
                 settings.copy(
                     assistants = settings.assistants.plus(assistant),
-                    lorebooks = settings.lorebooks + lorebooks,
                 )
             )
         }

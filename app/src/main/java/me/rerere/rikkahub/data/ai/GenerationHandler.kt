@@ -36,8 +36,6 @@ import me.rerere.rikkahub.data.ai.tools.termux.TermuxApprovalBlacklistMatcher
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
-import me.rerere.rikkahub.data.ai.transformers.LorebookRuntimeState
-import me.rerere.rikkahub.data.ai.transformers.StMacroState
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
@@ -118,13 +116,9 @@ class GenerationHandler(
         memories: List<AssistantMemory>? = null,
         tools: List<Tool> = emptyList(),
         maxSteps: Int = 256,
-        stGenerationType: String = "normal",
-        stMacroState: StMacroState? = null,
-        lorebookRuntimeState: LorebookRuntimeState? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
-        conversationLorebookIds: Set<Uuid> = emptySet(),
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -178,9 +172,6 @@ class GenerationHandler(
                             model = model,
                             assistant = assistant,
                             settings = settings,
-                            stGenerationType = stGenerationType,
-                            stMacroState = stMacroState,
-                            lorebookRuntimeState = lorebookRuntimeState,
                             processingStatus = processingStatus,
                         )
                         emit(
@@ -191,9 +182,6 @@ class GenerationHandler(
                                     model = model,
                                     assistant = assistant,
                                     settings = settings,
-                                    stGenerationType = stGenerationType,
-                                    stMacroState = stMacroState,
-                                    lorebookRuntimeState = lorebookRuntimeState,
                                     processingStatus = processingStatus,
                                 )
                             )
@@ -206,13 +194,9 @@ class GenerationHandler(
                     tools = toolsInternal,
                     memories = memories ?: emptyList(),
                     stream = assistant.streamOutput,
-                    stGenerationType = stGenerationType,
-                    stMacroState = stMacroState,
-                    lorebookRuntimeState = lorebookRuntimeState,
                     processingStatus = processingStatus,
                     conversationSystemPrompt = conversationSystemPrompt,
                     conversationModeInjectionIds = conversationModeInjectionIds,
-                    conversationLorebookIds = conversationLorebookIds,
                 )
                 messages = messages.onGenerationFinish(
                     transformers = outputTransformers,
@@ -220,9 +204,6 @@ class GenerationHandler(
                     model = model,
                     assistant = assistant,
                     settings = settings,
-                    stGenerationType = stGenerationType,
-                    stMacroState = stMacroState,
-                    lorebookRuntimeState = lorebookRuntimeState,
                     processingStatus = processingStatus,
                 )
                 messages = messages.slice(0 until messages.lastIndex) + messages.last().copy(
@@ -366,9 +347,6 @@ class GenerationHandler(
                         model = model,
                         assistant = assistant,
                         settings = settings,
-                        stGenerationType = stGenerationType,
-                        stMacroState = stMacroState,
-                        lorebookRuntimeState = lorebookRuntimeState,
                         processingStatus = processingStatus,
                     )
                 )
@@ -385,9 +363,6 @@ class GenerationHandler(
         assistant: Assistant,
         memories: List<AssistantMemory>? = null,
         tools: List<Tool> = emptyList(),
-        stGenerationType: String = "normal",
-        stMacroState: StMacroState? = null,
-        lorebookRuntimeState: LorebookRuntimeState? = null,
     ): List<UIMessage> {
         return prepareInternalMessages(
             assistant = assistant,
@@ -397,9 +372,6 @@ class GenerationHandler(
             model = model,
             tools = tools,
             memories = memories ?: emptyList(),
-            stGenerationType = stGenerationType,
-            stMacroState = stMacroState,
-            lorebookRuntimeState = lorebookRuntimeState,
             dryRun = true,
         )
     }
@@ -416,13 +388,9 @@ class GenerationHandler(
         tools: List<Tool>,
         memories: List<AssistantMemory>,
         stream: Boolean,
-        stGenerationType: String,
-        stMacroState: StMacroState?,
-        lorebookRuntimeState: LorebookRuntimeState?,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
-        conversationLorebookIds: Set<Uuid> = emptySet(),
     ) {
         val internalMessages = prepareInternalMessages(
             assistant = assistant,
@@ -432,11 +400,7 @@ class GenerationHandler(
             model = model,
             tools = tools,
             memories = memories,
-            stGenerationType = stGenerationType,
-            stMacroState = stMacroState,
-            lorebookRuntimeState = lorebookRuntimeState,
             conversationModeInjectionIds = conversationModeInjectionIds,
-            conversationLorebookIds = conversationLorebookIds,
             processingStatus = processingStatus,
             conversationSystemPrompt = conversationSystemPrompt,
         )
@@ -534,14 +498,10 @@ class GenerationHandler(
         model: Model,
         tools: List<Tool>,
         memories: List<AssistantMemory>,
-        stGenerationType: String,
-        stMacroState: StMacroState?,
-        lorebookRuntimeState: LorebookRuntimeState?,
         dryRun: Boolean = false,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
-        conversationLorebookIds: Set<Uuid> = emptySet(),
     ): List<UIMessage> {
         val preparedMessages = messages.prepareMessagesForGeneration(
             contextMessageSize = assistant.contextMessageSize,
@@ -591,12 +551,8 @@ class GenerationHandler(
             model = model,
             assistant = assistant,
             settings = settings,
-            stGenerationType = stGenerationType,
-            stMacroState = stMacroState,
-            lorebookRuntimeState = lorebookRuntimeState,
             dryRun = dryRun,
             conversationModeInjectionIds = conversationModeInjectionIds,
-            conversationLorebookIds = conversationLorebookIds,
             processingStatus = processingStatus,
         )
     }

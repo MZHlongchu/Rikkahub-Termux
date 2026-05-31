@@ -96,22 +96,24 @@ import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
 import me.rerere.rikkahub.ui.pages.log.LogPage
 import me.rerere.rikkahub.ui.pages.persona.UserPersonaPage
 import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
-import me.rerere.rikkahub.ui.pages.extensions.LorebookSettingsPage
 import me.rerere.rikkahub.ui.pages.extensions.ModeInjectionSettingsPage
 import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
-import me.rerere.rikkahub.ui.pages.extensions.SillyTavernPresetPage
 import me.rerere.rikkahub.ui.pages.extensions.WorkdirBrowserPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAndroidIntegrationPage
-import me.rerere.rikkahub.ui.pages.setting.SettingDisplayPage
 import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
 import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
 import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPage
+import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesGeneralPage
+import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesNotificationPage
+import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesPage
+import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesThemePage
+import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesUIPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchDetailPage
@@ -543,8 +545,24 @@ class RouteActivity : ComponentActivity() {
                                 SettingThemePage()
                             }
 
-                            entry<Screen.SettingDisplay> {
-                                SettingDisplayPage()
+                            entry<Screen.SettingPreferences> {
+                                SettingPreferencesPage()
+                            }
+
+                            entry<Screen.SettingPreferencesTheme> {
+                                SettingPreferencesThemePage()
+                            }
+
+                            entry<Screen.SettingPreferencesNotification> {
+                                SettingPreferencesNotificationPage()
+                            }
+
+                            entry<Screen.SettingPreferencesGeneral> {
+                                SettingPreferencesGeneralPage()
+                            }
+
+                            entry<Screen.SettingPreferencesUI> {
+                                SettingPreferencesUIPage()
                             }
 
                             entry<Screen.SettingProvider> {
@@ -629,16 +647,8 @@ class RouteActivity : ComponentActivity() {
                                 PromptPage()
                             }
 
-                            entry<Screen.StPresets> {
-                                SillyTavernPresetPage()
-                            }
-
                             entry<Screen.ModeInjections> {
                                 ModeInjectionSettingsPage()
-                            }
-
-                            entry<Screen.Lorebooks> {
-                                LorebookSettingsPage()
                             }
 
                             entry<Screen.WorkdirBrowser> { key ->
@@ -780,7 +790,19 @@ sealed interface Screen : NavKey {
     data object SettingTheme : Screen
 
     @Serializable
-    data object SettingDisplay : Screen
+    data object SettingPreferences : Screen
+
+    @Serializable
+    data object SettingPreferencesTheme : Screen
+
+    @Serializable
+    data object SettingPreferencesNotification : Screen
+
+    @Serializable
+    data object SettingPreferencesGeneral : Screen
+
+    @Serializable
+    data object SettingPreferencesUI : Screen
 
     @Serializable
     data object SettingProvider : Screen
@@ -843,13 +865,7 @@ sealed interface Screen : NavKey {
     data object Prompts : Screen
 
     @Serializable
-    data object StPresets : Screen
-
-    @Serializable
     data object ModeInjections : Screen
-
-    @Serializable
-    data object Lorebooks : Screen
 
     @Serializable
     data class WorkdirBrowser(val relativePath: String = "") : Screen

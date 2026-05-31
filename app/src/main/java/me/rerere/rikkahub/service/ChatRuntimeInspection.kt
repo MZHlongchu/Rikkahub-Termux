@@ -14,12 +14,8 @@ data class ChatRuntimeInspection(
     val assistantName: String,
     val characterName: String,
     val modelName: String,
-    val presetName: String,
-    val generationType: String,
     val promptMessages: List<ChatPromptPreviewMessage>,
     val promptTokenEstimate: Int,
-    val localVariables: Map<String, String>,
-    val globalVariables: Map<String, String>,
     val contextVariables: JsonObject,
     val payloadPreview: TextRequestPreview,
 )

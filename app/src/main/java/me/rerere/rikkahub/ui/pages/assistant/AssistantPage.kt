@@ -45,7 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +66,6 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANTS_IDS
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.Lorebook
-import me.rerere.rikkahub.data.model.SillyTavernPromptTemplate
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.LuneBackdrop
@@ -87,12 +84,7 @@ import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantImportKind
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantImporter
-import me.rerere.rikkahub.ui.pages.assistant.detail.CharacterCardRuntimeActivationDialog
-import me.rerere.rikkahub.ui.pages.assistant.detail.PendingCharacterCardImport
 import me.rerere.rikkahub.ui.pages.assistant.detail.applyImportedAssistantForCreate
-import me.rerere.rikkahub.ui.pages.assistant.detail.characterRuntimeTemplate
-import me.rerere.rikkahub.ui.pages.assistant.detail.enableCharacterCardRuntime
-import me.rerere.rikkahub.ui.pages.assistant.detail.needsCharacterCardRuntimeActivation
 import org.koin.androidx.compose.koinViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -103,21 +95,8 @@ import androidx.compose.foundation.lazy.items as lazyItems
 fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val assistantMemoryCounts by vm.assistantMemoryCounts.collectAsStateWithLifecycle()
-    val latestSettingsState = rememberUpdatedState(settings)
-    var pendingImportedLorebooks by remember { mutableStateOf<List<Lorebook>>(emptyList()) }
-    var pendingImportedCharacterRuntimeTemplate by remember { mutableStateOf<SillyTavernPromptTemplate?>(null) }
     val createState = useEditState<Assistant> {
-        val currentSettings = latestSettingsState.value
-        val baseSettings = pendingImportedCharacterRuntimeTemplate?.let { template ->
-            currentSettings.enableCharacterCardRuntime(template)
-        } ?: currentSettings
-        vm.addAssistantWithLorebooks(
-            assistant = it,
-            lorebooks = pendingImportedLorebooks,
-            baseSettings = baseSettings,
-        )
-        pendingImportedLorebooks = emptyList()
-        pendingImportedCharacterRuntimeTemplate = null
+        vm.addAssistant(it)
     }
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -161,8 +140,6 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
                         actions = {
                             IconButton(
                                 onClick = {
-                                    pendingImportedLorebooks = emptyList()
-                                    pendingImportedCharacterRuntimeTemplate = null
                                     createState.open(Assistant())
                                 }) {
                                 Icon(HugeIcons.Add01, stringResource(R.string.assistant_page_add))
@@ -305,11 +282,6 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
 
     AssistantCreationSheet(
         state = createState,
-        settings = settings,
-        pendingImportedLorebooks = pendingImportedLorebooks,
-        pendingImportedCharacterRuntimeTemplate = pendingImportedCharacterRuntimeTemplate,
-        onPendingImportedLorebooksChange = { pendingImportedLorebooks = it },
-        onPendingImportedCharacterRuntimeTemplateChange = { pendingImportedCharacterRuntimeTemplate = it },
     )
 
     // 操作菜单 Bottom Sheet
@@ -439,44 +411,10 @@ private fun AssistantTagsFilterRow(
 @Composable
 private fun AssistantCreationSheet(
     state: EditState<Assistant>,
-    settings: Settings,
-    pendingImportedLorebooks: List<Lorebook>,
-    pendingImportedCharacterRuntimeTemplate: SillyTavernPromptTemplate?,
-    onPendingImportedLorebooksChange: (List<Lorebook>) -> Unit,
-    onPendingImportedCharacterRuntimeTemplateChange: (SillyTavernPromptTemplate?) -> Unit,
 ) {
     state.EditStateContent { assistant, update ->
-        var pendingCharacterCardImport by remember { mutableStateOf<PendingCharacterCardImport?>(null) }
-        val effectiveSettings = pendingImportedCharacterRuntimeTemplate?.let { template ->
-            settings.enableCharacterCardRuntime(template)
-        } ?: settings
-
-        fun resetPendingImportState() {
-            pendingCharacterCardImport = null
-            onPendingImportedLorebooksChange(emptyList())
-            onPendingImportedCharacterRuntimeTemplateChange(null)
-        }
-
-        fun applyCharacterCardImport(
-            pendingImport: PendingCharacterCardImport,
-            enableRuntime: Boolean,
-        ) {
-            onPendingImportedLorebooksChange(
-                pendingImport.application.lorebooks.filter { imported ->
-                    settings.lorebooks.none { it.id == imported.id }
-                }
-            )
-            if (enableRuntime) {
-                onPendingImportedCharacterRuntimeTemplateChange(pendingImport.runtimeTemplate)
-            }
-            update(pendingImport.application.assistant)
-            pendingCharacterCardImport = null
-            state.confirm()
-        }
-
         ModalBottomSheet(
             onDismissRequest = {
-                resetPendingImportState()
                 state.dismiss()
             },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -513,23 +451,13 @@ private fun AssistantCreationSheet(
                     AssistantImporter(
                         allowedKinds = setOf(AssistantImportKind.CHARACTER_CARD),
                         onImport = { payload, includeRegexes ->
-                            val pendingImport = PendingCharacterCardImport(
-                                application = applyImportedAssistantForCreate(
-                                    currentAssistant = assistant,
-                                    payload = payload,
-                                    existingLorebooks = settings.lorebooks + pendingImportedLorebooks,
-                                    includeRegexes = includeRegexes,
-                                ),
-                                runtimeTemplate = payload.characterRuntimeTemplate(),
+                            val imported = applyImportedAssistantForCreate(
+                                currentAssistant = assistant,
+                                payload = payload,
+                                includeRegexes = includeRegexes,
                             )
-                            if (effectiveSettings.needsCharacterCardRuntimeActivation()) {
-                                pendingCharacterCardImport = pendingImport
-                            } else {
-                                applyCharacterCardImport(
-                                    pendingImport = pendingImport,
-                                    enableRuntime = false,
-                                )
-                            }
+                            update(imported.assistant)
+                            state.confirm()
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -540,7 +468,6 @@ private fun AssistantCreationSheet(
                 ) {
                     TextButton(
                         onClick = {
-                            resetPendingImportState()
                             state.dismiss()
                         }) {
                         Text(stringResource(R.string.assistant_page_cancel))
@@ -553,23 +480,6 @@ private fun AssistantCreationSheet(
                     }
                 }
             }
-        }
-
-        pendingCharacterCardImport?.let { pendingImport ->
-            CharacterCardRuntimeActivationDialog(
-                onConfirm = {
-                    applyCharacterCardImport(
-                        pendingImport = pendingImport,
-                        enableRuntime = true,
-                    )
-                },
-                onDismiss = {
-                    applyCharacterCardImport(
-                        pendingImport = pendingImport,
-                        enableRuntime = false,
-                    )
-                },
-            )
         }
     }
 }

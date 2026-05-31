@@ -75,10 +75,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dokar.sonner.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.ai.core.InputSchema
 import me.rerere.hugeicons.stroke.McpServer
@@ -89,10 +91,12 @@ import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.ai.mcp.McpStatus
 import me.rerere.rikkahub.data.ai.mcp.McpTool
+import me.rerere.rikkahub.ui.components.marketplace.McpMarketplaceSheet
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.EditState
 import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.useEditState
@@ -100,6 +104,7 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.ui.theme.extendColors
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import kotlin.uuid.Uuid
 
 @Composable
 fun SettingMcpPage(vm: SettingVM = koinViewModel()) {
@@ -125,7 +130,10 @@ fun SettingMcpPage(vm: SettingVM = koinViewModel()) {
             ))
     }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showMarketplace by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val toaster = LocalToaster.current
+    val resources = LocalResources.current
     Scaffold(
         topBar = {
             LargeFlexibleTopAppBar(
@@ -136,6 +144,16 @@ fun SettingMcpPage(vm: SettingVM = koinViewModel()) {
                     BackButton()
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            showMarketplace = true
+                        }
+                    ) {
+                        Icon(
+                            HugeIcons.McpServer,
+                            contentDescription = stringResource(R.string.setting_mcp_page_market_title),
+                        )
+                    }
                     IconButton(
                         onClick = {
                             showImportDialog = true
@@ -224,6 +242,23 @@ fun SettingMcpPage(vm: SettingVM = koinViewModel()) {
                 vm.updateSettings(settings.copy(mcpServers = mcpConfigs + toAdd))
                 showImportDialog = false
             }
+        )
+    }
+    if (showMarketplace) {
+        McpMarketplaceSheet(
+            installedNames = mcpConfigs.mapTo(linkedSetOf()) { it.commonOptions.name },
+            onDismiss = { showMarketplace = false },
+            onInstall = { item ->
+                val newConfig = item.config.clone(id = Uuid.random())
+                vm.updateSettings(settings.copy(mcpServers = mcpConfigs + newConfig))
+                toaster.show(
+                    resources.getString(
+                        R.string.setting_mcp_page_market_installed_toast,
+                        newConfig.commonOptions.name,
+                    ),
+                    type = ToastType.Success,
+                )
+            },
         )
     }
 }

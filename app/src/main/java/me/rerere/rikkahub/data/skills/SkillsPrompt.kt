@@ -2,7 +2,6 @@ package me.rerere.rikkahub.data.skills
 
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
-import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import me.rerere.rikkahub.data.model.Assistant
 
 internal fun shouldInjectSkillsCatalog(
@@ -11,7 +10,6 @@ internal fun shouldInjectSkillsCatalog(
 ): Boolean {
     return assistant.skillsEnabled &&
         assistant.selectedSkills.isNotEmpty() &&
-        assistant.localTools.contains(LocalToolOption.TermuxExec) &&
         model.abilities.contains(ModelAbility.TOOL)
 }
 
@@ -33,8 +31,11 @@ internal fun buildSkillsCatalogPrompt(
         appendLine("Local skills are available in the Termux workdir.")
         appendLine("Skills root: ${catalog.rootPath}")
         appendLine("Each skill is a directory package. Only inspect a skill when it is relevant to the user's request.")
-        appendLine("Do not read every SKILL.md preemptively.")
-        appendLine("When a skill is relevant, use the existing Termux tools to inspect files such as SKILL.md or run scripts inside that skill directory.")
+        appendLine("Do not load every skill preemptively.")
+        appendLine(
+            "When a skill is relevant, call use_skill with its directory or name before following that skill's workflow."
+        )
+        appendLine("The use_skill result contains the skill's SKILL.md and a bounded file listing.")
         appendLine()
         appendLine("Available skills:")
         selectedEntries.forEach { skill ->

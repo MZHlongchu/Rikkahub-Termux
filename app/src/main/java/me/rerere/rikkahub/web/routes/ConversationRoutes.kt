@@ -230,14 +230,12 @@ fun Route.conversationRoutes(
                 throw BadRequestException("Conversation prompt injection is not enabled for this assistant")
             }
 
-            val (modeInjectionIds, lorebookIds) = validateConversationInjectionIds(
+            val modeInjectionIds = validateConversationInjectionIds(
                 settings = settings,
                 modeInjectionIds = request.modeInjectionIds,
-                lorebookIds = request.lorebookIds,
             )
             val updatedConversation = conversation.copy(
                 modeInjectionIds = modeInjectionIds,
-                lorebookIds = lorebookIds,
             )
             chatService.saveConversation(uuid, updatedConversation)
 
@@ -274,7 +272,6 @@ fun Route.conversationRoutes(
                 settingsStore = settingsStore,
                 conversationId = uuid,
                 modeInjectionIds = request.modeInjectionIds,
-                lorebookIds = request.lorebookIds,
             )
             chatService.sendMessage(uuid, request.parts, answer = true)
 
@@ -452,32 +449,17 @@ private sealed interface ConversationStreamPayload {
     data class BatchErrors(val messages: List<String>) : ConversationStreamPayload
 }
 
-private data class ConversationInjectionIds(
-    val modeInjectionIds: Set<Uuid>,
-    val lorebookIds: Set<Uuid>,
-)
-
 private fun validateConversationInjectionIds(
     settings: me.rerere.rikkahub.data.datastore.Settings,
     modeInjectionIds: List<String>,
-    lorebookIds: List<String>,
-): ConversationInjectionIds {
+): Set<Uuid> {
     val validModeInjectionIds = settings.modeInjections.map { it.id }.toSet()
     val requestedModeInjectionIds = modeInjectionIds.map { it.toUuid("modeInjectionIds") }.toSet()
     if (!validModeInjectionIds.containsAll(requestedModeInjectionIds)) {
         throw BadRequestException("modeInjectionIds contains unknown injection id")
     }
 
-    val validLorebookIds = settings.lorebooks.map { it.id }.toSet()
-    val requestedLorebookIds = lorebookIds.map { it.toUuid("lorebookIds") }.toSet()
-    if (!validLorebookIds.containsAll(requestedLorebookIds)) {
-        throw BadRequestException("lorebookIds contains unknown lorebook id")
-    }
-
-    return ConversationInjectionIds(
-        modeInjectionIds = requestedModeInjectionIds,
-        lorebookIds = requestedLorebookIds,
-    )
+    return requestedModeInjectionIds
 }
 
 private suspend fun applyInitialConversationInjections(
@@ -485,9 +467,8 @@ private suspend fun applyInitialConversationInjections(
     settingsStore: SettingsStore,
     conversationId: Uuid,
     modeInjectionIds: List<String>?,
-    lorebookIds: List<String>?,
 ) {
-    if (modeInjectionIds == null && lorebookIds == null) {
+    if (modeInjectionIds == null) {
         return
     }
 
@@ -496,22 +477,20 @@ private suspend fun applyInitialConversationInjections(
     val assistant = settings.assistants.firstOrNull { it.id == conversation.assistantId }
         ?: throw NotFoundException("Assistant not found")
     if (!assistant.allowConversationPromptInjection) {
-        if (modeInjectionIds.orEmpty().isNotEmpty() || lorebookIds.orEmpty().isNotEmpty()) {
+        if (modeInjectionIds.isNotEmpty()) {
             throw BadRequestException("Conversation prompt injection is not enabled for this assistant")
         }
         return
     }
 
-    val (requestedModeInjectionIds, requestedLorebookIds) = validateConversationInjectionIds(
+    val requestedModeInjectionIds = validateConversationInjectionIds(
         settings = settings,
-        modeInjectionIds = modeInjectionIds ?: conversation.modeInjectionIds.map { it.toString() },
-        lorebookIds = lorebookIds ?: conversation.lorebookIds.map { it.toString() },
+        modeInjectionIds = modeInjectionIds,
     )
 
     chatService.updateConversationState(conversationId) {
         it.copy(
             modeInjectionIds = requestedModeInjectionIds,
-            lorebookIds = requestedLorebookIds,
         )
     }
 }

@@ -64,22 +64,10 @@ fun ExtensionsPage() {
                         supportingContent = { Text(stringResource(R.string.extensions_page_quick_messages_desc)) },
                     )
                     item(
-                        onClick = { navController.navigate(Screen.StPresets) },
-                        leadingContent = { Icon(HugeIcons.MagicWand01, null) },
-                        headlineContent = { Text(stringResource(R.string.prompt_page_overview_st_preset_title)) },
-                        supportingContent = { Text(stringResource(R.string.prompt_page_overview_st_preset_desc)) },
-                    )
-                    item(
                         onClick = { navController.navigate(Screen.ModeInjections) },
                         leadingContent = { Icon(HugeIcons.Tools, null) },
                         headlineContent = { Text(stringResource(R.string.prompt_page_overview_mode_injection_title)) },
                         supportingContent = { Text(stringResource(R.string.prompt_page_overview_mode_injection_desc)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.Lorebooks) },
-                        leadingContent = { Icon(HugeIcons.Book01, null) },
-                        headlineContent = { Text(stringResource(R.string.prompt_page_overview_lorebook_title)) },
-                        supportingContent = { Text(stringResource(R.string.prompt_page_overview_lorebook_desc)) },
                     )
                 }
             }

@@ -11,6 +11,13 @@ import me.rerere.rikkahub.data.model.dedupKey
 import me.rerere.rikkahub.data.model.normalizeAssistantRegexPattern
 import kotlin.uuid.Uuid
 
+private val supportedStRegexPlacements = setOf(
+    AssistantRegexPlacement.USER_INPUT,
+    AssistantRegexPlacement.AI_OUTPUT,
+    AssistantRegexPlacement.SLASH_COMMAND,
+    AssistantRegexPlacement.REASONING,
+)
+
 internal fun parseRegexScripts(
     element: JsonElement?,
     sourceName: String,
@@ -63,7 +70,7 @@ internal fun mapRegexScript(
     sourceRef: String = "",
 ): AssistantRegex? {
     val normalizedPattern = normalizeAssistantRegexPattern(findRegex) ?: return null
-    val normalizedPlacement = placement.ifEmpty { listOf(AssistantRegexPlacement.AI_OUTPUT) }
+    val normalizedPlacement = normalizeRegexPlacements(placement) ?: return null
     val affectingScope = affectingScopeOverride ?: buildSet {
         if (normalizedPlacement.contains(AssistantRegexPlacement.USER_INPUT)) add(AssistantAffectScope.USER)
         if (
@@ -95,6 +102,11 @@ internal fun mapRegexScript(
         sourceKind = sourceKind,
         sourceRef = sourceRef,
     )
+}
+
+private fun normalizeRegexPlacements(placements: List<Int>): List<Int>? {
+    if (placements.isEmpty()) return listOf(AssistantRegexPlacement.AI_OUTPUT)
+    return placements.filter { it in supportedStRegexPlacements }.takeIf { it.isNotEmpty() }
 }
 
 @Serializable

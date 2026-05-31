@@ -33,7 +33,6 @@ import kotlinx.coroutines.launch
 fun AssistantImporter(
     modifier: Modifier = Modifier,
     allowedKinds: Set<AssistantImportKind> = setOf(
-        AssistantImportKind.PRESET,
         AssistantImportKind.CHARACTER_CARD,
     ),
     onImport: (AssistantImportPayload, Boolean) -> Unit,
@@ -66,7 +65,6 @@ private fun SillyTavernImporter(
     val characterOnlyText = stringResource(R.string.assistant_importer_character_only)
     val importingText = stringResource(R.string.assistant_importer_importing)
     val importPngText = stringResource(R.string.assistant_importer_import_tavern_png)
-    val importJsonOrPresetText = stringResource(R.string.assistant_importer_import_tavern_json_or_preset)
     val importCharacterJsonText = stringResource(R.string.assistant_importer_import_tavern_character_json)
     val missingDataFieldText = stringResource(R.string.assistant_importer_missing_data_field)
     val missingNameFieldText = stringResource(R.string.assistant_importer_missing_name_field)
@@ -82,9 +80,9 @@ private fun SillyTavernImporter(
             "Missing card data", "Empty character data" -> missingDataFieldText
             "Missing card name" -> missingNameFieldText
             "Failed to read import file" -> readJsonFailedText
-            "Unsupported SillyTavern import format" -> resources.getString(
+            "Unsupported character card format" -> resources.getString(
                 R.string.assistant_importer_unsupported_spec,
-                "SillyTavern import format"
+                "character card format"
             )
             else -> {
                 if (rawMessage?.startsWith("Unsupported file type: ") == true) {
@@ -174,15 +172,7 @@ private fun SillyTavernImporter(
             enabled = !isLoading,
         ) {
             AutoAIIcon(name = "tavern", modifier = Modifier.padding(end = 8.dp))
-            Text(
-                if (isLoading) {
-                    importingText
-                } else if (AssistantImportKind.PRESET in allowedKinds) {
-                    importJsonOrPresetText
-                } else {
-                    importCharacterJsonText
-                }
-            )
+            Text(if (isLoading) importingText else importCharacterJsonText)
         }
     }
 
@@ -195,10 +185,6 @@ private fun SillyTavernImporter(
             text = {
                 Text(
                     when (payload.kind) {
-                        AssistantImportKind.PRESET -> stringResource(
-                            R.string.assistant_importer_import_regex_preset_message,
-                            payload.regexes.size
-                        )
                         AssistantImportKind.CHARACTER_CARD -> stringResource(
                             R.string.assistant_importer_import_regex_character_message,
                             payload.regexes.size

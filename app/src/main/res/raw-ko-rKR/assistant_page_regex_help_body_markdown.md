@@ -6,7 +6,7 @@ Regex 규칙은 채팅 파이프라인의 특정 지점에서 텍스트를 다�
 - 가져온 SillyTavern 서식을 정리
 - 모델에 보내기 전에 이름이나 문장 부호를 정규화
 - UI에서만 불필요한 텍스트 숨기기
-- user input, AI output, world info, slash commands, reasoning 같은 ST 스타일 배치 지점 지정
+- user input, AI output, slash commands, reasoning 같은 ST 스타일 배치 지점 지정
 
 ## 빠른 시작
 

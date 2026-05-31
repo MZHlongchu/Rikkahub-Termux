@@ -1,41 +1,10 @@
-# Prompt systems in this app
+# Prompt Extensions
 
-This page separates the prompt features so they stay manageable.
+This page manages reusable prompt blocks.
 
-## When to use each one
+## Mode Injections
 
-- **SillyTavern Preset**: shared ST prompt order, runtime prompts, sampling, and ST regex scripts.
-- **Mode Injection**: a manual prompt block you turn on because you want a mode, such as translation mode or coding mode.
-- **Lorebook**: keyword-triggered world info that appears only when matching context is found.
+Mode injections are manual instructions that can be enabled for an assistant or a conversation.
+Use them for reusable modes such as translation, study, code review, or writing polish.
 
-## Quick decision guide
-
-```text
-I want the whole app to use one ST preset library
--> SillyTavern Preset
-
-I want a reusable manual mode like "Explain everything simply"
--> Mode Injection
-
-I want facts or lore to appear only when certain words show up
--> Lorebook
-```
-
-## Demo: three similar requests, three different tools
-
-### Case A
-"Always use my imported ST prompt order and continue behavior"
-
-Use **SillyTavern Preset**.
-
-### Case B
-"When I switch to study mode, prepend a tutoring instruction"
-
-Use **Mode Injection**.
-
-### Case C
-"When chat mentions the royal family, inject the kingdom setting"
-
-Use **Lorebook**.
-
-> If the rule should trigger automatically from context, it is probably a lorebook entry. If you want to pick it manually, it is probably a mode injection.
+Priority controls order when multiple blocks are active. Position controls whether the block is placed before or after the system prompt.

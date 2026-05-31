@@ -366,7 +366,11 @@ private fun HighlightCodeActions(
         }
     }
     val actionTextStyle = remember {
-        TextStyle(fontSize = 12.sp, lineHeight = 12.sp)
+        TextStyle(
+            fontSize = 12.sp,
+            lineHeight = 12.sp,
+            fontFamily = JetbrainsMono,
+        )
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -374,8 +378,7 @@ private fun HighlightCodeActions(
     ) {
         Text(
             text = language,
-            fontSize = actionTextStyle.fontSize,
-            lineHeight = actionTextStyle.lineHeight,
+            style = actionTextStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant
                 .copy(alpha = 0.5f),
         )
