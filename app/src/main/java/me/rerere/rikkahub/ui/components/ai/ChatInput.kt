@@ -327,14 +327,24 @@ fun ChatInput(
                     val mime = filesManager.resolveMimeType(uri, fileName)
 
                     if (isAllowedFileType(fileName, mime)) {
-                        val localUri = filesManager.createChatFilesByContents(listOf(uri))[0]
+                        val localUri = filesManager.createChatFilesByContents(listOf(uri)).firstOrNull()
+                            ?: run {
+                                toaster.show(
+                                    context.getString(R.string.chat_input_file_read_failed, fileName),
+                                    type = ToastType.Error
+                                )
+                                return@mapNotNull null
+                            }
                         UIMessagePart.Document(
                             url = localUri.toString(),
                             fileName = fileName,
                             mime = mime
                         )
                     } else {
-                        toaster.show("不支持的文件类型: $fileName", type = ToastType.Error)
+                        toaster.show(
+                            context.getString(R.string.chat_input_unsupported_file_type, fileName),
+                            type = ToastType.Error
+                        )
                         null
                     }
                 }

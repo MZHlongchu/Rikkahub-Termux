@@ -177,6 +177,7 @@
   <string name="cancel">キャンセル</string>
   <string name="cancel_edit">編集をキャンセル</string>
   <string name="chat_input_placeholder">AIとチャットするメッセージを入力</string>
+  <string name="chat_input_file_read_failed">ファイルの読み取りに失敗しました: %s</string>
   <string name="chat_message_tool_call_generic">ツール %1$s を呼び出しました</string>
   <string name="chat_message_tool_call_label">ツール %1$s を呼び出しました</string>
   <string name="chat_message_tool_call_result">呼び出し結果</string>

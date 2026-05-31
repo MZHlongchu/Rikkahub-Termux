@@ -177,6 +177,7 @@
   <string name="cancel">Отмена</string>
   <string name="cancel_edit">Отменить редактирование</string>
   <string name="chat_input_placeholder">Общайтесь с ИИ</string>
+  <string name="chat_input_file_read_failed">Не удалось прочитать файл: %s</string>
   <string name="chat_message_tool_call_generic">Вызван инструмент %1$s</string>
   <string name="chat_message_tool_call_label">Вызван инструмент %1$s</string>
   <string name="chat_message_tool_call_result">Результат вызова</string>

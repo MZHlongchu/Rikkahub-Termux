@@ -177,6 +177,7 @@
   <string name="cancel">取消</string>
   <string name="cancel_edit">取消編輯</string>
   <string name="chat_input_placeholder">輸入訊息與AI聊天</string>
+  <string name="chat_input_file_read_failed">檔案讀取失敗：%s</string>
   <string name="chat_message_tool_call_generic">調用工具 %1$s</string>
   <string name="chat_message_tool_call_label">調用工具 %1$s</string>
   <string name="chat_message_tool_call_result">調用結果</string>

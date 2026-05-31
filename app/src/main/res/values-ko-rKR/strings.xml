@@ -177,6 +177,7 @@
   <string name="cancel">취소</string>
   <string name="cancel_edit">편집 취소</string>
   <string name="chat_input_placeholder">AI와 채팅하기</string>
+  <string name="chat_input_file_read_failed">파일 읽기 실패: %s</string>
   <string name="chat_message_tool_call_generic">도구 호출 %1$s</string>
   <string name="chat_message_tool_call_label">도구 %1$s 호출함</string>
   <string name="chat_message_tool_call_result">호출 결과</string>
