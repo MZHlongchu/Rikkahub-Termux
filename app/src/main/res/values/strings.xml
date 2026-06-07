@@ -1696,4 +1696,7 @@
   <string name="setting_model_page_prompt_ocr">OCR Recognition</string>
   <string name="setting_model_page_prompt_compress">Context Compression</string>
   <string name="setting_display_page_bubble_opacity_title">Bubble Opacity</string>
+  <string name="markdown_table_title">Table</string>
+  <string name="markdown_table_copy">Copy table</string>
+  <string name="markdown_table_download_csv">Download CSV</string>
 </resources>

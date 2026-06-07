@@ -1698,4 +1698,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_model_page_fast_model">快速模型</string>
   <string name="setting_model_page_fast_model_desc">用于快速或后台任务的模型，当未设置时也用作标题和建议模型的后备</string>
   <string name="setting_model_page_enable_suggestion">启用聊天建议</string>
+  <string name="markdown_table_title">表格</string>
+  <string name="markdown_table_copy">复制表格</string>
+  <string name="markdown_table_download_csv">下载 CSV</string>
 </resources>
