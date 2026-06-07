@@ -1701,4 +1701,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="markdown_table_title">表格</string>
   <string name="markdown_table_copy">复制表格</string>
   <string name="markdown_table_download_csv">下载 CSV</string>
+  <string name="setting_page_language">语言</string>
+  <string name="setting_page_language_desc">选择应用使用的语言</string>
+  <string name="setting_page_language_system">跟随系统</string>
 </resources>

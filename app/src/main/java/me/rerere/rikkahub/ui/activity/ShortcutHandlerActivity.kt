@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.activity
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -9,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.RouteActivity
+import me.rerere.rikkahub.utils.withCachedAppLanguage
 import java.io.File
 
 class ShortcutHandlerActivity : ComponentActivity() {
@@ -33,6 +35,10 @@ class ShortcutHandlerActivity : ComponentActivity() {
             }
         }
         finish()
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withCachedAppLanguage())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

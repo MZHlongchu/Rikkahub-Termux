@@ -1699,4 +1699,7 @@
   <string name="markdown_table_title">Table</string>
   <string name="markdown_table_copy">Copy table</string>
   <string name="markdown_table_download_csv">Download CSV</string>
+  <string name="setting_page_language">Language</string>
+  <string name="setting_page_language_desc">Choose the language used by the app</string>
+  <string name="setting_page_language_system">System</string>
 </resources>

@@ -25,6 +25,10 @@ class SettingVM(
         }
     }
 
+    suspend fun updateSettingsNow(settings: Settings) {
+        settingsStore.update(settings)
+    }
+
     fun updateDisplaySetting(displaySetting: DisplaySetting) {
         viewModelScope.launch {
             settingsStore.update { current ->

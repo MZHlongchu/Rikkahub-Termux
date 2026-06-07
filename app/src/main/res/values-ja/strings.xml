@@ -1701,4 +1701,7 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="markdown_table_title">テーブル</string>
   <string name="markdown_table_copy">テーブルをコピー</string>
   <string name="markdown_table_download_csv">CSVをダウンロード</string>
+  <string name="setting_page_language">言語</string>
+  <string name="setting_page_language_desc">アプリで使用する言語を選択してください</string>
+  <string name="setting_page_language_system">システム</string>
 </resources>

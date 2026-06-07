@@ -55,11 +55,16 @@ import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.ui.hooks.writeStringPreference
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
+import me.rerere.rikkahub.utils.withCachedAppLanguage
 import org.koin.android.ext.android.inject
 import kotlin.uuid.Uuid
 
 class SafeModeActivity : ComponentActivity() {
     private val settingsStore by inject<SettingsStore>()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withCachedAppLanguage())
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {

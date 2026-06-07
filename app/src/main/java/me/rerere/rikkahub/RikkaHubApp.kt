@@ -1,6 +1,7 @@
 package me.rerere.rikkahub
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -37,6 +38,9 @@ import me.rerere.rikkahub.service.ScheduledPromptManager
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.DatabaseUtil
+import me.rerere.rikkahub.utils.applyPlatformAppLanguage
+import me.rerere.rikkahub.utils.readCachedAppLanguageTag
+import me.rerere.rikkahub.utils.withCachedAppLanguage
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -53,8 +57,13 @@ const val SCHEDULED_TASK_NOTIFICATION_CHANNEL_ID = "scheduled_task"
 const val SCHEDULED_TASK_KEEP_ALIVE_NOTIFICATION_CHANNEL_ID = "scheduled_task_keep_alive"
 
 class RikkaHubApp : Application() {
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base.withCachedAppLanguage())
+    }
+
     override fun onCreate() {
         super.onCreate()
+        applyPlatformAppLanguage(readCachedAppLanguageTag())
         startKoin {
             androidLogger()
             androidContext(this@RikkaHubApp)

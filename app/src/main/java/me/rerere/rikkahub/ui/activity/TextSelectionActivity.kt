@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.activity
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,6 +21,7 @@ import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
+import me.rerere.rikkahub.utils.withCachedAppLanguage
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -27,6 +29,10 @@ class TextSelectionActivity : ComponentActivity() {
     private val highlighter by inject<Highlighter>()
     private val settingsStore by inject<SettingsStore>()
     private val viewModel: TextSelectionVM by viewModel()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withCachedAppLanguage())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()

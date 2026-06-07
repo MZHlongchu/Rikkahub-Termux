@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Lucide
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.launch
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.AiMagic
 import me.rerere.hugeicons.stroke.Alert01
@@ -60,6 +62,7 @@ import me.rerere.hugeicons.stroke.Database02
 import me.rerere.hugeicons.stroke.Developer
 import me.rerere.hugeicons.stroke.GlobalSearch
 import me.rerere.hugeicons.stroke.ImageUpload
+import me.rerere.hugeicons.stroke.LanguageCircle
 import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.McpServer
 import me.rerere.hugeicons.stroke.Megaphone01
@@ -73,6 +76,7 @@ import me.rerere.hugeicons.stroke.TransactionHistory
 import me.rerere.rikkahub.APP_README_URL
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.datastore.AppLanguage
 import me.rerere.rikkahub.data.datastore.isNotConfigured
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -89,6 +93,8 @@ import me.rerere.rikkahub.ui.hooks.rememberColorMode
 import me.rerere.rikkahub.ui.theme.ColorMode
 import me.rerere.rikkahub.utils.joinQQGroup
 import me.rerere.rikkahub.utils.openUrl
+import me.rerere.rikkahub.utils.applyAppLanguage
+import me.rerere.rikkahub.utils.getComponentActivity
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -102,6 +108,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
     val hazeState = rememberHazeState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val shareText = stringResource(R.string.setting_page_share_text)
     val share = stringResource(R.string.setting_page_share)
     val noShareApp = stringResource(R.string.setting_page_no_share_app)
@@ -215,6 +222,10 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         ColorMode.LIGHT -> stringResource(R.string.setting_page_color_mode_light)
                         ColorMode.DARK -> stringResource(R.string.setting_page_color_mode_dark)
                     }
+                    val selectedLanguage = AppLanguage.fromLanguageTag(settings.appLanguageTag)
+                    val languageTitle = stringResource(R.string.setting_page_language)
+                    val languageDesc = stringResource(R.string.setting_page_language_desc)
+                    val selectedLanguageText = selectedLanguage.label()
                     val preferencesTitle = stringResource(R.string.setting_page_preferences)
                     val preferencesDesc = stringResource(R.string.setting_page_preferences_desc)
                     val assistantTitle = stringResource(R.string.setting_page_assistant)
@@ -224,12 +235,17 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     val extensionsTitle = stringResource(R.string.setting_page_extensions)
                     val extensionsDesc = stringResource(R.string.setting_page_extensions_desc)
                     val showColorMode = generalSectionMatch || matchesSetting(colorModeTitle, selectedColorModeText)
+                    val showLanguage = generalSectionMatch || matchesSetting(
+                        languageTitle,
+                        selectedLanguageText,
+                        listOf("language", "locale", "lang", "语言")
+                    )
                     val showPreferences = generalSectionMatch || matchesSetting(preferencesTitle, preferencesDesc)
                     val showAssistant = generalSectionMatch || matchesSetting(assistantTitle, assistantDesc)
                     val showScheduled = generalSectionMatch || matchesSetting(scheduledTitle, scheduledDesc)
                     val showExtensions = generalSectionMatch || matchesSetting(extensionsTitle, extensionsDesc)
 
-                    if (showColorMode || showPreferences || showAssistant || showScheduled || showExtensions) {
+                    if (showColorMode || showLanguage || showPreferences || showAssistant || showScheduled || showExtensions) {
                         CardGroup(
                             modifier = Modifier.padding(horizontal = 8.dp),
                             title = { Text(generalSectionTitle) },
@@ -261,6 +277,32 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                                     },
                                     headlineContent = { Text(colorModeTitle) },
                                     supportingContent = { Text(selectedColorModeText) },
+                                )
+                            }
+                            if (showLanguage) {
+                                item(
+                                    leadingContent = { Icon(HugeIcons.LanguageCircle, null) },
+                                    trailingContent = {
+                                        Select(
+                                            options = AppLanguage.entries,
+                                            selectedOption = selectedLanguage,
+                                            onOptionSelected = { language ->
+                                                if (language != selectedLanguage) {
+                                                    scope.launch {
+                                                        vm.updateSettingsNow(
+                                                            settings.copy(appLanguageTag = language.languageTag)
+                                                        )
+                                                        context.applyAppLanguage(language.languageTag)
+                                                        context.getComponentActivity()?.recreate()
+                                                    }
+                                                }
+                                            },
+                                            optionToString = { it.label() },
+                                            modifier = Modifier.width(150.dp)
+                                        )
+                                    },
+                                    headlineContent = { Text(languageTitle) },
+                                    supportingContent = { Text(languageDesc) },
                                 )
                             }
                             if (showPreferences) {
@@ -576,6 +618,17 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun AppLanguage.label(): String = when (this) {
+    AppLanguage.SYSTEM -> stringResource(R.string.setting_page_language_system)
+    AppLanguage.ENGLISH -> "English"
+    AppLanguage.CHINESE_SIMPLIFIED -> "简体中文"
+    AppLanguage.CHINESE_TRADITIONAL -> "繁體中文"
+    AppLanguage.JAPANESE -> "日本語"
+    AppLanguage.KOREAN -> "한국어"
+    AppLanguage.RUSSIAN -> "Русский"
 }
 
 @Composable

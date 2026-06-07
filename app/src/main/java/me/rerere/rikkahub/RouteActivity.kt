@@ -1,6 +1,7 @@
 package me.rerere.rikkahub
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -62,6 +63,7 @@ import me.rerere.highlight.Highlighter
 import me.rerere.highlight.LocalHighlighter
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.AppLanguage
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.ui.components.ui.TTSController
@@ -140,6 +142,10 @@ import me.rerere.rikkahub.service.ChatService
 import okhttp3.OkHttpClient
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.utils.CrashHandler
+import me.rerere.rikkahub.utils.applyPlatformAppLanguage
+import me.rerere.rikkahub.utils.readCachedAppLanguageTag
+import me.rerere.rikkahub.utils.withCachedAppLanguage
+import me.rerere.rikkahub.utils.writeCachedAppLanguageTag
 import org.koin.android.ext.android.inject
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
@@ -179,6 +185,10 @@ class RouteActivity : ComponentActivity() {
     private var navStack: MutableList<NavKey>? = null
 
     internal val volumeKeyListeners = mutableListOf<(isVolumeUp: Boolean) -> Boolean>()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withCachedAppLanguage())
+    }
 
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -367,6 +377,16 @@ class RouteActivity : ComponentActivity() {
             }
         }
         val migrationState by DatabaseMigrationTracker.state.collectAsStateWithLifecycle()
+        LaunchedEffect(settings.appLanguageTag) {
+            if (!settings.init) {
+                val languageTag = AppLanguage.fromLanguageTag(settings.appLanguageTag).languageTag
+                applicationContext.applyPlatformAppLanguage(languageTag)
+                if (applicationContext.readCachedAppLanguageTag() != languageTag) {
+                    applicationContext.writeCachedAppLanguageTag(languageTag)
+                    recreate()
+                }
+            }
+        }
 
         val startScreen = Screen.Chat(
             id = if (readBooleanPreference("create_new_conversation_on_start", true)) {

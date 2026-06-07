@@ -98,6 +98,7 @@ class SettingsStore(
         val CUSTOM_THEMES = stringPreferencesKey("custom_themes")
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val APP_LANGUAGE_TAG = stringPreferencesKey("app_language_tag")
 
         // 模型选择
         val ENABLE_WEB_SEARCH = booleanPreferencesKey("enable_web_search")
@@ -249,6 +250,7 @@ class SettingsStore(
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
+                appLanguageTag = AppLanguage.fromLanguageTag(preferences[APP_LANGUAGE_TAG].orEmpty()).languageTag,
                 displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
                 scheduledTasks = preferences[SCHEDULED_TASKS]?.let {
                     JsonInstant.decodeFromString(it)
@@ -480,6 +482,7 @@ class SettingsStore(
         }
         val asrProviders = settings.asrProviders.distinctBy { it.id }
         val normalizedSettings = settings.copy(
+            appLanguageTag = AppLanguage.fromLanguageTag(settings.appLanguageTag).languageTag,
             modeInjections = settings.modeInjections.map { it.normalizedForSystemPromptSupplement() },
             globalRegexEnabled = false,
             globalRegexes = emptyList(),
@@ -502,6 +505,11 @@ class SettingsStore(
             preferences[CUSTOM_THEMES] = JsonInstant.encodeToString(normalizedSettings.customThemes)
             preferences[DEVELOPER_MODE] = normalizedSettings.developerMode
             preferences[DISPLAY_SETTING] = JsonInstant.encodeToString(normalizedSettings.displaySetting)
+            if (normalizedSettings.appLanguageTag.isBlank()) {
+                preferences.remove(APP_LANGUAGE_TAG)
+            } else {
+                preferences[APP_LANGUAGE_TAG] = normalizedSettings.appLanguageTag
+            }
 
             preferences[ENABLE_WEB_SEARCH] = normalizedSettings.enableWebSearch
             preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(normalizedSettings.favoriteModels)
@@ -665,6 +673,7 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
+    val appLanguageTag: String = AppLanguage.SYSTEM.languageTag,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val enableWebSearch: Boolean = false,
     val favoriteModels: List<Uuid> = emptyList(),
