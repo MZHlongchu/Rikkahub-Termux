@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -49,6 +50,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -1092,8 +1094,9 @@ private fun Paragraph(
 
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
+    val latexColorArgb = LocalContentColor.current.toArgb()
     FlowRow(modifier = paragraphModifier) {
-        val annotatedString = remember(content, enableLatexRendering) {
+        val annotatedString = remember(content, enableLatexRendering, latexColorArgb) {
             buildAnnotatedString {
                 node.children.fastForEach { child ->
                     appendMarkdownNodeContent(
@@ -1106,6 +1109,7 @@ private fun Paragraph(
                         density = density,
                         trim = trim,
                         enableLatexRendering = enableLatexRendering,
+                        latexColorArgb = latexColorArgb,
                     )
                 }
             }
@@ -1305,6 +1309,7 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
     density: Density,
     style: TextStyle,
     enableLatexRendering: Boolean = true,
+    latexColorArgb: Int = 0,
     onClickCitation: (String) -> Unit = {},
 ) {
     when {
@@ -1343,6 +1348,7 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
                         density = density,
                         style = style,
                         enableLatexRendering = enableLatexRendering,
+                        latexColorArgb = latexColorArgb,
                         onClickCitation = onClickCitation
                     )
                 }
@@ -1360,6 +1366,7 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
                         density = density,
                         style = style,
                         enableLatexRendering = enableLatexRendering,
+                        latexColorArgb = latexColorArgb,
                         onClickCitation = onClickCitation
                     )
                 }
@@ -1377,6 +1384,7 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
                         density = density,
                         style = style,
                         enableLatexRendering = enableLatexRendering,
+                        latexColorArgb = latexColorArgb,
                         onClickCitation = onClickCitation
                     )
                 }
@@ -1466,29 +1474,66 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
         }
 
         node.type == GFMElementTypes.INLINE_MATH -> {
+            val formula = node.getTextInNode(content)
             if (enableLatexRendering) {
-                // formula as id
-                val formula = node.getTextInNode(content)
-                appendInlineContent(formula, "[Latex]")
-                val (width, height) = with(density) {
-                    assumeLatexSize(
-                        latex = formula, fontSize = style.fontSize.toPx()
-                    ).let {
-                        it.width().toSp() to it.height().toSp()
+                val fontSizePx = with(density) { style.fontSize.toPx() }
+                val drawables = splitLatex(
+                    latex = formula,
+                    maxWidthPx = fontSizePx * 2,
+                    fontSize = fontSizePx,
+                    color = latexColorArgb,
+                )
+                if (drawables.isEmpty()) {
+                    appendInlineContent(formula, "[Latex]")
+                    val (width, height) = with(density) {
+                        assumeLatexSize(
+                            latex = formula,
+                            fontSize = fontSizePx
+                        ).let {
+                            it.width().toSp() to it.height().toSp()
+                        }
+                    }
+                    inlineContents.putIfAbsent(
+                        /* key = */ formula,
+                        /* value = */ InlineTextContent(
+                            placeholder = Placeholder(
+                                width = width,
+                                height = height,
+                                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                            ),
+                            children = {
+                                MathInline(
+                                    latex = formula,
+                                    modifier = Modifier
+                                )
+                            }
+                        )
+                    )
+                } else {
+                    drawables.forEachIndexed { index, drawable ->
+                        if (index > 0) append('\u200B')
+                        val key = "latex:${formula.hashCode()}:$index"
+                        appendInlineContent(key, "[Latex]")
+                        val (width, height) = with(density) {
+                            drawable.bounds.width().toSp() to drawable.bounds.height().toSp()
+                        }
+                        inlineContents.putIfAbsent(
+                            key,
+                            InlineTextContent(
+                                placeholder = Placeholder(
+                                    width = width,
+                                    height = height,
+                                    placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                                ),
+                                children = {
+                                    LatexDrawable(drawable = drawable)
+                                }
+                            )
+                        )
                     }
                 }
-                inlineContents.putIfAbsent(/* key = */ formula,/* value = */ InlineTextContent(
-                    placeholder = Placeholder(
-                        width = width, height = height, placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
-                    ), children = {
-                        MathInline(
-                            latex = formula, modifier = Modifier
-                        )
-                    })
-                )
             } else {
                 // 禁用 LaTeX 渲染时，以等宽字体显示原始公式
-                val formula = node.getTextInNode(content)
                 withStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
@@ -1511,6 +1556,7 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
                     density = density,
                     style = style,
                     enableLatexRendering = enableLatexRendering,
+                    latexColorArgb = latexColorArgb,
                     onClickCitation = onClickCitation
                 )
             }
