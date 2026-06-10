@@ -1702,4 +1702,6 @@
   <string name="setting_page_language">Language</string>
   <string name="setting_page_language_desc">Choose the language used by the app</string>
   <string name="setting_page_language_system">System</string>
+  <string name="assistant_page_gradient_background">Gradient Background</string>
+  <string name="assistant_page_gradient_background_desc">Use a dynamic gradient background on the chat page</string>
 </resources>

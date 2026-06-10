@@ -1702,4 +1702,6 @@
   <string name="setting_page_language">語言</string>
   <string name="setting_page_language_desc">選擇應用程式使用的語言</string>
   <string name="setting_page_language_system">跟隨系統</string>
+  <string name="assistant_page_gradient_background">漸層背景</string>
+  <string name="assistant_page_gradient_background_desc">在聊天頁面上使用動態漸變背景</string>
 </resources>

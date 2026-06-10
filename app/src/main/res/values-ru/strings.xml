@@ -1704,4 +1704,6 @@
   <string name="setting_page_language">Язык</string>
   <string name="setting_page_language_desc">Выберите язык приложения</string>
   <string name="setting_page_language_system">Системный</string>
+  <string name="assistant_page_gradient_background">Градиентный фон</string>
+  <string name="assistant_page_gradient_background_desc">Использовать динамический градиентный фон на странице чата</string>
 </resources>

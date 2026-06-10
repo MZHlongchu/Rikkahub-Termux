@@ -67,6 +67,7 @@ data class Assistant(
     val background: String? = null,
     val backgroundOpacity: Float = 1.0f,
     val backgroundBlur: Float = 0f,
+    val useGradientBackground: Boolean = false, // 开启后聊天页使用动态渐变背景
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
     val openAIReasoningEffort: String = "",

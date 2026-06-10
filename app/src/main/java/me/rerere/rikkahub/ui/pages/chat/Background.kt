@@ -20,6 +20,11 @@ import me.rerere.rikkahub.ui.components.ui.LuneBackdrop
 @Composable
 fun AssistantBackground(setting: Settings, modifier: Modifier = Modifier) {
     val assistant = setting.getCurrentAssistant()
+    if (assistant.useGradientBackground) {
+        MeshGradientBackground(modifier = modifier)
+        return
+    }
+
     val backgroundColor = MaterialTheme.colorScheme.background
     val backgroundOpacity = assistant.backgroundOpacity.coerceIn(0f, 1f)
     val backgroundBlur = assistant.backgroundBlur.coerceIn(0f, 40f)

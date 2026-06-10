@@ -515,21 +515,47 @@ internal fun AssistantBasicContent(
         Card(
             colors = CustomColors.cardColorsOnSurfaceContainer
         ) {
-            BackgroundPicker(
+            FormItem(
                 modifier = Modifier.padding(8.dp),
-                background = assistant.background,
-                backgroundOpacity = assistant.backgroundOpacity,
-                backgroundBlur = assistant.backgroundBlur,
-                onUpdate = { background ->
-                    onUpdate(
-                        assistant.copy(
-                            background = background
-                        )
+                label = {
+                    Text(stringResource(R.string.assistant_page_gradient_background))
+                },
+                description = {
+                    Text(stringResource(R.string.assistant_page_gradient_background_desc))
+                },
+                tail = {
+                    Switch(
+                        checked = assistant.useGradientBackground,
+                        onCheckedChange = {
+                            onUpdate(
+                                assistant.copy(
+                                    useGradientBackground = it
+                                )
+                            )
+                        }
                     )
                 }
             )
 
-            if (assistant.background != null) {
+            if (!assistant.useGradientBackground) {
+                HorizontalDivider()
+
+                BackgroundPicker(
+                    modifier = Modifier.padding(8.dp),
+                    background = assistant.background,
+                    backgroundOpacity = assistant.backgroundOpacity,
+                    backgroundBlur = assistant.backgroundBlur,
+                    onUpdate = { background ->
+                        onUpdate(
+                            assistant.copy(
+                                background = background
+                            )
+                        )
+                    }
+                )
+            }
+
+            if (!assistant.useGradientBackground && assistant.background != null) {
                 val backgroundOpacity = assistant.backgroundOpacity.coerceIn(0f, 1f)
                 val backgroundBlur = assistant.backgroundBlur.coerceIn(0f, 40f)
                 HorizontalDivider()

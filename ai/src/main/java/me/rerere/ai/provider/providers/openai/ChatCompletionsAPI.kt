@@ -438,6 +438,12 @@ class ChatCompletionsAPI(
                         }
                     }
 
+                    "opencode.ai" -> {
+                        if (level != ReasoningLevel.AUTO) {
+                            put("reasoning_effort", level.effort)
+                        }
+                    }
+
                     else -> {
                         // OpenAI 官方
                         resolveOpenAIChatCompletionsReasoningEffort(
