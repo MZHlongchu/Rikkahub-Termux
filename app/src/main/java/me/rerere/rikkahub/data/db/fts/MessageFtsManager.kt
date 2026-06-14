@@ -18,6 +18,12 @@ data class MessageSearchResult(
     val snippet: String,
 )
 
+enum class MessageSearchSort(val orderBy: String) {
+    RELEVANCE("rank, update_at DESC"),
+    NEWEST_FIRST("update_at DESC, rank"),
+    OLDEST_FIRST("update_at ASC, rank"),
+}
+
 private const val TAG = "MessageFtsManager"
 internal const val MESSAGE_FTS_TABLE_NAME = "message_fts"
 internal val MESSAGE_FTS_REQUIRED_COLUMNS = setOf(
@@ -109,7 +115,10 @@ class MessageFtsManager(private val database: AppDatabase) {
         }
     }
 
-    suspend fun search(keyword: String): List<MessageSearchResult> = withContext(Dispatchers.IO) {
+    suspend fun search(
+        keyword: String,
+        sort: MessageSearchSort = MessageSearchSort.RELEVANCE,
+    ): List<MessageSearchResult> = withContext(Dispatchers.IO) {
         val results = mutableListOf<MessageSearchResult>()
         val invalidRowIds = mutableListOf<Long>()
         val cursor = db.query(
@@ -123,7 +132,7 @@ class MessageFtsManager(private val database: AppDatabase) {
                    COALESCE(simple_snippet($MESSAGE_FTS_TABLE_NAME, 0, '[', ']', '...', 30), '') AS snippet
             FROM $MESSAGE_FTS_TABLE_NAME
             WHERE text MATCH jieba_query(?)
-            ORDER BY rank, update_at DESC
+            ORDER BY ${sort.orderBy}
             LIMIT 50
             """.trimIndent(),
             arrayOf(keyword)
