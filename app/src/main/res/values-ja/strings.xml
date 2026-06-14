@@ -773,6 +773,8 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="backup_page_s3_secret_access_key">シークレットアクセスキー</string>
   <string name="backup_page_s3_bucket">バケット</string>
   <string name="backup_page_s3_region">リージョン</string>
+  <string name="backup_page_s3_path_style">パス形式</string>
+  <string name="backup_page_s3_path_style_desc">endpoint/bucket/object を使用します。オフにすると bucket.endpoint/object を使用します。</string>
   <string name="backup_page_s3_backup_files">S3バックアップファイル</string>
   <string name="backup_page_s3_backup">S3バックアップ</string>
   <string name="setting_display_page_show_assistant_bubble_title">アシスタントメッセージバブルを表示</string>

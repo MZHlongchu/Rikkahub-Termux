@@ -922,6 +922,8 @@
   <string name="backup_page_s3_secret_access_key">Secret Access Key</string>
   <string name="backup_page_s3_bucket">Bucket</string>
   <string name="backup_page_s3_region">Region</string>
+  <string name="backup_page_s3_path_style">Path Style</string>
+  <string name="backup_page_s3_path_style_desc">Use endpoint/bucket/object. Turn off to use bucket.endpoint/object.</string>
   <string name="backup_page_s3_backup_files">S3 Backup Files</string>
   <string name="backup_page_s3_backup">S3 Backup</string>
   <string name="setting_display_page_show_assistant_bubble_title">Show Assistant Message Bubble</string>

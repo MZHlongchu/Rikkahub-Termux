@@ -773,6 +773,8 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="backup_page_s3_secret_access_key">비밀 액세스 키</string>
   <string name="backup_page_s3_bucket">버킷</string>
   <string name="backup_page_s3_region">리전</string>
+  <string name="backup_page_s3_path_style">경로 스타일</string>
+  <string name="backup_page_s3_path_style_desc">endpoint/bucket/object를 사용합니다. 끄면 bucket.endpoint/object를 사용합니다.</string>
   <string name="backup_page_s3_backup_files">S3 백업 파일</string>
   <string name="backup_page_s3_backup">S3 백업</string>
   <string name="setting_display_page_show_assistant_bubble_title">어시스턴트 메시지 버블 표시</string>
