@@ -76,7 +76,6 @@ import me.rerere.hugeicons.stroke.Share04
 import me.rerere.hugeicons.stroke.Sun01
 import me.rerere.hugeicons.stroke.TextSelection
 import me.rerere.hugeicons.stroke.TransactionHistory
-import me.rerere.rikkahub.APP_README_URL
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.AppLanguage
@@ -576,7 +575,14 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                             }
                             if (showDocumentation) {
                                 item(
-                                    onClick = { context.openUrl(APP_README_URL) },
+                                    onClick = {
+                                        val docUrl = if (java.util.Locale.getDefault().language == "zh") {
+                                            "https://docs.rikka-ai.com/zh/introduction"
+                                        } else {
+                                            "https://docs.rikka-ai.com/introduction"
+                                        }
+                                        context.openUrl(docUrl)
+                                    },
                                     leadingContent = { Icon(HugeIcons.Book01, null) },
                                     supportingContent = { Text(documentationDesc) },
                                     headlineContent = { Text(documentationTitle) },
