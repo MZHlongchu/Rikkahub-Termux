@@ -1540,20 +1540,16 @@ class ChatService(
         mcpTools: List<Pair<Uuid, McpTool>>,
         needsApprovalOverride: Boolean? = null,
     ): List<Tool> {
-        val duplicateToolNames = mcpTools
-            .groupingBy { it.second.name }
-            .eachCount()
-            .filterValues { it > 1 }
-            .keys
+        val serverNames = settingsStore.settingsFlow.value.mcpServers
+            .associate { it.id to it.commonOptions.name }
 
         return mcpTools.map { (serverId, tool) ->
-            val toolName = if (tool.name in duplicateToolNames) {
-                buildUniqueMcpToolName(serverId, tool.name)
-            } else {
-                "mcp__${tool.name}"
-            }
             Tool(
-                name = toolName,
+                name = buildMcpToolName(
+                    serverId = serverId,
+                    serverName = serverNames[serverId].orEmpty(),
+                    toolName = tool.name,
+                ),
                 description = tool.description ?: "",
                 parameters = { tool.inputSchema },
                 needsApproval = needsApprovalOverride ?: tool.needsApproval,
@@ -1568,15 +1564,18 @@ class ChatService(
         }
     }
 
-    private fun buildUniqueMcpToolName(serverId: Uuid, toolName: String): String {
-        val shortServerId = serverId.toString().replace("-", "").take(8)
-        return "mcp__${shortServerId}__${toolName}"
+    private fun buildMcpToolName(
+        serverId: Uuid,
+        serverName: String,
+        toolName: String,
+    ): String {
+        val prefix = serverName.ifBlank { serverId.toString().replace("-", "").take(8) }
+        return "mcp__${prefix}__${toolName}"
     }
 
     private fun displayToolName(toolName: String): String {
         val rawName = toolName.removePrefix("mcp__")
-        val parts = rawName.split("__", limit = 2)
-        return if (parts.size == 2 && parts[0].length == 8) parts[1] else rawName
+        return rawName.substringAfter("__", rawName)
     }
 
     private fun buildToolApprovalNotificationText(tool: UIMessagePart.Tool): String {
