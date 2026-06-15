@@ -510,6 +510,7 @@
   <string name="setting_mcp_page_name_desc">MCP服务器的显示名称</string>
   <string name="setting_mcp_page_name_placeholder">例如：My MCP Server</string>
   <string name="setting_mcp_page_name_invalid">名称只能包含英文字母和数字</string>
+  <string name="error_mcp_invalid_server_name">无效的MCP服务器名称（仅允许字母数字字符）：%1$s</string>
   <string name="setting_mcp_page_no_mcp_servers_found">未找到 MCP 服务器</string>
   <string name="setting_mcp_page_save">保存</string>
   <string name="setting_mcp_page_server_url">服务器地址</string>

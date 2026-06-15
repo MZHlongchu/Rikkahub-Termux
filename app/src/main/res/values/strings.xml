@@ -544,6 +544,7 @@
   <string name="setting_mcp_page_name_desc">Display name for the MCP server</string>
   <string name="setting_mcp_page_name_placeholder">e.g.: My MCP Server</string>
   <string name="setting_mcp_page_name_invalid">Name can only contain English letters and numbers</string>
+  <string name="error_mcp_invalid_server_name">Invalid MCP server name (only alphanumeric characters allowed): %1$s</string>
   <string name="setting_mcp_page_no_mcp_servers_found">No MCP servers found</string>
   <string name="setting_mcp_page_save">Save</string>
   <string name="setting_mcp_page_server_url">Server URL</string>

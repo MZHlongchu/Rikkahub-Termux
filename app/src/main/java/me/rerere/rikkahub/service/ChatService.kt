@@ -443,6 +443,7 @@ class ChatService(
         assistant: Assistant,
     ): List<Tool> {
         val mcpTools = mcpManager.getAvailableToolsForServers(assistant.mcpServers)
+        validateMcpServerNames(mcpTools.map { it.first })
         return buildList {
             if (settings.enableWebSearch) {
                 addAll(createSearchTools(settings))
@@ -450,6 +451,23 @@ class ChatService(
             addAll(localTools.getSkillTools(assistant))
             addAll(localTools.getTools(assistant.localTools))
             addAll(buildMcpTools(mcpTools))
+        }
+    }
+
+    private fun validateMcpServerNames(serverIds: List<Uuid>) {
+        val serverNames = settingsStore.settingsFlow.value.mcpServers
+            .associate { it.id to it.commonOptions.name }
+        val invalidNames = serverIds
+            .map { serverNames[it].orEmpty() }
+            .distinct()
+            .filter { name -> name.isEmpty() || !name.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' } }
+        if (invalidNames.isNotEmpty()) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.error_mcp_invalid_server_name,
+                    invalidNames.joinToString(", ")
+                )
+            )
         }
     }
 
