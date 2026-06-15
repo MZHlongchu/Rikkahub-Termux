@@ -223,6 +223,15 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
 
+    constraints {
+        implementation("io.netty:netty-codec-http2:4.1.135.Final") {
+            because("Expose the patched transitive Netty version to Dependabot security updates.")
+        }
+        implementation("io.netty:netty-handler:4.1.135.Final") {
+            because("Expose the patched transitive Netty version to Dependabot security updates.")
+        }
+    }
+
     // ucrop
     implementation(libs.ucrop)
 
