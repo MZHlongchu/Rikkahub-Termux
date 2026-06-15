@@ -257,6 +257,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.paging)
+    baselineProfile(project(":app:baselineprofile"))
     ksp(libs.androidx.room.compiler)
 
     // Paging3
