@@ -19,6 +19,20 @@
 - 当前仓库: [https://github.com/sybdz/rikkahub-lune](https://github.com/sybdz/rikkahub-lune)
 - 原项目仓库: [https://github.com/rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)
 
+## 🚀 下载
+
+🔗 [前往官网下载](https://rikka-ai.com/download)（推荐）
+🔗 [前往 Google Play 下载](https://play.google.com/store/apps/details?id=me.rerere.rikkahub)
+
+
+## 💖 赞助商
+
+<div align="center">
+  <img src="app/src/main/assets/icons/aihubmix-color.svg" alt="Aihubmix" width="50" />
+  <p style="font-size: 16px; font-weight: bold;">Aihubmix</p>
+  <p style="font-size: 14px;">感谢 <a href="https://aihubmix.com?aff=pG7r">aihubmix.com</a> 的资金支持。我们推荐使用 aihubmix 作为全球主流模型的一站式服务平台。（OpenAI、Claude、Google Gemini、DeepSeek、Qwen 以及数百种其他模型）。</p>
+</div>
+
 ## ✨ 功能特色
 
 - 🎨 现代化安卓APP设计（Material You / 预测性返回）和 🌙 暗色模式

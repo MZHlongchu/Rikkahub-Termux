@@ -29,7 +29,7 @@
 
 ## 🚀 Download
 
-🔗 [Download from Website](https://rikka-ai.com/download)
+🔗 [Download from Website](https://rikka-ai.com/download) (Recommended)
 
 🔗 [Download from Google Play](https://play.google.com/store/apps/details?id=me.rerere.rikkahub)
 
