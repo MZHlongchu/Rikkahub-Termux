@@ -75,6 +75,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -510,6 +511,7 @@ fun ChatInput(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
                                     .size(44.dp)
+                                    .testTag("chat_send_button")
                                     .clip(CircleShape)
                                     .combinedClickable(
                                         enabled = loading || hasMessageContent,
@@ -769,6 +771,7 @@ private fun TextInputRow(
             state = state.textContent,
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("chat_input")
                 .contentReceiver(receiveContentListener)
                 .onFocusChanged {
                     onFocusChanged(it.isFocused)
