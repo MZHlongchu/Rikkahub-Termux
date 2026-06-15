@@ -485,6 +485,7 @@
   <string name="setting_mcp_page_name">名前</string>
   <string name="setting_mcp_page_name_desc">MCPサーバーの表示名</string>
   <string name="setting_mcp_page_name_placeholder">例：My MCP Server</string>
+  <string name="setting_mcp_page_name_invalid">名前は英数字のみ使用可能です。</string>
   <string name="setting_mcp_page_no_mcp_servers_found">MCPサーバーが見つかりません</string>
   <string name="setting_mcp_page_save">保存</string>
   <string name="setting_mcp_page_server_url">サーバーURL</string>

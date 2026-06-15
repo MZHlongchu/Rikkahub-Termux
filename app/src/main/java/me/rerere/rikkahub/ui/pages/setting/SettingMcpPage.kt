@@ -531,6 +531,7 @@ private fun McpCommonOptionsConfigure(
                 Text(stringResource(R.string.setting_mcp_page_name_desc))
             }
         ) {
+            val nameInvalid = !isValidMcpName(config.commonOptions.name)
             OutlinedTextField(
                 value = config.commonOptions.name,
                 onValueChange = { name ->
@@ -538,7 +539,11 @@ private fun McpCommonOptionsConfigure(
                 },
                 label = { Text(stringResource(R.string.setting_mcp_page_name)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.setting_mcp_page_name_placeholder)) }
+                placeholder = { Text(stringResource(R.string.setting_mcp_page_name_placeholder)) },
+                isError = nameInvalid,
+                supportingText = if (nameInvalid) {
+                    { Text(stringResource(R.string.setting_mcp_page_name_invalid)) }
+                } else null
             )
         }
 
@@ -1071,11 +1076,16 @@ private fun McpServerConfig.withCommonOptions(
 
 private fun isConfigSavable(config: McpServerConfig): Boolean {
     if (config.commonOptions.name.isBlank()) return false
+    if (!isValidMcpName(config.commonOptions.name)) return false
     return when (config) {
         is McpServerConfig.SseTransportServer -> config.url.isNotBlank()
         is McpServerConfig.StreamableHTTPServer -> config.url.isNotBlank()
         is McpServerConfig.StdioServer -> config.command.isNotBlank()
     }
+}
+
+private fun isValidMcpName(name: String): Boolean {
+    return name.isEmpty() || name.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
 }
 
 @Composable

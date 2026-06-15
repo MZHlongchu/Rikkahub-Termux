@@ -483,6 +483,7 @@
   <string name="setting_mcp_page_name">Имя</string>
   <string name="setting_mcp_page_name_desc">Отображаемое имя сервера MCP</string>
   <string name="setting_mcp_page_name_placeholder">например: Мой MCP-сервер</string>
+  <string name="setting_mcp_page_name_invalid">Имя может содержать только латинские буквы и цифры</string>
   <string name="setting_mcp_page_no_mcp_servers_found">Серверы MCP не найдены</string>
   <string name="setting_mcp_page_save">Сохранить</string>
   <string name="setting_mcp_page_server_url">URL сервера</string>
