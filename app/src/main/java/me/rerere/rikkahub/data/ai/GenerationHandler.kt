@@ -103,7 +103,6 @@ class GenerationHandler(
     private val json: Json,
     private val memoryRepo: MemoryRepository,
     private val conversationRepo: ConversationRepository,
-    private val aiLoggingManager: AILoggingManager,
     private val skillsRepository: SkillsRepository,
 ) {
     fun generateText(
@@ -435,14 +434,6 @@ class GenerationHandler(
             }
         )
         if (stream) {
-            aiLoggingManager.addLog(
-                AILogging.Generation(
-                    params = params,
-                    messages = messages,
-                    providerSetting = provider,
-                    stream = true
-                )
-            )
             providerImpl.streamText(
                 providerSetting = provider,
                 messages = internalMessages,
@@ -461,14 +452,6 @@ class GenerationHandler(
                 onUpdateMessages(messages)
             }
         } else {
-            aiLoggingManager.addLog(
-                AILogging.Generation(
-                    params = params,
-                    messages = messages,
-                    providerSetting = provider,
-                    stream = false
-                )
-            )
             val chunk = providerImpl.generateText(
                 providerSetting = provider,
                 messages = internalMessages,

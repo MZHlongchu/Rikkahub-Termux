@@ -7,7 +7,6 @@ import com.google.firebase.remoteconfig.remoteConfig
 import kotlinx.serialization.json.Json
 import me.rerere.highlight.Highlighter
 import me.rerere.rikkahub.AppScope
-import me.rerere.rikkahub.data.ai.AILoggingManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxMcpStdioServerManager
@@ -122,10 +121,6 @@ val appModule = module {
 
     single {
         SoundEffectPlayer(get())
-    }
-
-    single {
-        AILoggingManager()
     }
 
     single {

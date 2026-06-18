@@ -94,7 +94,6 @@ import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantSkillsPage
 import me.rerere.rikkahub.ui.pages.backup.BackupPage
 import me.rerere.rikkahub.ui.pages.chat.ChatPage
 import me.rerere.rikkahub.ui.pages.debug.DebugPage
-import me.rerere.rikkahub.ui.pages.developer.DeveloperPage
 import me.rerere.rikkahub.ui.pages.favorite.FavoritePage
 import me.rerere.rikkahub.ui.pages.history.HistoryPage
 import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
@@ -648,10 +647,6 @@ class RouteActivity : ComponentActivity() {
                                 SettingWebPage()
                             }
 
-                            entry<Screen.Developer> {
-                                DeveloperPage()
-                            }
-
                             entry<Screen.Debug> {
                                 DebugPage()
                             }
@@ -870,9 +865,6 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object SettingWeb : Screen
-
-    @Serializable
-    data object Developer : Screen
 
     @Serializable
     data object Debug : Screen
