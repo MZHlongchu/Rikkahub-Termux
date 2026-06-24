@@ -10,7 +10,7 @@ val buildWebUi = tasks.register<Exec>("buildWebUi") {
     description = "Build web-ui and copy its static output into the web module resources."
 
     workingDir = webUiDir.asFile
-    commandLine("zsh", "-ic", "pnpm run build")
+    commandLine("pnpm", "run", "build")
 
     inputs.files(
         webUiDir.file("package.json"),
@@ -71,6 +71,7 @@ dependencies {
     implementation(libs.ktor.server.cors)
     api(libs.ktor.server.auth)
     api(libs.ktor.server.auth.jwt)
+    implementation(libs.jackson.databind)
     api(libs.ktor.server.core)
     implementation(libs.ktor.server.host.common)
     api(libs.ktor.server.content.negotiation)

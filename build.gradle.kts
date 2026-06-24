@@ -26,12 +26,14 @@ plugins {
     alias(libs.plugins.baselineprofile) apply false
 }
 
+val jacksonVersion = libs.versions.jackson.get()
+
 subprojects {
     configurations.configureEach {
         resolutionStrategy.eachDependency {
             when ("${requested.group}:${requested.name}") {
-                "com.fasterxml.jackson.core:jackson-core" -> useVersion("2.21.3")
-                "com.fasterxml.jackson.core:jackson-databind" -> useVersion("2.21.3")
+                "com.fasterxml.jackson.core:jackson-core" -> useVersion(jacksonVersion)
+                "com.fasterxml.jackson.core:jackson-databind" -> useVersion(jacksonVersion)
                 "com.google.guava:guava" -> useVersion("33.6.0-android")
                 "io.netty:netty-buffer" -> useVersion("4.1.135.Final")
                 "io.netty:netty-codec" -> useVersion("4.1.135.Final")
