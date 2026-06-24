@@ -1735,4 +1735,5 @@
   <string name="assistant_page_gradient_background_desc">Use a dynamic gradient background on the chat page</string>
   <string name="log_page_record_requests">Record requests</string>
   <string name="log_page_record_requests_desc">Capture request headers, bodies, and response metadata</string>
+  <string name="assistant_page_context_message_truncation_warning">Limiting context may cause frequent context truncation and prevent prompt caching</string>
 </resources>
