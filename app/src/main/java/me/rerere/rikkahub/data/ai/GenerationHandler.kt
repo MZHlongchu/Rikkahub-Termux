@@ -46,10 +46,9 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.resolveToolCallKeepMessagesLimit
+import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.skills.SkillsRepository
 import me.rerere.rikkahub.data.skills.buildSkillsCatalogPrompt
-import me.rerere.rikkahub.data.repository.ConversationRepository
-import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.utils.applyPlaceholders
 import java.util.Locale
 import kotlin.time.Clock
@@ -102,7 +101,6 @@ class GenerationHandler(
     private val providerManager: ProviderManager,
     private val json: Json,
     private val memoryRepo: MemoryRepository,
-    private val conversationRepo: ConversationRepository,
     private val skillsRepository: SkillsRepository,
 ) {
     fun generateText(
@@ -506,10 +504,6 @@ class GenerationHandler(
                 if (assistant.enableMemory) {
                     appendLine()
                     append(buildMemoryPrompt(memories = memories))
-                }
-                if (assistant.enableRecentChatsReference) {
-                    appendLine()
-                    append(buildRecentChatsPrompt(assistant, conversationRepo))
                 }
 
                 buildSkillsCatalogPrompt(

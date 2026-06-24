@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -71,6 +72,7 @@ import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Eraser
 import me.rerere.hugeicons.stroke.GlobalSearch
 import me.rerere.hugeicons.stroke.MagicWand01
+import me.rerere.hugeicons.stroke.Message02
 import me.rerere.hugeicons.stroke.QuillWrite01
 import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Search01
@@ -106,6 +108,8 @@ private object ToolNames {
     const val TTS = "text_to_speech"
     const val ASK_USER = "ask_user"
     const val USE_SKILL = "use_skill"
+    const val RECENT_CHATS = "recent_chats"
+    const val CONVERSATION_SEARCH = "conversation_search"
     const val TERMUX_EXEC = TermuxToolUiNames.EXEC
     const val TERMUX_PYTHON = TermuxToolUiNames.PYTHON
     const val WRITE_STDIN = TermuxToolUiNames.WRITE_STDIN
@@ -138,6 +142,8 @@ private fun getToolIcon(toolName: String, action: String?) = when (toolName) {
     ToolNames.TTS -> HugeIcons.VolumeHigh
     ToolNames.ASK_USER -> HugeIcons.BubbleChatQuestion
     ToolNames.USE_SKILL -> HugeIcons.MagicWand01
+    ToolNames.RECENT_CHATS -> HugeIcons.Message02
+    ToolNames.CONVERSATION_SEARCH -> HugeIcons.Search01
     else -> HugeIcons.Tools
 }
 
@@ -236,6 +242,12 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         )
 
         ToolNames.SCRAPE_WEB -> stringResource(R.string.chat_message_tool_scrape_web)
+        ToolNames.RECENT_CHATS -> stringResource(R.string.chat_message_tool_recent_chats)
+        ToolNames.CONVERSATION_SEARCH -> stringResource(
+            R.string.chat_message_tool_conversation_search,
+            arguments.getStringContent("query") ?: ""
+        )
+
         ToolNames.GET_TIME_INFO -> stringResource(R.string.chat_message_tool_get_time)
         ToolNames.CLIPBOARD -> when (memoryAction) {
             ClipboardActions.READ -> stringResource(R.string.chat_message_tool_clipboard_read)
@@ -279,6 +291,8 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             (content?.jsonObject?.get("items")?.jsonArray?.isNotEmpty() == true)
 
         ToolNames.SCRAPE_WEB -> arguments.getStringContent("url") != null
+        ToolNames.RECENT_CHATS -> (content as? JsonArray).orEmpty().isNotEmpty()
+        ToolNames.CONVERSATION_SEARCH -> (content as? JsonArray).orEmpty().isNotEmpty()
         ToolNames.TTS -> arguments.getStringContent("text") != null
         ToolNames.TERMUX_EXEC, ToolNames.TERMUX_PYTHON, ToolNames.WRITE_STDIN -> termuxPreview != null
         else -> false
@@ -410,6 +424,30 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                                 )
                             }
+                        }
+                    }
+                    if (tool.toolName == ToolNames.RECENT_CHATS) {
+                        val titles = (content as? JsonArray).orEmpty()
+                            .mapNotNull { it.getStringContent("title") }
+                        if (titles.isNotEmpty()) {
+                            Text(
+                                text = titles.joinToString(", "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.shimmer(isLoading = loading),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    if (tool.toolName == ToolNames.CONVERSATION_SEARCH) {
+                        val results = (content as? JsonArray).orEmpty()
+                        if (results.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.chat_message_tool_search_results_count, results.size),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            )
                         }
                     }
                     if (tool.toolName == ToolNames.SCRAPE_WEB) {

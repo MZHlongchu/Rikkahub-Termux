@@ -68,6 +68,7 @@ import me.rerere.rikkahub.data.ai.hasBlockingToolsForContinuation
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.mcp.McpTool
 import me.rerere.rikkahub.data.ai.tools.LocalTools
+import me.rerere.rikkahub.data.ai.tools.createConversationTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxCommandManager
 import me.rerere.rikkahub.data.ai.tools.termux.TermuxDirectCommandParseResult
@@ -450,6 +451,9 @@ class ChatService(
             }
             addAll(localTools.getSkillTools(assistant))
             addAll(localTools.getTools(assistant.localTools))
+            if (assistant.enableRecentChatsReference) {
+                addAll(createConversationTools(conversationRepo, assistant.id))
+            }
             addAll(buildMcpTools(mcpTools))
         }
     }
