@@ -116,71 +116,68 @@ class S3Sync(
             backupFile.delete()
         }
 
-        // Create zip file and backup data
-        ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
-            addVirtualFileToZip(
-                zipOut = zipOut,
-                name = "settings.json",
-                content = json.encodeToString(settingsStore.settingsFlow.value)
-            )
+        val databaseBackupFile = if (config.items.contains(S3Config.BackupItem.DATABASE)) {
+            BackupCompatibility.createUpstreamDatabaseCopy(context)
+        } else {
+            null
+        }
 
-            // Backup database files
-            if (config.items.contains(S3Config.BackupItem.DATABASE)) {
-                val dbFile = context.getDatabasePath("rikka_hub")
-                if (dbFile.exists()) {
-                    addFileToZip(zipOut, dbFile, "rikka_hub.db")
+        try {
+            // Create zip file and backup data
+            ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
+                addVirtualFileToZip(
+                    zipOut = zipOut,
+                    name = "settings.json",
+                    content = BackupCompatibility.encodeUpstreamSettings(json, settingsStore.settingsFlow.value)
+                )
+
+                // Backup an upstream-compatible database snapshot.
+                if (config.items.contains(S3Config.BackupItem.DATABASE)) {
+                    databaseBackupFile?.let { addFileToZip(zipOut, it, "rikka_hub.db") }
                 }
 
-                val walFile = File(dbFile.parentFile, "rikka_hub-wal")
-                if (walFile.exists()) {
-                    addFileToZip(zipOut, walFile, "rikka_hub-wal")
-                }
+                // Backup app files
+                if (config.items.contains(S3Config.BackupItem.FILES)) {
+                    val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
+                    if (uploadFolder.exists() && uploadFolder.isDirectory) {
+                        Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
+                        uploadFolder.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
+                    }
 
-                val shmFile = File(dbFile.parentFile, "rikka_hub-shm")
-                if (shmFile.exists()) {
-                    addFileToZip(zipOut, shmFile, "rikka_hub-shm")
+                    val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
+                    if (skillsFolder.exists() && skillsFolder.isDirectory) {
+                        Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
+                        addDirectoryToZip(
+                            zipOut = zipOut,
+                            rootDir = skillsFolder,
+                            currentDir = skillsFolder,
+                            entryPrefix = "${FileFolders.SKILLS}/"
+                        )
+                    } else {
+                        Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
+                    }
+
+                    val fontsFolder = File(context.filesDir, FileFolders.FONTS)
+                    if (fontsFolder.exists() && fontsFolder.isDirectory) {
+                        Log.i(TAG, "prepareBackupFile: Backing up fonts from ${fontsFolder.absolutePath}")
+                        fontsFolder.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                addFileToZip(zipOut, file, "${FileFolders.FONTS}/${file.name}")
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
+                    }
                 }
             }
-
-            // Backup app files
-            if (config.items.contains(S3Config.BackupItem.FILES)) {
-                val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
-                if (uploadFolder.exists() && uploadFolder.isDirectory) {
-                    Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
-                    uploadFolder.listFiles()?.forEach { file ->
-                        if (file.isFile) {
-                            addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
-                        }
-                    }
-                } else {
-                    Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
-                }
-
-                val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
-                if (skillsFolder.exists() && skillsFolder.isDirectory) {
-                    Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
-                    addDirectoryToZip(
-                        zipOut = zipOut,
-                        rootDir = skillsFolder,
-                        currentDir = skillsFolder,
-                        entryPrefix = "${FileFolders.SKILLS}/"
-                    )
-                } else {
-                    Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
-                }
-
-                val fontsFolder = File(context.filesDir, FileFolders.FONTS)
-                if (fontsFolder.exists() && fontsFolder.isDirectory) {
-                    Log.i(TAG, "prepareBackupFile: Backing up fonts from ${fontsFolder.absolutePath}")
-                    fontsFolder.listFiles()?.forEach { file ->
-                        if (file.isFile) {
-                            addFileToZip(zipOut, file, "${FileFolders.FONTS}/${file.name}")
-                        }
-                    }
-                } else {
-                    Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
-                }
-            }
+        } finally {
+            databaseBackupFile?.delete()
         }
 
         Log.i(
