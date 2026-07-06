@@ -12,7 +12,6 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
-import me.rerere.rikkahub.data.sync.BackupCompatibility
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
 import java.io.FileInputStream
@@ -140,68 +139,71 @@ class WebDavSync(
             backupFile.delete()
         }
 
-        val databaseBackupFile = if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
-            BackupCompatibility.createUpstreamDatabaseCopy(context)
-        } else {
-            null
-        }
+        // Create zip file and backup data
+        ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
+            addVirtualFileToZip(
+                zipOut = zipOut,
+                name = "settings.json",
+                content = json.encodeToString(settingsStore.settingsFlow.value)
+            )
 
-        try {
-            // Create zip file and backup data
-            ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
-                addVirtualFileToZip(
-                    zipOut = zipOut,
-                    name = "settings.json",
-                    content = BackupCompatibility.encodeUpstreamSettings(json, settingsStore.settingsFlow.value)
-                )
-
-                // Backup an upstream-compatible database snapshot.
-                if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
-                    databaseBackupFile?.let { addFileToZip(zipOut, it, "rikka_hub.db") }
+            // Backup database files
+            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                val dbFile = context.getDatabasePath("rikka_hub")
+                if (dbFile.exists()) {
+                    addFileToZip(zipOut, dbFile, "rikka_hub.db")
                 }
 
-                // Backup app files
-                if (config.items.contains(WebDavConfig.BackupItem.FILES)) {
-                    val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
-                    if (uploadFolder.exists() && uploadFolder.isDirectory) {
-                        Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
-                        uploadFolder.listFiles()?.forEach { file ->
-                            if (file.isFile) {
-                                addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
-                    }
+                val walFile = File(dbFile.parentFile, "rikka_hub-wal")
+                if (walFile.exists()) {
+                    addFileToZip(zipOut, walFile, "rikka_hub-wal")
+                }
 
-                    val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
-                    if (skillsFolder.exists() && skillsFolder.isDirectory) {
-                        Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
-                        addDirectoryToZip(
-                            zipOut = zipOut,
-                            rootDir = skillsFolder,
-                            currentDir = skillsFolder,
-                            entryPrefix = "${FileFolders.SKILLS}/"
-                        )
-                    } else {
-                        Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
-                    }
-
-                    val fontsFolder = File(context.filesDir, FileFolders.FONTS)
-                    if (fontsFolder.exists() && fontsFolder.isDirectory) {
-                        Log.i(TAG, "prepareBackupFile: Backing up fonts from ${fontsFolder.absolutePath}")
-                        fontsFolder.listFiles()?.forEach { file ->
-                            if (file.isFile) {
-                                addFileToZip(zipOut, file, "${FileFolders.FONTS}/${file.name}")
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
-                    }
+                val shmFile = File(dbFile.parentFile, "rikka_hub-shm")
+                if (shmFile.exists()) {
+                    addFileToZip(zipOut, shmFile, "rikka_hub-shm")
                 }
             }
-        } finally {
-            databaseBackupFile?.delete()
+
+            // Backup app files
+            if (config.items.contains(WebDavConfig.BackupItem.FILES)) {
+                val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
+                if (uploadFolder.exists() && uploadFolder.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
+                    uploadFolder.listFiles()?.forEach { file ->
+                        if (file.isFile) {
+                            addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
+                }
+
+                val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
+                if (skillsFolder.exists() && skillsFolder.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
+                    addDirectoryToZip(
+                        zipOut = zipOut,
+                        rootDir = skillsFolder,
+                        currentDir = skillsFolder,
+                        entryPrefix = "${FileFolders.SKILLS}/"
+                    )
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
+                }
+
+                val fontsFolder = File(context.filesDir, FileFolders.FONTS)
+                if (fontsFolder.exists() && fontsFolder.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up fonts from ${fontsFolder.absolutePath}")
+                    fontsFolder.listFiles()?.forEach { file ->
+                        if (file.isFile) {
+                            addFileToZip(zipOut, file, "${FileFolders.FONTS}/${file.name}")
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
+                }
+            }
         }
 
         Log.i(
