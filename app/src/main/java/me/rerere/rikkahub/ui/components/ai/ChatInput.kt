@@ -298,6 +298,11 @@ fun ChatInput(
                                 )
                             }
 
+                            // Local Tools
+                            LocalToolPickerButton(
+                                assistant = assistant,
+                                onUpdateAssistant = onUpdateAssistant,
+                            )
                         }
 
                         ActionIconButton(
