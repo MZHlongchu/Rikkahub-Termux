@@ -72,7 +72,10 @@ class BackupCompatibilityDatabaseTest {
                     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
                     null
                 ).stringSet()
-                assertEquals(UPSTREAM_TABLE_COLUMNS.keys + "room_master_table", tables)
+                assertEquals(
+                    UPSTREAM_TABLE_COLUMNS.keys + "room_master_table",
+                    tables - "android_metadata"
+                )
                 assertFalse("scheduled_task_run" in tables)
                 assertFalse("message_fts" in tables)
 
