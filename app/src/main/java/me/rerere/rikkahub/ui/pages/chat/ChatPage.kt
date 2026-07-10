@@ -61,6 +61,7 @@ import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
+import me.rerere.hugeicons.stroke.InspectCode
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
@@ -279,7 +280,9 @@ private fun ChatPageContent(
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val workspaceRepository: WorkspaceRepository = koinInject()
+    val runtimeInspection by vm.runtimeInspection.collectAsStateWithLifecycle()
     var previewMode by rememberSaveable { mutableStateOf(false) }
+    var showRuntimeInspector by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
@@ -316,6 +319,10 @@ private fun ChatPageContent(
                     },
                     onClickMenu = {
                         previewMode = !previewMode
+                    },
+                    onOpenRuntimeInspector = {
+                        showRuntimeInspector = true
+                        vm.refreshRuntimeInspection()
                     },
                     onUpdateTitle = {
                         vm.updateTitle(it)
@@ -483,6 +490,13 @@ private fun ChatPageContent(
                 assistant = assistant,
                 vm = vm,
                 onDismiss = { showFilesSheet = false },
+            )
+        }
+        if (showRuntimeInspector) {
+            ChatRuntimeInspectorSheet(
+                state = runtimeInspection,
+                onDismissRequest = { showRuntimeInspector = false },
+                onRefresh = vm::refreshRuntimeInspection,
             )
         }
     }
@@ -701,6 +715,7 @@ private fun TopBar(
     bigScreen: Boolean,
     previewMode: Boolean,
     onClickMenu: () -> Unit,
+    onOpenRuntimeInspector: () -> Unit,
     onNewChat: () -> Unit,
     onUpdateTitle: (String) -> Unit
 ) {
@@ -760,6 +775,10 @@ private fun TopBar(
             }
         },
         actions = {
+            IconButton(onClick = onOpenRuntimeInspector) {
+                Icon(HugeIcons.InspectCode, "运行时检查")
+            }
+
             IconButton(
                 onClick = {
                     onClickMenu()

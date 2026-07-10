@@ -343,6 +343,52 @@ class GenerationHandler(
 
     }.flowOn(Dispatchers.IO)
 
+    suspend fun previewPreparedMessages(
+        settings: Settings,
+        model: Model,
+        messages: List<UIMessage>,
+        inputTransformers: List<InputMessageTransformer> = emptyList(),
+        assistant: Assistant,
+        memories: List<AssistantMemory>? = null,
+        tools: List<Tool> = emptyList(),
+        conversationSystemPrompt: String? = null,
+        conversationModeInjectionIds: Set<Uuid> = emptySet(),
+        conversationLorebookIds: Set<Uuid> = emptySet(),
+        workspaceCwd: String? = null,
+    ): List<UIMessage> {
+        return prepareInternalMessages(
+            assistant = assistant,
+            settings = settings,
+            messages = messages,
+            transformers = inputTransformers,
+            model = model,
+            tools = tools,
+            memories = memories ?: emptyList(),
+            conversationSystemPrompt = conversationSystemPrompt,
+            conversationModeInjectionIds = conversationModeInjectionIds,
+            conversationLorebookIds = conversationLorebookIds,
+            workspaceCwd = workspaceCwd,
+            dryRun = true,
+        )
+    }
+
+    fun buildTextGenerationParams(
+        assistant: Assistant,
+        model: Model,
+        tools: List<Tool>,
+    ): TextGenerationParams {
+        return TextGenerationParams(
+            model = model,
+            temperature = assistant.temperature,
+            topP = assistant.topP,
+            maxTokens = assistant.maxTokens,
+            tools = tools,
+            reasoningLevel = assistant.reasoningLevel,
+            customHeaders = assistant.customHeaders + model.customHeaders,
+            customBody = assistant.customBodies + model.customBodies,
+        )
+    }
+
     private suspend fun generateInternal(
         assistant: Assistant,
         settings: Settings,
@@ -361,60 +407,23 @@ class GenerationHandler(
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
     ) {
-        val internalMessages = buildList {
-            val system = buildString {
-                val effectiveSystemPrompt =
-                    if (assistant.allowConversationSystemPrompt && !conversationSystemPrompt.isNullOrBlank()) {
-                        conversationSystemPrompt
-                    } else {
-                        assistant.systemPrompt
-                    }
-                if (effectiveSystemPrompt.isNotBlank()) {
-                    append(effectiveSystemPrompt)
-                }
-
-                // 记忆
-                if (assistant.enableMemory) {
-                    appendLine()
-                    append(buildMemoryPrompt(memories = memories))
-                }
-                // 工具prompt
-                tools.forEach { tool ->
-                    appendLine()
-                    append(tool.systemPrompt(model, messages))
-                }
-            }
-            if (system.isNotBlank()) add(UIMessage.system(prompt = system))
-            addAll(messages.limitContext(assistant.contextMessageSize))
-        }.transforms(
-            transformers = transformers,
-            context = context,
-            model = model,
+        val internalMessages = prepareInternalMessages(
             assistant = assistant,
             settings = settings,
+            messages = messages,
+            transformers = transformers,
+            model = model,
+            tools = tools,
+            memories = memories,
+            conversationSystemPrompt = conversationSystemPrompt,
             conversationModeInjectionIds = conversationModeInjectionIds,
             conversationLorebookIds = conversationLorebookIds,
-            processingStatus = processingStatus,
             workspaceCwd = workspaceCwd,
+            processingStatus = processingStatus,
         )
 
         var messages: List<UIMessage> = messages
-        val params = TextGenerationParams(
-            model = model,
-            temperature = assistant.temperature,
-            topP = assistant.topP,
-            maxTokens = assistant.maxTokens,
-            tools = tools,
-            reasoningLevel = assistant.reasoningLevel,
-            customHeaders = buildList {
-                addAll(assistant.customHeaders)
-                addAll(model.customHeaders)
-            },
-            customBody = buildList {
-                addAll(assistant.customBodies)
-                addAll(model.customBodies)
-            }
-        )
+        val params = buildTextGenerationParams(assistant, model, tools)
         if (stream) {
             providerImpl.streamText(
                 providerSetting = provider,
@@ -453,6 +462,57 @@ class GenerationHandler(
             }
             onUpdateMessages(messages)
         }
+    }
+
+    private suspend fun prepareInternalMessages(
+        assistant: Assistant,
+        settings: Settings,
+        messages: List<UIMessage>,
+        transformers: List<MessageTransformer>,
+        model: Model,
+        tools: List<Tool>,
+        memories: List<AssistantMemory>,
+        conversationSystemPrompt: String?,
+        conversationModeInjectionIds: Set<Uuid>,
+        conversationLorebookIds: Set<Uuid>,
+        workspaceCwd: String?,
+        processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
+        dryRun: Boolean = false,
+    ): List<UIMessage> {
+        return buildList {
+            val system = buildString {
+                val effectiveSystemPrompt =
+                    if (assistant.allowConversationSystemPrompt && !conversationSystemPrompt.isNullOrBlank()) {
+                        conversationSystemPrompt
+                    } else {
+                        assistant.systemPrompt
+                    }
+                if (effectiveSystemPrompt.isNotBlank()) {
+                    append(effectiveSystemPrompt)
+                }
+                if (assistant.enableMemory) {
+                    appendLine()
+                    append(buildMemoryPrompt(memories = memories))
+                }
+                tools.forEach { tool ->
+                    appendLine()
+                    append(tool.systemPrompt(model, messages))
+                }
+            }
+            if (system.isNotBlank()) add(UIMessage.system(prompt = system))
+            addAll(messages.limitContext(assistant.contextMessageSize))
+        }.transforms(
+            transformers = transformers,
+            context = context,
+            model = model,
+            assistant = assistant,
+            settings = settings,
+            conversationModeInjectionIds = conversationModeInjectionIds,
+            conversationLorebookIds = conversationLorebookIds,
+            processingStatus = processingStatus,
+            workspaceCwd = workspaceCwd,
+            dryRun = dryRun,
+        )
     }
 
     private fun maybeTruncateToolOutput(

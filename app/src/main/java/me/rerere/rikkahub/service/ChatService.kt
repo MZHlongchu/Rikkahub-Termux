@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
@@ -273,6 +276,172 @@ class ChatService(
                 }
             }
         }
+    }
+
+    suspend fun inspectConversationRuntime(conversationId: Uuid): ChatRuntimeInspection {
+        val settings = settingsStore.settingsFlow.first()
+        val conversation = getConversationFlow(conversationId).value
+        val assistant = settings.getAssistantById(conversation.assistantId)
+            ?: settings.getCurrentAssistant()
+        val model = settings.findModelById(assistant.chatModelId ?: settings.chatModelId)
+            ?: error("No model configured for this conversation")
+        val provider = model.findProvider(settings.providers)
+            ?: error("No provider configured for model ${model.modelId}")
+        val tools = buildRuntimeConversationTools(settings, assistant, conversation)
+        val preparedMessages = generationHandler.previewPreparedMessages(
+            settings = settings,
+            model = model,
+            messages = conversation.currentMessages,
+            inputTransformers = buildList {
+                addAll(inputTransformers)
+                add(templateTransformer)
+                add(workspaceReminderTransformer)
+            },
+            assistant = assistant,
+            memories = if (assistant.useGlobalMemory) {
+                memoryRepository.getGlobalMemories()
+            } else {
+                memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
+            },
+            tools = tools,
+            conversationSystemPrompt = conversation.customSystemPrompt,
+            conversationModeInjectionIds = conversation.modeInjectionIds,
+            conversationLorebookIds = conversation.lorebookIds,
+            workspaceCwd = conversation.workspaceCwd,
+        )
+        val promptMessages = preparedMessages.map(::toPromptPreviewMessage)
+        return ChatRuntimeInspection(
+            assistantName = assistant.name.ifBlank {
+                context.getString(R.string.assistant_page_default_assistant)
+            },
+            modelName = model.displayName.ifBlank { model.modelId },
+            promptMessages = promptMessages,
+            promptTokenEstimate = promptMessages.sumOf { it.tokenEstimate },
+            contextVariables = buildRuntimeContextJson(
+                conversation = conversation,
+                assistant = assistant,
+                modelName = model.displayName.ifBlank { model.modelId },
+                promptMessages = promptMessages,
+                toolCount = tools.size,
+            ),
+            payloadPreview = providerManager.previewTextRequest(
+                setting = provider,
+                messages = preparedMessages,
+                params = generationHandler.buildTextGenerationParams(assistant, model, tools),
+                stream = assistant.streamOutput,
+            ),
+        )
+    }
+
+    private suspend fun buildRuntimeConversationTools(
+        settings: me.rerere.rikkahub.data.datastore.Settings,
+        assistant: Assistant,
+        conversation: Conversation,
+    ): List<Tool> = buildList {
+        if (settings.enableWebSearch) {
+            addAll(createSearchTools(settings))
+        }
+        addAll(localTools.getTools(assistant.localTools))
+        if (assistant.enableRecentChatsReference) {
+            addAll(createConversationTools(conversationRepo, assistant.id))
+        }
+        addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
+        if (assistant.enabledSkills.isNotEmpty()) {
+            addAll(
+                createSkillTools(
+                    enabledSkills = assistant.enabledSkills,
+                    allSkills = skillManager.listSkills(),
+                    skillManager = skillManager,
+                )
+            )
+        }
+        val allMcpTools = mcpManager.getAllAvailableTools()
+        val invalidNames = allMcpTools
+            .map { it.second }
+            .distinct()
+            .filter { name ->
+                name.isEmpty() || !name.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
+            }
+        if (invalidNames.isNotEmpty()) {
+            error(context.getString(R.string.error_mcp_invalid_server_name, invalidNames.joinToString(", ")))
+        }
+        allMcpTools.forEach { (serverId, serverName, tool) ->
+            add(
+                Tool(
+                    name = "mcp__${serverName}__${tool.name}",
+                    description = tool.description ?: "",
+                    parameters = { tool.inputSchema },
+                    needsApproval = { tool.needsApproval },
+                    execute = { mcpManager.callTool(serverId, tool.name, it.jsonObject) },
+                )
+            )
+        }
+    }
+
+    private fun buildRuntimeContextJson(
+        conversation: Conversation,
+        assistant: Assistant,
+        modelName: String,
+        promptMessages: List<ChatPromptPreviewMessage>,
+        toolCount: Int,
+    ): JsonObject = buildJsonObject {
+        put("assistant", buildJsonObject {
+            put("id", JsonPrimitive(assistant.id.toString()))
+            put("name", JsonPrimitive(assistant.name))
+            put("model", JsonPrimitive(modelName))
+            put("mode_injection_count", JsonPrimitive(assistant.modeInjectionIds.size))
+            put("lorebook_count", JsonPrimitive(assistant.lorebookIds.size))
+        })
+        put("conversation", buildJsonObject {
+            put("id", JsonPrimitive(conversation.id.toString()))
+            put("message_count", JsonPrimitive(conversation.currentMessages.size))
+            put("mode_injection_count", JsonPrimitive(conversation.modeInjectionIds.size))
+            put("lorebook_count", JsonPrimitive(conversation.lorebookIds.size))
+            put("workspace_cwd", JsonPrimitive(conversation.workspaceCwd.orEmpty()))
+        })
+        put("dry_run", buildJsonObject {
+            put("prompt_message_count", JsonPrimitive(promptMessages.size))
+            put("prompt_token_estimate", JsonPrimitive(promptMessages.sumOf { it.tokenEstimate }))
+            put("tool_count", JsonPrimitive(toolCount))
+        })
+    }
+
+    private fun toPromptPreviewMessage(message: UIMessage): ChatPromptPreviewMessage {
+        val content = message.parts.toPromptPreviewText()
+        return ChatPromptPreviewMessage(
+            role = message.role,
+            content = content.ifBlank { "[Empty message]" },
+            tokenEstimate = (content.length / 4).coerceAtLeast(if (content.isBlank()) 0 else 1),
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun List<UIMessagePart>.toPromptPreviewText(): String {
+        return buildList {
+            this@toPromptPreviewText.forEach { part ->
+                when (part) {
+                    is UIMessagePart.Text -> add(part.text)
+                    is UIMessagePart.Image -> add("[Image]\n${part.url}")
+                    is UIMessagePart.Video -> add("[Video]\n${part.url}")
+                    is UIMessagePart.Audio -> add("[Audio]\n${part.url}")
+                    is UIMessagePart.Document ->
+                        add("[Document] ${part.fileName} (${part.mime})\n${part.url}")
+                    is UIMessagePart.Reasoning -> Unit
+                    is UIMessagePart.Tool -> {
+                        add("[Tool:${part.toolName}]\n${part.input}")
+                        if (part.output.isNotEmpty()) {
+                            add("[Tool Output]\n${part.output.toPromptPreviewText()}")
+                        }
+                    }
+                    is UIMessagePart.ToolCall -> add("[Tool Call:${part.toolName}]\n${part.arguments}")
+                    is UIMessagePart.ToolResult -> add("[Tool Result:${part.toolName}]\n${part.content}")
+                    is UIMessagePart.Search -> add("[Search]")
+                }
+            }
+        }.map { it.trimEnd() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+            .trim()
     }
 
     // ---- 初始化对话 ----
