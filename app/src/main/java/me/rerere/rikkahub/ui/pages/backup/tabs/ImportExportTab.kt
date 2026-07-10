@@ -64,9 +64,11 @@ fun ImportExportTab(
                     val exportFile = vm.exportToFile()
 
                     // 复制到用户选择的位置
-                    context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
+                    val outputStream = context.contentResolver.openOutputStream(targetUri)
+                        ?: error("Unable to open the selected export destination")
+                    outputStream.use {
                         FileInputStream(exportFile).use { inputStream ->
-                            inputStream.copyTo(outputStream)
+                            inputStream.copyTo(it)
                         }
                     }
 

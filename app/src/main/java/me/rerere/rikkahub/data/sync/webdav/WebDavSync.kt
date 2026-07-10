@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.data.files.FileFolders
@@ -14,6 +15,7 @@ import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.sync.BackupCompatibility
+import me.rerere.rikkahub.data.sync.UPSTREAM_DATABASE_SIDECAR_ENTRIES
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
 import java.io.FileInputStream
@@ -137,6 +139,7 @@ class WebDavSync(
     suspend fun prepareBackupFile(config: WebDavConfig): File = withContext(Dispatchers.IO) {
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
         val backupFile = File(context.cacheDir, "backup_$timestamp.zip")
+        val backupSettings = settingsStore.settingsFlow.first { !it.init }
 
         if (backupFile.exists()) {
             backupFile.delete()
@@ -154,12 +157,15 @@ class WebDavSync(
                 addVirtualFileToZip(
                     zipOut = zipOut,
                     name = "settings.json",
-                    content = BackupCompatibility.encodeUpstreamSettings(json, settingsStore.settingsFlow.value)
+                    content = BackupCompatibility.encodeUpstreamSettings(json, backupSettings)
                 )
 
-                // Add the self-contained upstream database snapshot. WAL/SHM files are not needed.
+                // Empty sidecars make upstream truncate WAL state from the database being replaced.
                 if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
                     databaseBackupFile?.let { addFileToZip(zipOut, it, "rikka_hub.db") }
+                    UPSTREAM_DATABASE_SIDECAR_ENTRIES.forEach { name ->
+                        addVirtualFileToZip(zipOut, name, "")
+                    }
                 }
 
                 // Backup app files
@@ -202,6 +208,10 @@ class WebDavSync(
                     }
                 }
             }
+            BackupCompatibility.validateBackupArchive(
+                file = backupFile,
+                requireDatabase = config.items.contains(WebDavConfig.BackupItem.DATABASE)
+            )
         } finally {
             databaseBackupFile?.delete()
         }

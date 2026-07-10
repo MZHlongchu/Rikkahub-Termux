@@ -11,11 +11,13 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
+import java.util.zip.ZipFile
 
 private const val TAG = "BackupCompatibility"
 
 internal const val UPSTREAM_DATABASE_VERSION = 24
 internal const val UPSTREAM_IDENTITY_HASH = "0ea1aaebfa031c7995c45a1e35822e1a"
+internal val UPSTREAM_DATABASE_SIDECAR_ENTRIES = listOf("rikka_hub-wal", "rikka_hub-shm")
 
 object BackupCompatibility {
     fun encodeUpstreamSettings(json: Json, settings: Settings): String {
@@ -64,6 +66,26 @@ object BackupCompatibility {
 
         Log.i(TAG, "Created ${target.name} (${target.length().fileSizeToString()})")
         return target
+    }
+
+    fun validateBackupArchive(file: File, requireDatabase: Boolean) {
+        ZipFile(file).use { zip ->
+            val settingsEntry = zip.getEntry("settings.json")
+            check(settingsEntry != null && settingsEntry.size > 0L) {
+                "Backup archive does not contain settings.json"
+            }
+            if (requireDatabase) {
+                val databaseEntry = zip.getEntry("rikka_hub.db")
+                check(databaseEntry != null && databaseEntry.size > 0L) {
+                    "Backup archive does not contain rikka_hub.db"
+                }
+                UPSTREAM_DATABASE_SIDECAR_ENTRIES.forEach { name ->
+                    check(zip.getEntry(name) != null) {
+                        "Backup archive does not contain $name"
+                    }
+                }
+            }
+        }
     }
 }
 

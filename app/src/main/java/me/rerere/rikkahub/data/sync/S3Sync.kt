@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.data.files.FileFolders
@@ -113,6 +114,7 @@ class S3Sync(
     suspend fun prepareBackupFile(config: S3Config): File = withContext(Dispatchers.IO) {
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
         val backupFile = File(context.cacheDir, "backup_$timestamp.zip")
+        val backupSettings = settingsStore.settingsFlow.first { !it.init }
 
         if (backupFile.exists()) {
             backupFile.delete()
@@ -130,12 +132,15 @@ class S3Sync(
                 addVirtualFileToZip(
                     zipOut = zipOut,
                     name = "settings.json",
-                    content = BackupCompatibility.encodeUpstreamSettings(json, settingsStore.settingsFlow.value)
+                    content = BackupCompatibility.encodeUpstreamSettings(json, backupSettings)
                 )
 
-                // Add the self-contained upstream database snapshot. WAL/SHM files are not needed.
+                // Empty sidecars make upstream truncate WAL state from the database being replaced.
                 if (config.items.contains(S3Config.BackupItem.DATABASE)) {
                     databaseBackupFile?.let { addFileToZip(zipOut, it, "rikka_hub.db") }
+                    UPSTREAM_DATABASE_SIDECAR_ENTRIES.forEach { name ->
+                        addVirtualFileToZip(zipOut, name, "")
+                    }
                 }
 
                 // Backup app files
@@ -178,6 +183,10 @@ class S3Sync(
                     }
                 }
             }
+            BackupCompatibility.validateBackupArchive(
+                file = backupFile,
+                requireDatabase = config.items.contains(S3Config.BackupItem.DATABASE)
+            )
         } finally {
             databaseBackupFile?.delete()
         }
