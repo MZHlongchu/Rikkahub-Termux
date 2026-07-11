@@ -296,6 +296,12 @@ class WebViewState(
         webView?.stopLoading()
     }
 
+    fun evaluateJavascript(script: String) {
+        webView?.post {
+            webView?.evaluateJavascript(script, null)
+        }
+    }
+
     fun clearHistory() {
         webView?.clearHistory()
     }

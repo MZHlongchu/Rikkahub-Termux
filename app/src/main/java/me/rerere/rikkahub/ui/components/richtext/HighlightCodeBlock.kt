@@ -2,6 +2,10 @@ package me.rerere.rikkahub.ui.components.richtext
 
 import android.content.ClipData
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.webkit.JavascriptInterface
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,7 +32,9 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +46,8 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -85,7 +93,7 @@ import me.rerere.rikkahub.utils.toDp
 import kotlin.time.Clock
 
 private const val COLLAPSE_LINES = 10
-private val PREVIEWABLE_LANGUAGES = setOf("html", "svg")
+private const val MAX_PREVIEW_HEIGHT_CSS_PX = 100_000f
 
 @Composable
 fun HighlightCodeBlock(
@@ -107,8 +115,8 @@ fun HighlightCodeBlock(
     val context = LocalContext.current
     val settings = LocalSettings.current
     val normalizedLanguage = remember(language) { language.lowercase() }
-    val canInlinePreview = completeCodeBlock && normalizedLanguage in PREVIEWABLE_LANGUAGES
-    var previewMode by remember(canInlinePreview, code, normalizedLanguage) {
+    val canInlinePreview = completeCodeBlock && remember(code) { isFrontendCodeBlock(code) }
+    var previewMode by remember(canInlinePreview) {
         mutableStateOf(canInlinePreview)
     }
 
@@ -168,10 +176,7 @@ fun HighlightCodeBlock(
                 canInlinePreview && previewMode -> {
                     CodeBlockPreview(
                         code = code,
-                        language = normalizedLanguage,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 completeCodeBlock && normalizedLanguage == "mermaid" -> {
@@ -437,7 +442,6 @@ private fun HighlightCodeActions(
                     .size(iconSize)
             )
 
-            val normalizedLanguage = language.lowercase()
             if (canInlinePreview) {
                 Icon(
                     imageVector = if (previewMode) HugeIcons.Code else HugeIcons.View,
@@ -453,7 +457,7 @@ private fun HighlightCodeActions(
                 )
             }
 
-            if (completeCodeBlock && normalizedLanguage in PREVIEWABLE_LANGUAGES) {
+            if (completeCodeBlock && canInlinePreview) {
                 Icon(
                     imageVector = HugeIcons.Eye,
                     contentDescription = stringResource(id = R.string.code_block_preview),
@@ -461,7 +465,12 @@ private fun HighlightCodeActions(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .onClick {
-                            val content = buildCodePreviewHtml(code = code, language = normalizedLanguage)
+                            val content = buildFrontendPreviewHtml(
+                                code = code,
+                                viewportHeightCssPx = context.resources.displayMetrics.heightPixels /
+                                    context.resources.displayMetrics.density,
+                                autoHeight = false,
+                            )
                             val contentId = WebViewContentCache.store(context.cacheDir, content)
                             navController.navigate(Screen.WebView(contentId = contentId))
                         }
@@ -476,13 +485,28 @@ private fun HighlightCodeActions(
 @Composable
 private fun CodeBlockPreview(
     code: String,
-    language: String,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
+    val windowInfo = LocalWindowInfo.current
+    val viewportHeightCssPx = with(density) { windowInfo.containerSize.height.toDp().value }
+    val html = remember(code) {
+        buildFrontendPreviewHtml(code = code, viewportHeightCssPx = viewportHeightCssPx)
+    }
+    var previewHeight by remember { mutableFloatStateOf(1f) }
+    val heightBridge = remember {
+        PreviewHeightBridge { height ->
+            previewHeight = height.coerceIn(1f, MAX_PREVIEW_HEIGHT_CSS_PX)
+        }
+    }
+    val initialHtml = remember { html }
     val state = rememberWebViewState(
-        data = buildCodePreviewHtml(code = code, language = language),
+        data = initialHtml,
         baseUrl = "https://rikkahub.local",
         mimeType = "text/html",
+        interfaces = remember(heightBridge) {
+            mapOf(FRONTEND_PREVIEW_HEIGHT_BRIDGE to heightBridge)
+        },
         settings = {
             builtInZoomControls = true
             displayZoomControls = false
@@ -491,17 +515,45 @@ private fun CodeBlockPreview(
         }
     )
 
+    LaunchedEffect(html) {
+        if (html != initialHtml) {
+            state.loadData(
+                data = html,
+                baseUrl = "https://rikkahub.local",
+                mimeType = "text/html",
+            )
+        }
+    }
+    LaunchedEffect(viewportHeightCssPx) {
+        state.evaluateJavascript(
+            "document.documentElement.style.setProperty(" +
+                "'$FRONTEND_PREVIEW_VIEWPORT_VARIABLE','${viewportHeightCssPx}px')"
+        )
+    }
+
     WebView(
         state = state,
-        modifier = modifier.clip(RoundedCornerShape(4.dp)),
+        modifier = modifier
+            .height(previewHeight.dp)
+            .clip(RoundedCornerShape(4.dp)),
+        onCreated = { webView ->
+            webView.isVerticalScrollBarEnabled = false
+            webView.overScrollMode = View.OVER_SCROLL_NEVER
+        },
     )
 }
 
-private fun buildCodePreviewHtml(code: String, language: String): String {
-    return if (language == "svg") {
-        """<!DOCTYPE html><html><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">$code</body></html>"""
-    } else {
-        code
+private class PreviewHeightBridge(
+    private val onHeightChanged: (Float) -> Unit,
+) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun reportHeight(height: Float) {
+        if (!height.isFinite() || height <= 0f) return
+        mainHandler.post {
+            onHeightChanged(height)
+        }
     }
 }
 
