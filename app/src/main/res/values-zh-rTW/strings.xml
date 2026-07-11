@@ -1273,5 +1273,11 @@
   <string name="chat_page_delete_folder_generating">此資料夾中的部分對話仍在生成中。請先停止它們再刪除。</string>
   <string name="setting_display_page_tts_read_outside_brackets_title">TTS 不朗讀括號內的內容</string>
   <string name="setting_display_page_tts_read_outside_brackets_desc">啟用後，TTS 將不朗讀括號內的內容</string>
+  <string name="workspace_detail_tool_enablement">工作區工具</string>
+  <string name="workspace_detail_tool_enablement_desc">選擇 AI 可使用的工作區工具</string>
+  <string name="workspace_detail_system_prompt">工作區系統提示詞</string>
+  <string name="workspace_detail_system_prompt_desc">當此工作區綁定到助手時，將被添加到系統提示詞中</string>
+  <string name="workspace_detail_system_prompt_content">提示詞內容</string>
+  <string name="workspace_detail_restore_default">恢復預設值</string>
 </resources>
 

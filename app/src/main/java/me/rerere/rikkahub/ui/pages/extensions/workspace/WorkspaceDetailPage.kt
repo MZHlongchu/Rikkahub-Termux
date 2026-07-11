@@ -68,6 +68,8 @@ import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
+import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolEnabled
+import me.rerere.rikkahub.data.ai.transformers.buildDefaultWorkspaceSystemPrompt
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import androidx.compose.ui.res.stringResource
 import me.rerere.rikkahub.R
@@ -185,7 +187,11 @@ fun WorkspaceDetailPage(id: String) {
                     workspace = state.workspace,
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
+                    onToolEnabledChange = vm::setToolEnabled,
                     onToolApprovalChange = vm::setToolApproval,
+                    onSystemPromptEnabledChange = vm::setSystemPromptEnabled,
+                    onSystemPromptSave = vm::saveSystemPrompt,
+                    onSystemPromptReset = vm::resetSystemPrompt,
                 )
 
                 1 -> WorkspaceFilesPage(
@@ -267,7 +273,11 @@ private fun WorkspaceBasicPage(
     workspace: WorkspaceEntity?,
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
+    onToolEnabledChange: (String, Boolean) -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onSystemPromptEnabledChange: (Boolean) -> Unit,
+    onSystemPromptSave: (String) -> Unit,
+    onSystemPromptReset: () -> Unit,
 ) {
     val shellStatus = workspace?.shellStatus
     val installing = installProgress != null || shellStatus == WorkspaceShellStatus.INSTALLING.name
@@ -345,10 +355,68 @@ private fun WorkspaceBasicPage(
         }
 
         item {
+            WorkspaceToolEnabledCard(
+                workspace = workspace,
+                onToolEnabledChange = onToolEnabledChange,
+            )
+        }
+
+        item {
             WorkspaceToolApprovalCard(
                 workspace = workspace,
                 onToolApprovalChange = onToolApprovalChange,
             )
+        }
+
+        item {
+            WorkspaceSystemPromptCard(
+                workspace = workspace,
+                onEnabledChange = onSystemPromptEnabledChange,
+                onSave = onSystemPromptSave,
+                onReset = onSystemPromptReset,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceToolEnabledCard(
+    workspace: WorkspaceEntity?,
+    onToolEnabledChange: (String, Boolean) -> Unit,
+) {
+    val overrides = workspace?.toolEnabledOverrides().orEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_detail_tool_enablement),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.workspace_detail_tool_enablement_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            workspaceToolItems().forEach { (toolName, label) ->
+                WorkspaceToolSwitchRow(
+                    toolName = toolName,
+                    label = label,
+                    checked = resolveWorkspaceToolEnabled(toolName, overrides),
+                    enabled = workspace != null,
+                    onCheckedChange = { onToolEnabledChange(toolName, it) },
+                )
+            }
         }
     }
 }
@@ -382,33 +450,136 @@ private fun WorkspaceToolApprovalCard(
                 )
             }
 
-            workspaceToolApprovalItems().forEach { (toolName, label) ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            workspaceToolItems().forEach { (toolName, label) ->
+                WorkspaceToolSwitchRow(
+                    toolName = toolName,
+                    label = label,
+                    checked = resolveWorkspaceToolApproval(toolName, overrides),
+                    enabled = workspace != null && resolveWorkspaceToolEnabled(
+                        toolName,
+                        workspace.toolEnabledOverrides(),
+                    ),
+                    onCheckedChange = { onToolApprovalChange(toolName, it) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceToolSwitchRow(
+    toolName: String,
+    label: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = toolName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+        )
+    }
+}
+
+@Composable
+private fun WorkspaceSystemPromptCard(
+    workspace: WorkspaceEntity?,
+    onEnabledChange: (Boolean) -> Unit,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit,
+) {
+    val defaultPrompt = buildDefaultWorkspaceSystemPrompt(workspace?.toolEnabledOverrides().orEmpty())
+    var draft by rememberSaveable(workspace?.id, workspace?.systemPrompt, workspace?.toolEnabled) {
+        mutableStateOf(workspace?.systemPrompt?.ifBlank { defaultPrompt }.orEmpty())
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = toolName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Switch(
-                        checked = resolveWorkspaceToolApproval(toolName, overrides),
-                        onCheckedChange = { onToolApprovalChange(toolName, it) },
-                        enabled = workspace != null,
+                    Text(
+                        text = stringResource(R.string.workspace_detail_system_prompt),
+                        style = MaterialTheme.typography.titleMedium,
                     )
+                    Text(
+                        text = stringResource(R.string.workspace_detail_system_prompt_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = workspace?.systemPromptEnabled == true,
+                    onCheckedChange = onEnabledChange,
+                    enabled = workspace != null,
+                )
+            }
+
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = workspace != null,
+                label = { Text(stringResource(R.string.workspace_detail_system_prompt_content)) },
+                minLines = 8,
+                maxLines = 16,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = {
+                        draft = defaultPrompt
+                        onReset()
+                    },
+                    enabled = workspace != null,
+                ) {
+                    Text(stringResource(R.string.workspace_detail_restore_default))
+                }
+                TextButton(
+                    onClick = { onSave(draft) },
+                    enabled = workspace != null,
+                ) {
+                    Text(stringResource(R.string.common_save))
                 }
             }
         }
@@ -416,7 +587,7 @@ private fun WorkspaceToolApprovalCard(
 }
 
 @Composable
-private fun workspaceToolApprovalItems() = listOf(
+private fun workspaceToolItems() = listOf(
     "workspace_read_file" to stringResource(R.string.workspace_detail_tool_read_file),
     "workspace_write_file" to stringResource(R.string.workspace_detail_tool_write_file),
     "workspace_edit_file" to stringResource(R.string.workspace_detail_tool_edit_file),

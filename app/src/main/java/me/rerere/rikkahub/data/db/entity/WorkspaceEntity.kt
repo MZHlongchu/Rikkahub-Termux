@@ -33,9 +33,20 @@ data class WorkspaceEntity(
     // 工具审批的用户覆盖项 (toolName -> needsApproval)，未覆盖的工具沿用默认值
     @ColumnInfo("tool_approvals", defaultValue = "{}")
     val toolApprovals: String = "{}",
+    // 工具启用状态的用户覆盖项 (toolName -> enabled)，未覆盖的内置工具默认启用
+    @ColumnInfo("tool_enabled", defaultValue = "{}")
+    val toolEnabled: String = "{}",
+    @ColumnInfo("system_prompt_enabled", defaultValue = "1")
+    val systemPromptEnabled: Boolean = true,
+    @ColumnInfo("system_prompt", defaultValue = "''")
+    val systemPrompt: String = "",
 ) {
     fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
         JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)
+    }.getOrDefault(emptyMap())
+
+    fun toolEnabledOverrides(): Map<String, Boolean> = runCatching {
+        JsonInstant.decodeFromString<Map<String, Boolean>>(toolEnabled)
     }.getOrDefault(emptyMap())
 
     fun toWorkspace(): Workspace = Workspace(

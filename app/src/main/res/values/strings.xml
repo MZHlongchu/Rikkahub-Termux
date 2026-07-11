@@ -1181,6 +1181,8 @@
   <string name="workspace_detail_loading">Loading</string>
   <string name="workspace_detail_enable_shell">Enable Shell</string>
   <string name="workspace_detail_enable_shell_desc">Allow this workspace to run a terminal environment using local Rootfs</string>
+  <string name="workspace_detail_tool_enablement">Workspace Tools</string>
+  <string name="workspace_detail_tool_enablement_desc">Choose which workspace tools the AI can use</string>
   <string name="workspace_detail_tool_approval">Tool Approval</string>
   <string name="workspace_detail_tool_approval_desc">When enabled, user confirmation is required before AI calls this tool</string>
   <string name="workspace_detail_tool_list_files">List Files</string>
@@ -1190,6 +1192,10 @@
   <string name="workspace_detail_tool_delete_file">Delete File</string>
   <string name="workspace_detail_tool_move_file">Move File</string>
   <string name="workspace_detail_tool_shell">Execute Command</string>
+  <string name="workspace_detail_system_prompt">Workspace System Prompt</string>
+  <string name="workspace_detail_system_prompt_desc">Added to the system prompt when this workspace is bound to an assistant</string>
+  <string name="workspace_detail_system_prompt_content">Prompt content</string>
+  <string name="workspace_detail_restore_default">Restore default</string>
   <string name="workspace_detail_install_rootfs_desc">Will download tar.gz and extract to the linux directory of %s.</string>
   <string name="workspace_detail_download_url">tar.gz download URL</string>
   <string name="workspace_detail_area_files">Files</string>

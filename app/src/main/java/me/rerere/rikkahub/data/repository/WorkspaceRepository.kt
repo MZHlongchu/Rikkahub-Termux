@@ -108,6 +108,40 @@ class WorkspaceRepository(
         return true
     }
 
+    suspend fun setToolEnabled(id: String, toolName: String, enabled: Boolean): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val overrides = workspace.toolEnabledOverrides() + (toolName to enabled)
+        dao.upsert(
+            workspace.copy(
+                toolEnabled = JsonInstant.encodeToString(overrides),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return true
+    }
+
+    suspend fun setSystemPromptEnabled(id: String, enabled: Boolean): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        dao.upsert(
+            workspace.copy(
+                systemPromptEnabled = enabled,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return true
+    }
+
+    suspend fun setSystemPrompt(id: String, prompt: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        dao.upsert(
+            workspace.copy(
+                systemPrompt = prompt,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return true
+    }
+
     suspend fun installRootfs(
         id: String,
         url: String,

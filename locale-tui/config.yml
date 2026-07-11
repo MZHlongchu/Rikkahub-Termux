@@ -55,7 +55,7 @@ languages:
 # AI 翻译配置
 translation:
   batch_size: 10
-  model: "deepseek-v4-flash"
+  model: "gemini-3.1-flash-lite"
   prompt_template: |
     You are a professional translator specializing in mobile app localization.
 

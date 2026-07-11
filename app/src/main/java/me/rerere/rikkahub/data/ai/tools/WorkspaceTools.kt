@@ -31,8 +31,13 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_shell" to true,
 )
 
+val WorkspaceToolDefaultEnabled: Map<String, Boolean> = WorkspaceToolDefaultApprovals.keys.associateWith { true }
+
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
     overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
+
+fun resolveWorkspaceToolEnabled(name: String, overrides: Map<String, Boolean>): Boolean =
+    overrides[name] ?: WorkspaceToolDefaultEnabled[name] ?: false
 
 suspend fun createWorkspaceTools(
     workspaceId: String?,
@@ -40,7 +45,9 @@ suspend fun createWorkspaceTools(
     cwd: String? = null,
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
-    val approvalOverrides = workspaceRepository.getById(workspaceId)?.toolApprovalOverrides().orEmpty()
+    val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
+    val approvalOverrides = workspace.toolApprovalOverrides()
+    val enabledOverrides = workspace.toolEnabledOverrides()
     fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
 
     val shellCwd = cwd?.removePrefix("/workspace/")?.removePrefix("/workspace")
@@ -50,7 +57,7 @@ suspend fun createWorkspaceTools(
         createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
-    )
+    ).filter { resolveWorkspaceToolEnabled(it.name, enabledOverrides) }
 }
 
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg")

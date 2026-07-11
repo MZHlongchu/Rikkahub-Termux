@@ -172,6 +172,32 @@ class WorkspaceDetailVM(
         }
     }
 
+    fun setToolEnabled(toolName: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.setToolEnabled(workspace.id, toolName, enabled)
+            loadWorkspace()
+        }
+    }
+
+    fun setSystemPromptEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.setSystemPromptEnabled(workspace.id, enabled)
+            loadWorkspace()
+        }
+    }
+
+    fun saveSystemPrompt(prompt: String) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.setSystemPrompt(workspace.id, prompt)
+            loadWorkspace()
+        }
+    }
+
+    fun resetSystemPrompt() = saveSystemPrompt("")
+
     fun installRootfs(url: String) {
         viewModelScope.launch {
             _installError.value = null

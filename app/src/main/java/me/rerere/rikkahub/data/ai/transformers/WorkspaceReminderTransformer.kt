@@ -4,6 +4,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolEnabled
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.WorkspaceShellStatus
 
@@ -24,6 +25,7 @@ class WorkspaceReminderTransformer(
         val workspace = workspaceRepository.getById(workspaceId) ?: return messages
         // 与 ChatService.createWorkspaceToolsIfReady 保持一致: 仅在 shell 就绪时注入
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) return messages
+        if (!workspace.systemPromptEnabled) return messages
 
         val prompt = buildWorkspacePrompt(workspace, ctx.workspaceCwd)
 
@@ -40,22 +42,45 @@ class WorkspaceReminderTransformer(
 }
 
 private fun buildWorkspacePrompt(workspace: WorkspaceEntity, cwd: String? = null): String = buildString {
+    val content = workspace.systemPrompt.ifBlank {
+        buildDefaultWorkspaceSystemPrompt(workspace.toolEnabledOverrides())
+    }
     appendLine("<workspace>")
-    appendLine("You have access to a persistent Linux workspace named \"${workspace.name}\", running in a sandboxed proot rootfs environment.")
-    appendLine("- The workspace files area is mounted at `/workspace`. Use it as your working directory; files written there persist across turns of this conversation.")
-    appendLine("- All paths passed to workspace tools must be absolute and inside the Rootfs (for example `/workspace/notes.md`).")
-    appendLine("- Available tools:")
-    appendLine("  - `workspace_read_file`: read file contents.")
-    appendLine("  - `workspace_write_file` / `workspace_edit_file`: create files, or make precise edits to existing files.")
-    appendLine("  - `workspace_shell`: run shell commands (the files area is mounted at /workspace).")
-    appendLine("- Prefer `workspace_shell` for tasks that standard Unix tools handle well, and prefer `workspace_edit_file` for targeted edits over rewriting whole files.")
-    appendLine("- The skills directory is mounted at `/skills`. Each skill is a subdirectory `/skills/<skill-name>/` containing a `SKILL.md` (with `name` and `description` frontmatter) plus any supporting files. Read a skill's `SKILL.md` before using it, and follow its instructions.")
-    appendLine("- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. If you need to change an uploaded file, copy it into `/workspace` first and edit the copy.")
+    appendLine("Workspace name: ${workspace.name}")
+    appendLine(content)
     if (!cwd.isNullOrBlank()) {
         appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
     }
     append("</workspace>")
 }
+
+fun buildDefaultWorkspaceSystemPrompt(toolEnabledOverrides: Map<String, Boolean> = emptyMap()): String = buildString {
+    fun enabled(name: String) = resolveWorkspaceToolEnabled(name, toolEnabledOverrides)
+
+    appendLine("You have access to a persistent Linux workspace running in a sandboxed proot rootfs environment.")
+    appendLine("- The workspace files area is mounted at `/workspace`. Use it as your working directory; files written there persist across turns of this conversation.")
+    appendLine("- All paths passed to workspace tools must be absolute and inside the Rootfs (for example `/workspace/notes.md`).")
+    val enabledTools = WorkspaceToolPromptDescriptions.filterKeys(::enabled)
+    if (enabledTools.isNotEmpty()) {
+        appendLine("- Available tools:")
+        enabledTools.values.forEach { appendLine("  - $it") }
+    }
+    if (enabled("workspace_shell")) {
+        appendLine("- Prefer `workspace_shell` for tasks that standard Unix tools handle well.")
+    }
+    if (enabled("workspace_edit_file")) {
+        appendLine("- Prefer `workspace_edit_file` for targeted edits over rewriting whole files.")
+    }
+    appendLine("- The skills directory is mounted at `/skills`. Each skill is a subdirectory `/skills/<skill-name>/` containing a `SKILL.md` (with `name` and `description` frontmatter) plus any supporting files. Read a skill's `SKILL.md` before using it, and follow its instructions.")
+    append("- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. If you need to change an uploaded file, copy it into `/workspace` first and edit the copy.")
+}
+
+private val WorkspaceToolPromptDescriptions = linkedMapOf(
+    "workspace_read_file" to "`workspace_read_file`: read file contents.",
+    "workspace_write_file" to "`workspace_write_file`: create or overwrite files.",
+    "workspace_edit_file" to "`workspace_edit_file`: make precise edits to existing files.",
+    "workspace_shell" to "`workspace_shell`: run shell commands (the files area is mounted at `/workspace`).",
+)
 
 private fun UIMessage.appendText(extra: String): UIMessage {
     val updatedParts = parts.toMutableList()

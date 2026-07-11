@@ -1177,6 +1177,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_loading">加载中</string>
   <string name="workspace_detail_enable_shell">启用 Shell</string>
   <string name="workspace_detail_enable_shell_desc">允许此工作区使用本地Rootfs运行终端环境</string>
+  <string name="workspace_detail_tool_enablement">工作区工具</string>
+  <string name="workspace_detail_tool_enablement_desc">选择 AI 可以使用的工作区工具</string>
   <string name="workspace_detail_tool_approval">工具审批</string>
   <string name="workspace_detail_tool_approval_desc">启用后，AI 调用此工具前需要用户确认</string>
   <string name="workspace_detail_tool_list_files">列出文件</string>
@@ -1186,6 +1188,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_tool_delete_file">删除文件</string>
   <string name="workspace_detail_tool_move_file">移动文件</string>
   <string name="workspace_detail_tool_shell">执行命令</string>
+  <string name="workspace_detail_system_prompt">工作区系统提示词</string>
+  <string name="workspace_detail_system_prompt_desc">当此工作区绑定到助手时，将添加到系统提示词中</string>
+  <string name="workspace_detail_system_prompt_content">提示词内容</string>
+  <string name="workspace_detail_restore_default">恢复默认</string>
   <string name="workspace_detail_install_rootfs_desc">将下载 tar.gz 并解压到 %s 的 Linux 目录。</string>
   <string name="workspace_detail_download_url">tar.gz 下载链接</string>
   <string name="workspace_detail_area_files">文件</string>
