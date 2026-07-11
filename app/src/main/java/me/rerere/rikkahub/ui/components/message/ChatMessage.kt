@@ -78,6 +78,7 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.RegexTransformTarget
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
@@ -372,7 +373,7 @@ private fun MessagePartsBlock(
                                             content = part.text.replaceRegexes(
                                                 assistant = assistant,
                                                 scope = AssistantAffectScope.USER,
-                                                visual = true,
+                                                target = RegexTransformTarget.VISUAL,
                                             ),
                                             onClickCitation = handleClickCitation
                                         )
@@ -390,7 +391,7 @@ private fun MessagePartsBlock(
                                                 content = part.text.replaceRegexes(
                                                     assistant = assistant,
                                                     scope = AssistantAffectScope.ASSISTANT,
-                                                    visual = true,
+                                                    target = RegexTransformTarget.VISUAL,
                                                 ),
                                                 onClickCitation = handleClickCitation,
                                             )
@@ -401,7 +402,7 @@ private fun MessagePartsBlock(
                                         content = part.text.replaceRegexes(
                                             assistant = assistant,
                                             scope = AssistantAffectScope.ASSISTANT,
-                                            visual = true,
+                                            target = RegexTransformTarget.VISUAL,
                                         ),
                                         onClickCitation = handleClickCitation,
                                         modifier = Modifier

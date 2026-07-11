@@ -1286,5 +1286,6 @@
   <string name="workspace_detail_tool_python">Execute Python</string>
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">Prompt Only (affects prompts sent to the LLM, not display)</string>
 </resources>
 

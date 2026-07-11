@@ -715,7 +715,10 @@ private fun AssistantRegexCard(
                                 assistant.copy(
                                     regexes = assistant.regexes.mapIndexed { i, reg ->
                                         if (i == index) {
-                                            reg.copy(visualOnly = visualOnly)
+                                            reg.copy(
+                                                visualOnly = visualOnly,
+                                                promptOnly = if (visualOnly) false else reg.promptOnly,
+                                            )
                                         } else {
                                             reg
                                         }
@@ -726,6 +729,35 @@ private fun AssistantRegexCard(
                     )
                     Text(
                         text = stringResource(R.string.assistant_page_regex_visual_only),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = regex.promptOnly,
+                        onCheckedChange = { promptOnly ->
+                            onUpdate(
+                                assistant.copy(
+                                    regexes = assistant.regexes.mapIndexed { i, reg ->
+                                        if (i == index) {
+                                            reg.copy(
+                                                promptOnly = promptOnly,
+                                                visualOnly = if (promptOnly) false else reg.visualOnly,
+                                            )
+                                        } else {
+                                            reg
+                                        }
+                                    }
+                                )
+                            )
+                        }
+                    )
+                    Text(
+                        text = stringResource(R.string.assistant_page_regex_prompt_only),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }

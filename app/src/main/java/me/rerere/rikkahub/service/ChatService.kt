@@ -62,6 +62,7 @@ import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
 import me.rerere.rikkahub.data.ai.transformers.PromptInjectionTransformer
 import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
+import me.rerere.rikkahub.data.ai.transformers.RegexPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
@@ -297,6 +298,7 @@ class ChatService(
                 addAll(inputTransformers)
                 add(templateTransformer)
                 add(workspaceReminderTransformer)
+                add(RegexPromptTransformer)
             },
             assistant = assistant,
             memories = if (assistant.useGlobalMemory) {
@@ -517,7 +519,6 @@ class ChatService(
                         text = part.text.replaceRegexes(
                             assistant = assistant,
                             scope = AssistantAffectScope.USER,
-                            visual = false
                         )
                     )
                 }
@@ -733,6 +734,7 @@ class ChatService(
                     addAll(inputTransformers)
                     add(templateTransformer)
                     add(workspaceReminderTransformer)
+                    add(RegexPromptTransformer)
                 },
                 outputTransformers = outputTransformers,
                 tools = buildList {

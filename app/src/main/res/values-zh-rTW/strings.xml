@@ -1282,5 +1282,6 @@
   <string name="workspace_detail_tool_python">執行 Python</string>
   <string name="tool_ui_python">Python：%s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">僅提示詞（僅影響傳送給 LLM 的提示詞，不影響顯示）</string>
 </resources>
 

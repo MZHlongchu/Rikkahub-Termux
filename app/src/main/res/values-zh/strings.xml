@@ -1287,5 +1287,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_tool_python">执行 Python</string>
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">仅提示词（仅影响发送给 LLM 的提示词，不影响显示）</string>
 </resources>
 

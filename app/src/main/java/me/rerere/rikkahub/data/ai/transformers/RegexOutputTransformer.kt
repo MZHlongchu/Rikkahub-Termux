@@ -23,11 +23,11 @@ object RegexOutputTransformer : OutputMessageTransformer, KoinComponent {
                 parts = message.parts.map { part ->
                     when (part) {
                         is UIMessagePart.Text -> {
-                            part.copy(text = part.text.replaceRegexes(assistant, scope, visual = false))
+                            part.copy(text = part.text.replaceRegexes(assistant, scope))
                         }
 
                         is UIMessagePart.Reasoning -> {
-                            part.copy(reasoning = part.reasoning.replaceRegexes(assistant, scope, visual = false))
+                            part.copy(reasoning = part.reasoning.replaceRegexes(assistant, scope))
                         }
 
                         else -> part

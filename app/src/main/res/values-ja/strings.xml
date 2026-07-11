@@ -1284,4 +1284,5 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="workspace_detail_tool_python">Pythonを実行</string>
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">プロンプトのみ（LLMに送信するプロンプトにのみ適用され、表示には影響しません）</string>
 </resources>

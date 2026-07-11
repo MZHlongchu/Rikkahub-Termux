@@ -1284,4 +1284,5 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="workspace_detail_tool_python">Python 실행</string>
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">프롬프트만 (LLM에 전송되는 프롬프트에만 적용되며 표시에 영향을 주지 않음)</string>
 </resources>

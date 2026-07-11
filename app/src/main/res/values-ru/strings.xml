@@ -1284,4 +1284,5 @@
   <string name="workspace_detail_tool_python">Выполнить Python</string>
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
+  <string name="assistant_page_regex_prompt_only">Только для промпта (влияет только на промпт, отправляемый LLM, и не влияет на отображение)</string>
 </resources>

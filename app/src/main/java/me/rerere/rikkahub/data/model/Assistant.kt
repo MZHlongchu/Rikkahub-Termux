@@ -78,7 +78,14 @@ data class AssistantRegex(
     val replaceString: String = "", // 替换字符串
     val affectingScope: Set<AssistantAffectScope> = setOf(),
     val visualOnly: Boolean = false, // 是否仅在视觉上影响
+    val promptOnly: Boolean = false, // 是否仅影响发送给 LLM 的提示词
 )
+
+enum class RegexTransformTarget {
+    MESSAGE,
+    VISUAL,
+    PROMPT,
+}
 
 // 流式输出时每个chunk都会调用replaceRegexes，正则必须缓存编译结果，
 // 否则长回复期间会重复编译上万次；编译失败也缓存，避免反复构造异常
@@ -96,12 +103,17 @@ private fun compileRegexCached(pattern: String): Regex? {
 fun String.replaceRegexes(
     assistant: Assistant?,
     scope: AssistantAffectScope,
-    visual: Boolean = false
+    target: RegexTransformTarget = RegexTransformTarget.MESSAGE,
 ): String {
     if (assistant == null) return this
     if (assistant.regexes.isEmpty()) return this
     return assistant.regexes.fold(this) { acc, regex ->
-        if (regex.enabled && regex.visualOnly == visual && regex.affectingScope.contains(scope)) {
+        val configuredTarget = when {
+            regex.promptOnly -> RegexTransformTarget.PROMPT
+            regex.visualOnly -> RegexTransformTarget.VISUAL
+            else -> RegexTransformTarget.MESSAGE
+        }
+        if (regex.enabled && configuredTarget == target && regex.affectingScope.contains(scope)) {
             val compiled = compileRegexCached(regex.findRegex) ?: return@fold acc
             try {
                 acc.replace(
