@@ -68,6 +68,9 @@ fun buildDefaultWorkspaceSystemPrompt(toolEnabledOverrides: Map<String, Boolean>
     if (enabled("workspace_shell")) {
         appendLine("- Prefer `workspace_shell` for tasks that standard Unix tools handle well.")
     }
+    if (enabled("workspace_python")) {
+        appendLine("- Prefer `workspace_python` for calculations, data processing, and Python scripts.")
+    }
     if (enabled("workspace_edit_file")) {
         appendLine("- Prefer `workspace_edit_file` for targeted edits over rewriting whole files.")
     }
@@ -80,6 +83,7 @@ private val WorkspaceToolPromptDescriptions = linkedMapOf(
     "workspace_write_file" to "`workspace_write_file`: create or overwrite files.",
     "workspace_edit_file" to "`workspace_edit_file`: make precise edits to existing files.",
     "workspace_shell" to "`workspace_shell`: run shell commands (the files area is mounted at `/workspace`).",
+    "workspace_python" to "`workspace_python`: execute Python 3 code in the workspace Rootfs.",
 )
 
 private fun UIMessage.appendText(extra: String): UIMessage {

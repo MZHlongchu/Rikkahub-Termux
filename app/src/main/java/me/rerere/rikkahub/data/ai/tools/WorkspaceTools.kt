@@ -21,7 +21,7 @@ import me.rerere.workspace.WorkspaceStorageArea
 import org.koin.java.KoinJavaComponent.getKoin
 import java.io.ByteArrayOutputStream
 
-private const val SHELL_TIMEOUT_MAX_SECONDS = 600L
+private const val EXECUTION_TIMEOUT_MAX_SECONDS = 600L
 private const val MAX_READ_FILE_BYTES = 8L * 1024 * 1024
 
 val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
@@ -29,6 +29,7 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_write_file" to false,
     "workspace_edit_file" to false,
     "workspace_shell" to true,
+    "workspace_python" to true,
 )
 
 val WorkspaceToolDefaultEnabled: Map<String, Boolean> = WorkspaceToolDefaultApprovals.keys.associateWith { true }
@@ -57,6 +58,7 @@ suspend fun createWorkspaceTools(
         createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
+        createPythonTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
     ).filter { resolveWorkspaceToolEnabled(it.name, enabledOverrides) }
 }
 
@@ -243,7 +245,7 @@ private fun createShellTool(
                     put("type", "integer")
                     put(
                         "description",
-                        "Command timeout in seconds. Defaults to 30, max $SHELL_TIMEOUT_MAX_SECONDS."
+                        "Command timeout in seconds. Defaults to 30, max $EXECUTION_TIMEOUT_MAX_SECONDS."
                     )
                 })
             },
@@ -257,22 +259,102 @@ private fun createShellTool(
         val cwd = (params.string("cwd") ?: defaultCwd.orEmpty())
             .removePrefix("/workspace/").removePrefix("/workspace")
         val timeoutMillis = params.string("timeout")?.toLongOrNull()
-            ?.coerceIn(1L, SHELL_TIMEOUT_MAX_SECONDS)
+            ?.coerceIn(1L, EXECUTION_TIMEOUT_MAX_SECONDS)
             ?.times(1_000L)
             ?: WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS
         val result = workspaceRepository.executeCommand(workspaceId, command, cwd, timeoutMillis)
-        listOf(
-            UIMessagePart.Text(
-                buildJsonObject {
-                    put("exitCode", result.exitCode)
-                    put("stdout", result.stdout)
-                    put("stderr", result.stderr)
-                    put("timedOut", result.timedOut)
-                    if (result.truncated) put("truncated", true)
-                }.toString()
-            )
+        result.toToolOutput()
+    },
+)
+
+private fun createPythonTool(
+    workspaceId: String,
+    needsApproval: (String) -> Boolean,
+    workspaceRepository: WorkspaceRepository,
+    defaultCwd: String? = null,
+) = Tool(
+    name = "workspace_python",
+    description = buildString {
+        append("Execute Python 3 code in the assistant's bound workspace Rootfs. ")
+        append("The workspace files area is mounted at /workspace. ")
+        append("Use cwd for a path relative to the workspace files root. ")
+        if (!defaultCwd.isNullOrBlank()) {
+            append("Defaults to '$defaultCwd'. ")
+        }
+        append("Requires Python 3 to be installed in the Rootfs.")
+    },
+    parameters = {
+        InputSchema.Obj(
+            properties = buildJsonObject {
+                put("code", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Python 3 source code to execute")
+                })
+                put("cwd", buildJsonObject {
+                    put("type", "string")
+                    put(
+                        "description",
+                        if (!defaultCwd.isNullOrBlank()) {
+                            "Working directory relative to the workspace files root. Defaults to '$defaultCwd'."
+                        } else {
+                            "Working directory relative to the workspace files root. Defaults to root."
+                        }
+                    )
+                })
+                put("stdin", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Optional standard input provided to the Python program")
+                })
+                put("timeout", buildJsonObject {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Execution timeout in seconds. Defaults to 30, max $EXECUTION_TIMEOUT_MAX_SECONDS."
+                    )
+                })
+            },
+            required = listOf("code"),
         )
     },
+    needsApproval = { needsApproval("workspace_python") },
+    execute = {
+        val params = it.jsonObject
+        val code = params.string("code") ?: error("code is required")
+        require(code.isNotBlank()) { "code is required" }
+        val cwd = (params.string("cwd") ?: defaultCwd.orEmpty())
+            .removePrefix("/workspace/").removePrefix("/workspace")
+        val timeoutMillis = params.string("timeout")?.toLongOrNull()
+            ?.coerceIn(1L, EXECUTION_TIMEOUT_MAX_SECONDS)
+            ?.times(1_000L)
+            ?: WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS
+        val command = """
+            if ! command -v python3 >/dev/null 2>&1; then
+              printf '%s\n' 'Python 3 is not installed in this workspace Rootfs.' >&2
+              exit 127
+            fi
+            exec python3 -c ${code.shellQuote()}
+        """.trimIndent()
+        val result = workspaceRepository.executeCommand(
+            id = workspaceId,
+            command = command,
+            cwd = cwd,
+            timeoutMillis = timeoutMillis,
+            stdin = params.string("stdin")?.toByteArray(Charsets.UTF_8),
+        )
+        result.toToolOutput()
+    },
+)
+
+private fun WorkspaceCommandResult.toToolOutput(): List<UIMessagePart> = listOf(
+    UIMessagePart.Text(
+        buildJsonObject {
+            put("exitCode", exitCode)
+            put("stdout", stdout)
+            put("stderr", stderr)
+            put("timedOut", timedOut)
+            if (truncated) put("truncated", true)
+        }.toString()
+    )
 )
 
 private fun kotlinx.serialization.json.JsonObject.string(name: String): String? =

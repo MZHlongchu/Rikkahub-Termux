@@ -38,6 +38,7 @@ import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.FileAdd
 import me.rerere.hugeicons.stroke.FileEdit
 import me.rerere.hugeicons.stroke.FileView
+import me.rerere.hugeicons.stroke.Python
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
@@ -316,7 +317,7 @@ object ShellToolUI : ToolUIRenderer {
                 .trim()
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ShellExitStatus(content, MaterialTheme.typography.labelSmall)
+            ExecutionExitStatus(content, MaterialTheme.typography.labelSmall)
             if (combined.isNotEmpty()) {
                 Box(
                     modifier = Modifier
@@ -367,7 +368,7 @@ object ShellToolUI : ToolUIRenderer {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                ShellExitStatus(content, MaterialTheme.typography.labelMedium)
+                ExecutionExitStatus(content, MaterialTheme.typography.labelMedium)
             }
             HighlightCodeBlock(
                 code = if (cwd.isNullOrBlank()) command else "# cwd: $cwd\n$command",
@@ -398,9 +399,135 @@ object ShellToolUI : ToolUIRenderer {
     }
 }
 
-/** Shell 退出状态文本: exit code 为 0 显示绿色, 超时或非零显示错误色 */
+/**
+ * 工作空间执行 Python: 摘要显示退出状态与输出首部, 详情为 Python 源码 + stdout/stderr
+ */
+object PythonToolUI : ToolUIRenderer {
+    private const val TITLE_MAX_CHARS = 40
+    private const val SUMMARY_MAX_LINES = 8
+
+    override val toolName: String = "workspace_python"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Python
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        val code = context.arguments.getStringContent("code") ?: return stringResource(R.string.tool_ui_python_default)
+        val preview = code.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+        val truncated = if (preview.length > TITLE_MAX_CHARS) preview.take(TITLE_MAX_CHARS) + "…" else preview
+        return if (truncated.isBlank()) {
+            stringResource(R.string.tool_ui_python_default)
+        } else {
+            stringResource(R.string.tool_ui_python, truncated)
+        }
+    }
+
+    override fun hasSummary(context: ToolUIContext): Boolean = context.content != null
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val content = context.content ?: return
+        val combined = remember(content) {
+            listOf(content.getStringContent("stdout"), content.getStringContent("stderr"))
+                .filterNot { it.isNullOrBlank() }
+                .joinToString("\n")
+                .trim()
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ExecutionExitStatus(content, MaterialTheme.typography.labelSmall)
+            if (combined.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .shimmer(isLoading = context.loading),
+                ) {
+                    Text(
+                        text = combined.lineSequence().take(SUMMARY_MAX_LINES).joinToString("\n"),
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        maxLines = SUMMARY_MAX_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        val content = context.content
+        if (content == null) {
+            DefaultToolPreview(context = context)
+            return
+        }
+        val code = context.arguments.getStringContent("code").orEmpty()
+        val cwd = context.arguments.getStringContent("cwd")
+        val stdin = context.arguments.getStringContent("stdin")
+        val stdout = content.getStringContent("stdout").orEmpty()
+        val stderr = content.getStringContent("stderr").orEmpty()
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.8f)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.tool_ui_python_default),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                ExecutionExitStatus(content, MaterialTheme.typography.labelMedium)
+            }
+            HighlightCodeBlock(
+                code = if (cwd.isNullOrBlank()) code else "# cwd: $cwd\n$code",
+                language = "python",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (!stdin.isNullOrEmpty()) {
+                Text(text = "stdin", style = MaterialTheme.typography.labelMedium)
+                HighlightCodeBlock(
+                    code = stdin,
+                    language = "plaintext",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (stdout.isNotEmpty()) {
+                Text(text = "stdout", style = MaterialTheme.typography.labelMedium)
+                HighlightCodeBlock(
+                    code = stdout,
+                    language = "plaintext",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (stderr.isNotEmpty()) {
+                Text(
+                    text = "stderr",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                HighlightCodeBlock(
+                    code = stderr,
+                    language = "plaintext",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/** 执行器退出状态文本: exit code 为 0 显示绿色, 超时或非零显示错误色 */
 @Composable
-private fun ShellExitStatus(content: JsonElement, style: androidx.compose.ui.text.TextStyle) {
+private fun ExecutionExitStatus(content: JsonElement, style: androidx.compose.ui.text.TextStyle) {
     val exitCode = content.int("exitCode")
     val timedOut = content.boolean("timedOut") ?: false
     val ok = !timedOut && exitCode == 0

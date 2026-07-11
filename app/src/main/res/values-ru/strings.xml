@@ -1281,4 +1281,7 @@
   <string name="workspace_detail_system_prompt_desc">Добавляется к системному промпту, когда рабочее пространство привязано к ассистенту</string>
   <string name="workspace_detail_system_prompt_content">Содержимое системного промпта</string>
   <string name="workspace_detail_restore_default">Восстановить по умолчанию</string>
+  <string name="workspace_detail_tool_python">Выполнить Python</string>
+  <string name="tool_ui_python">Python: %s</string>
+  <string name="tool_ui_python_default">Python</string>
 </resources>
