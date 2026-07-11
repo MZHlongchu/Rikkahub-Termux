@@ -383,6 +383,7 @@ private fun AssistantPromptContent(
                                 node = message.toMessageNode(),
                                 onFork = {},
                                 onRegenerate = {},
+                                onContinue = {},
                                 onEdit = {},
                                 onShare = {},
                                 onDelete = {},

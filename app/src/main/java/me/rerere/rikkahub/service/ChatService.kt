@@ -48,6 +48,7 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.hasBlockingToolsForContinuation
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
@@ -562,6 +563,42 @@ class ChatService(
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
+            }
+        }
+
+        session.setJob(job)
+    }
+
+    fun continueAssistantMessage(
+        conversationId: Uuid,
+        message: UIMessage,
+    ) {
+        if (message.role != MessageRole.ASSISTANT) return
+        if (message.hasBlockingToolsForContinuation()) {
+            addError(
+                IllegalStateException("Continue is unavailable until this message's tool calls are resolved."),
+                conversationId
+            )
+            return
+        }
+
+        val session = getOrCreateSession(conversationId)
+        session.getJob()?.cancel()
+
+        val job = appScope.launch {
+            try {
+                val conversation = session.state.value
+                val node = conversation.getMessageNodeByMessage(message)
+                    ?: error("Message node not found")
+                val nodeIndex = conversation.messageNodes.indexOf(node)
+                val truncatedConversation = conversation.copy(
+                    messageNodes = conversation.messageNodes.subList(0, nodeIndex + 1)
+                )
+                saveConversation(conversationId, truncatedConversation)
+                handleMessageComplete(conversationId)
+                _generationDoneFlow.emit(conversationId)
+            } catch (e: Exception) {
+                addError(e, conversationId)
             }
         }
 

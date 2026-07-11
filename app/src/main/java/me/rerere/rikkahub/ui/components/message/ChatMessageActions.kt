@@ -41,6 +41,7 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Copy01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Edit01
@@ -72,6 +73,7 @@ fun ColumnScope.ChatMessageActionButtons(
     node: MessageNode,
     onUpdate: (MessageNode) -> Unit,
     onRegenerate: () -> Unit,
+    onContinue: () -> Unit,
     onOpenActionSheet: () -> Unit,
     onTranslate: ((UIMessage, Locale) -> Unit)? = null,
     onClearTranslation: (UIMessage) -> Unit = {},
@@ -124,6 +126,17 @@ fun ColumnScope.ChatMessageActionButtons(
         )
 
         if (message.role == MessageRole.ASSISTANT) {
+            Icon(
+                imageVector = HugeIcons.ArrowRight01,
+                contentDescription = "Continue",
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onContinue() }
+                    .padding(8.dp)
+                    .size(16.dp),
+                tint = actionIconColor
+            )
+
             val tts = LocalTTSState.current
             val isSpeaking by tts.isSpeaking.collectAsState()
             val isAvailable by tts.isAvailable.collectAsState()
