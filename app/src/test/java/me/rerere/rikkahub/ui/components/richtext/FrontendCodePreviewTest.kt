@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.ui.components.richtext
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,7 +39,7 @@ class FrontendCodePreviewTest {
         assertTrue(html.startsWith("<!DOCTYPE html>"))
         assertTrue(html.contains("<meta name=\"viewport\""))
         assertTrue(html.contains(":root{--rikkahub-viewport-height:720px;}"))
-        assertTrue(html.contains("window.RikkaHubPreviewHeight?.reportHeight(height)"))
+        assertTrue(html.contains("window.RikkaHubPreviewHeight?.reportHeight(height, viewportHeight)"))
         assertTrue(html.contains("<body>\n<body><main>content</main></body>"))
     }
 
@@ -75,5 +77,42 @@ class FrontendCodePreviewTest {
 
         assertTrue(html.contains("overflow:auto!important"))
         assertFalse(html.contains("RikkaHubPreviewHeight"))
+    }
+
+    @Test
+    fun `keeps host height when content fills the web viewport`() {
+        assertEquals(
+            500f,
+            calculatePreviewHeightDp(
+                contentHeightCssPx = 375f,
+                viewportHeightCssPx = 375f,
+                currentHeightDp = 500f,
+            )!!,
+            0f,
+        )
+    }
+
+    @Test
+    fun `converts content height using the current web viewport scale`() {
+        assertEquals(
+            800f,
+            calculatePreviewHeightDp(
+                contentHeightCssPx = 600f,
+                viewportHeightCssPx = 300f,
+                currentHeightDp = 400f,
+            )!!,
+            0f,
+        )
+    }
+
+    @Test
+    fun `rejects invalid preview measurements`() {
+        assertNull(
+            calculatePreviewHeightDp(
+                contentHeightCssPx = 500f,
+                viewportHeightCssPx = 0f,
+                currentHeightDp = 500f,
+            )
+        )
     }
 }

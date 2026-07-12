@@ -498,8 +498,14 @@ private fun CodeBlockPreview(
     }
     var previewHeight by remember { mutableFloatStateOf(INITIAL_PREVIEW_HEIGHT_CSS_PX) }
     val heightBridge = remember {
-        PreviewHeightBridge { height ->
-            previewHeight = height.coerceIn(1f, MAX_PREVIEW_HEIGHT_CSS_PX)
+        PreviewHeightBridge { contentHeight, viewportHeight ->
+            calculatePreviewHeightDp(
+                contentHeightCssPx = contentHeight,
+                viewportHeightCssPx = viewportHeight,
+                currentHeightDp = previewHeight,
+            )?.let { height ->
+                previewHeight = height.coerceIn(1f, MAX_PREVIEW_HEIGHT_CSS_PX)
+            }
         }
     }
     val initialHtml = remember { html }
@@ -547,17 +553,39 @@ private fun CodeBlockPreview(
 }
 
 private class PreviewHeightBridge(
-    private val onHeightChanged: (Float) -> Unit,
+    private val onHeightChanged: (contentHeight: Float, viewportHeight: Float) -> Unit,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
-    fun reportHeight(height: Float) {
-        if (!height.isFinite() || height <= 0f) return
+    fun reportHeight(contentHeight: Float, viewportHeight: Float) {
+        if (!contentHeight.isFinite() || contentHeight <= 0f ||
+            !viewportHeight.isFinite() || viewportHeight <= 0f
+        ) {
+            return
+        }
         mainHandler.post {
-            onHeightChanged(height)
+            onHeightChanged(contentHeight, viewportHeight)
         }
     }
+}
+
+internal fun calculatePreviewHeightDp(
+    contentHeightCssPx: Float,
+    viewportHeightCssPx: Float,
+    currentHeightDp: Float,
+): Float? {
+    if (!contentHeightCssPx.isFinite() || contentHeightCssPx <= 0f ||
+        !viewportHeightCssPx.isFinite() || viewportHeightCssPx <= 0f ||
+        !currentHeightDp.isFinite() || currentHeightDp <= 0f
+    ) {
+        return null
+    }
+
+    if (kotlin.math.abs(contentHeightCssPx - viewportHeightCssPx) <= 1f) {
+        return currentHeightDp
+    }
+    return currentHeightDp * contentHeightCssPx / viewportHeightCssPx
 }
 
 class HighlightCodeVisualTransformation(

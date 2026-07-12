@@ -62,6 +62,7 @@ private fun buildHeightObserverScript(): String = """
         (() => {
           let scheduled = false;
           let lastHeight = 0;
+          let lastViewportHeight = 0;
 
           const reportHeight = () => {
             scheduled = false;
@@ -69,9 +70,13 @@ private fun buildHeightObserverScript(): String = """
             if (!body) return;
 
             const height = Math.ceil(body.scrollHeight);
-            if (!Number.isFinite(height) || height <= 0 || height === lastHeight) return;
+            const viewportHeight = window.innerHeight;
+            if (!Number.isFinite(height) || height <= 0 ||
+                !Number.isFinite(viewportHeight) || viewportHeight <= 0 ||
+                (height === lastHeight && viewportHeight === lastViewportHeight)) return;
             lastHeight = height;
-            window.$FRONTEND_PREVIEW_HEIGHT_BRIDGE?.reportHeight(height);
+            lastViewportHeight = viewportHeight;
+            window.$FRONTEND_PREVIEW_HEIGHT_BRIDGE?.reportHeight(height, viewportHeight);
           };
 
           const scheduleHeightReport = () => {
