@@ -32,6 +32,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -508,6 +509,9 @@ private fun CodeBlockPreview(
             }
         }
     }
+    DisposableEffect(heightBridge) {
+        onDispose(heightBridge::dispose)
+    }
     val initialHtml = remember { html }
     val state = rememberWebViewState(
         data = initialHtml,
@@ -556,17 +560,26 @@ private class PreviewHeightBridge(
     private val onHeightChanged: (contentHeight: Float, viewportHeight: Float) -> Unit,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var disposed = false
 
     @JavascriptInterface
     fun reportHeight(contentHeight: Float, viewportHeight: Float) {
-        if (!contentHeight.isFinite() || contentHeight <= 0f ||
+        if (disposed || !contentHeight.isFinite() || contentHeight <= 0f ||
             !viewportHeight.isFinite() || viewportHeight <= 0f
         ) {
             return
         }
         mainHandler.post {
-            onHeightChanged(contentHeight, viewportHeight)
+            if (!disposed) {
+                onHeightChanged(contentHeight, viewportHeight)
+            }
         }
+    }
+
+    fun dispose() {
+        disposed = true
+        mainHandler.removeCallbacksAndMessages(null)
     }
 }
 

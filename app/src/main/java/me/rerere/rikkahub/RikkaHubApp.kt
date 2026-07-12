@@ -8,6 +8,8 @@ import android.util.Log
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.tooling.ComposeStackTraceMode
+import androidx.compose.ui.ComposeUiFlags
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -50,8 +52,11 @@ const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 
 class RikkaHubApp : Application() {
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate() {
         super.onCreate()
+        // Clear focus before a focused AndroidView is detached from the Compose hierarchy.
+        ComposeUiFlags.isViewFocusFixEnabled = true
         startKoin {
             androidLogger()
             androidContext(this@RikkaHubApp)
