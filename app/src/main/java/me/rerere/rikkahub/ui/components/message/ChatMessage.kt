@@ -121,6 +121,7 @@ fun ChatMessage(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
 ) {
     val message = node.messages[node.selectIndex]
+    val isCurrentBranchLoading = loading && node.selectIndex == node.messages.lastIndex
     val settings = LocalSettings.current.displaySetting
     val chatFontFamily = LocalChatFontFamily.current ?: rememberChatFontFamily(settings)
     val textStyle = LocalTextStyle.current.copy(
@@ -149,7 +150,7 @@ fun ChatMessage(
                     message = message,
                     model = model,
                     assistant = assistant,
-                    loading = loading,
+                    loading = isCurrentBranchLoading,
                     modifier = Modifier.weight(1f)
                 )
                 ChatMessageUserAvatar(
@@ -166,7 +167,7 @@ fun ChatMessage(
                 role = message.role,
                 parts = message.parts,
                 annotations = message.annotations,
-                loading = loading,
+                loading = isCurrentBranchLoading,
                 model = model,
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
@@ -188,25 +189,32 @@ fun ChatMessage(
         }
 
         AnimatedVisibility(
-            visible = showActions,
+            visible = showActions || node.messages.size > 1,
             enter = slideInVertically { it / 2 } + fadeIn(),
             exit = slideOutVertically { it / 2 } + fadeOut()
         ) {
             Column(
                 modifier = Modifier.animateContentSize()
             ) {
-                ChatMessageActionButtons(
-                    message = message,
-                    onRegenerate = onRegenerate,
-                    onContinue = onContinue,
-                    node = node,
-                    onUpdate = onUpdate,
-                    onOpenActionSheet = {
-                        showActionsSheet = true
-                    },
-                    onTranslate = onTranslate,
-                    onClearTranslation = onClearTranslation
-                )
+                if (showActions) {
+                    ChatMessageActionButtons(
+                        message = message,
+                        onRegenerate = onRegenerate,
+                        onContinue = onContinue,
+                        node = node,
+                        onUpdate = onUpdate,
+                        onOpenActionSheet = {
+                            showActionsSheet = true
+                        },
+                        onTranslate = onTranslate,
+                        onClearTranslation = onClearTranslation
+                    )
+                } else {
+                    ChatMessageBranchSelector(
+                        node = node,
+                        onUpdate = onUpdate,
+                    )
+                }
             }
         }
 
