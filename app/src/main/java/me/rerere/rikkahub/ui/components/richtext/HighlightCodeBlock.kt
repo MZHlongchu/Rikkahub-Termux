@@ -116,7 +116,9 @@ fun HighlightCodeBlock(
     val context = LocalContext.current
     val settings = LocalSettings.current
     val normalizedLanguage = remember(language) { language.lowercase() }
-    val canInlinePreview = completeCodeBlock && remember(code) { isFrontendCodeBlock(code) }
+    val canInlinePreview = completeCodeBlock && remember(code, normalizedLanguage) {
+        isPreviewableFrontendCodeBlock(code = code, language = normalizedLanguage)
+    }
     var previewMode by remember(canInlinePreview) {
         mutableStateOf(canInlinePreview)
     }

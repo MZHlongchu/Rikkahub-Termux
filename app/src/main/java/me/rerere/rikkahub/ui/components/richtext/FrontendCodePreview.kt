@@ -4,6 +4,7 @@ internal const val FRONTEND_PREVIEW_HEIGHT_BRIDGE = "RikkaHubPreviewHeight"
 internal const val FRONTEND_PREVIEW_VIEWPORT_VARIABLE = "--rikkahub-viewport-height"
 
 private val FRONTEND_MARKERS = listOf("html>", "<head>", "<body")
+private val SVG_ELEMENT_REGEX = Regex("""(?i)<svg(?:\s|>)""")
 private val VH_VALUE_REGEX = Regex("""(?i)(\d+(?:\.\d+)?)vh\b""")
 private val CSS_MIN_HEIGHT_VH_REGEX = Regex(
     """(?i)(min-height\s*:\s*)([^;{}\"'<>]*\d+(?:\.\d+)?vh)"""
@@ -16,6 +17,15 @@ private val JS_SET_PROPERTY_MIN_HEIGHT_VH_REGEX = Regex(
 )
 
 internal fun isFrontendCodeBlock(code: String): Boolean = FRONTEND_MARKERS.any(code::contains)
+
+internal fun isPreviewableFrontendCodeBlock(code: String, language: String): Boolean {
+    if (isFrontendCodeBlock(code)) return true
+    return when (language.lowercase()) {
+        "svg" -> true
+        "xml" -> SVG_ELEMENT_REGEX.containsMatchIn(code)
+        else -> false
+    }
+}
 
 internal fun buildFrontendPreviewHtml(
     code: String,

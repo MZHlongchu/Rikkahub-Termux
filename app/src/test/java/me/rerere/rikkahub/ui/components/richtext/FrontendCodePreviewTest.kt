@@ -20,6 +20,14 @@ class FrontendCodePreviewTest {
     }
 
     @Test
+    fun `recognizes svg content labeled as svg or xml`() {
+        assertTrue(isPreviewableFrontendCodeBlock("<svg></svg>", "svg"))
+        assertTrue(isPreviewableFrontendCodeBlock("<svg viewBox=\"0 0 10 10\"></svg>", "XML"))
+        assertFalse(isPreviewableFrontendCodeBlock("<root />", "xml"))
+        assertFalse(isPreviewableFrontendCodeBlock("<div>content</div>", "html"))
+    }
+
+    @Test
     fun `wraps frontend code in an isolated document`() {
         val html = buildFrontendPreviewHtml(
             code = "<body><main>content</main></body>",
