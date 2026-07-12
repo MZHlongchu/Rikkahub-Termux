@@ -93,6 +93,7 @@ import me.rerere.rikkahub.utils.toDp
 import kotlin.time.Clock
 
 private const val COLLAPSE_LINES = 10
+private const val INITIAL_PREVIEW_HEIGHT_CSS_PX = 500f
 private const val MAX_PREVIEW_HEIGHT_CSS_PX = 100_000f
 
 @Composable
@@ -493,7 +494,7 @@ private fun CodeBlockPreview(
     val html = remember(code) {
         buildFrontendPreviewHtml(code = code, viewportHeightCssPx = viewportHeightCssPx)
     }
-    var previewHeight by remember { mutableFloatStateOf(1f) }
+    var previewHeight by remember { mutableFloatStateOf(INITIAL_PREVIEW_HEIGHT_CSS_PX) }
     val heightBridge = remember {
         PreviewHeightBridge { height ->
             previewHeight = height.coerceIn(1f, MAX_PREVIEW_HEIGHT_CSS_PX)
