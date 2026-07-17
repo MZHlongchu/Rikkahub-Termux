@@ -341,7 +341,7 @@ class ChatService(
         assistant: Assistant,
         conversation: Conversation,
     ): List<Tool> = buildList {
-        if (settings.enableWebSearch) {
+        if (assistant.enableWebSearch) {
             addAll(createSearchTools(settings))
         }
         addAll(localTools.getTools(assistant.localTools))
