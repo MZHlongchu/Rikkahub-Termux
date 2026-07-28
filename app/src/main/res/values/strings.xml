@@ -1290,4 +1290,9 @@
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
   <string name="assistant_page_regex_prompt_only">Prompt Only (affects prompts sent to the LLM, not display)</string>
+  <string name="assistant_page_context_message_limit">Context Message Limit</string>
+  <string name="assistant_page_context_message_limit_desc">Caps how many recent messages are sent to the model. When the limit is exceeded, the context is trimmed down to about half in one step instead of dropping one message per turn, so the request prefix stays stable and prompt caching keeps working for many turns.</string>
+  <string name="assistant_page_context_message_limit_count">Context message limit: %d</string>
+  <string name="assistant_page_context_message_limit_unlimited">Unlimited context messages</string>
+  <string name="assistant_page_context_message_limit_warning">Any non-zero limit invalidates the prompt cache each time the context is trimmed. A larger limit trims less often; 0 never trims and keeps the cache fully intact.</string>
 </resources>

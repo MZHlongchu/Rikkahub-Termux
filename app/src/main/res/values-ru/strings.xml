@@ -1287,4 +1287,9 @@
   <string name="tool_ui_python">Python: %s</string>
   <string name="tool_ui_python_default">Python</string>
   <string name="assistant_page_regex_prompt_only">Только для промпта (влияет только на промпт, отправляемый LLM, и не влияет на отображение)</string>
+  <string name="assistant_page_context_message_limit">Лимит контекстных сообщений</string>
+  <string name="assistant_page_context_message_limit_desc">Ограничивает количество последних сообщений, отправляемых модели. Когда лимит превышен, контекст сокращается примерно вдвое за один шаг, вместо удаления одного сообщения за каждый оборот, благодаря чему префикс запроса остаётся стабильным, и кэширование промптов продолжает работать на протяжении многих оборотов.</string>
+  <string name="assistant_page_context_message_limit_count">Лимит сообщений контекста: %d</string>
+  <string name="assistant_page_context_message_limit_unlimited">Неограниченные сообщения контекста</string>
+  <string name="assistant_page_context_message_limit_warning">Любой ненулевой лимит аннулирует кеш промпта каждый раз, когда контекст урезается. Больший лимит урезает реже; 0 никогда не урезает и сохраняет кеш полностью нетронутым.</string>
 </resources>
