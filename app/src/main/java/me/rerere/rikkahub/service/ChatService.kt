@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -434,6 +435,10 @@ class ChatService(
                         if (part.output.isNotEmpty()) {
                             add("[Tool Output]\n${part.output.toPromptPreviewText()}")
                         }
+                    }
+                    is UIMessagePart.ServerTool -> {
+                        add("[Server Tool:${part.toolName}]\n${part.input ?: ""}")
+                        part.output?.let { add("[Server Tool Output]\n$it") }
                     }
                     is UIMessagePart.ToolCall -> add("[Tool Call:${part.toolName}]\n${part.arguments}")
                     is UIMessagePart.ToolResult -> add("[Tool Result:${part.toolName}]\n${part.content}")
@@ -940,18 +945,19 @@ class ChatService(
         conversationId: Uuid,
         conversation: Conversation,
         force: Boolean = false
-    ) {
+    ) = withContext(Dispatchers.IO) {
         val shouldGenerate = when {
             force -> true
             conversation.title.isBlank() -> true
             else -> false
         }
-        if (!shouldGenerate) return
+        if (!shouldGenerate) return@withContext
 
         runCatching {
             val settings = settingsStore.settingsFlow.first()
-            val model = settings.findModelById(settings.titleModelId, fallback = settings.fastModelId) ?: return
-            val provider = model.findProvider(settings.providers) ?: return
+            val model = settings.findModelById(settings.titleModelId, fallback = settings.fastModelId)
+                ?: return@runCatching
+            val provider = model.findProvider(settings.providers) ?: return@runCatching
 
             val providerHandler = providerManager.getProviderByType(provider)
             val result = providerHandler.generateText(
@@ -971,7 +977,7 @@ class ChatService(
             conversationRepo.getConversationById(conversation.id)?.let {
                 saveConversation(
                     conversationId,
-                    it.copy(title = result.choices[0].message?.toText()?.trim() ?: "")
+                    it.copy(title = result.message.toText().trim())
                 )
             }
         }.onFailure {
@@ -987,12 +993,16 @@ class ChatService(
 
     // ---- 生成建议 ----
 
-    suspend fun generateSuggestion(conversationId: Uuid, conversation: Conversation) {
+    suspend fun generateSuggestion(
+        conversationId: Uuid,
+        conversation: Conversation,
+    ) = withContext(Dispatchers.IO) {
         runCatching {
             val settings = settingsStore.settingsFlow.first()
-            if (!settings.enableSuggestion) return
-            val model = settings.findModelById(settings.suggestionModelId, fallback = settings.fastModelId) ?: return
-            val provider = model.findProvider(settings.providers) ?: return
+            if (!settings.enableSuggestion) return@runCatching
+            val model = settings.findModelById(settings.suggestionModelId, fallback = settings.fastModelId)
+                ?: return@runCatching
+            val provider = model.findProvider(settings.providers) ?: return@runCatching
 
             sessions[conversationId]?.let { session ->
                 updateConversation(
@@ -1015,8 +1025,8 @@ class ChatService(
                 params = backgroundTextGenerationParams(model),
             )
             val suggestions =
-                result.choices[0].message?.toText()?.split("\n")?.map { it.trim() }
-                    ?.filter { it.isNotBlank() } ?: emptyList()
+                result.message.toText().split("\n").map { it.trim() }
+                    .filter { it.isNotBlank() }
 
             val latestConversation = conversationRepo.getConversationById(conversationId)
                 ?: sessions[conversationId]?.state?.value
@@ -1095,7 +1105,7 @@ class ChatService(
                 params = backgroundTextGenerationParams(model),
             )
 
-            return result.choices[0].message?.toText()?.trim()
+            return result.message.toText().trim().takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("Failed to generate compressed summary")
         }
 
